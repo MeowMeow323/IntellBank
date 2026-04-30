@@ -1,0 +1,19 @@
+{
+  "properties": [
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "Secret key used to sign and verify JWT tokens. Must be at least 256 bits for HMAC-SHA256."
+    },
+    {
+      "name": "jwt.expiration",
+      "type": "java.lang.Long",
+      "description": "JWT token expiration time in milliseconds. Default: 86400000 (24 hours)."
+    },
+    {
+      "name": "ai.service.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL of the Python FastAPI AI microservice. Default: http://localhost:8000."
+    }
+  ]
+}

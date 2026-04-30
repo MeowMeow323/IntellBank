@@ -1,0 +1,36 @@
+# ============================================================
+# IntellBank – Spring Boot Configuration Template
+# ============================================================
+# Copy this file to application.properties and fill in your values.
+# DO NOT commit application.properties — it is in .gitignore.
+# ============================================================
+
+server.port=8080
+
+# ── Database (Supabase PostgreSQL) ───────────────────────────────────────────
+spring.datasource.url=jdbc:postgresql://<your-supabase-host>:5432/postgres?sslmode=require
+spring.datasource.username=<your-supabase-username>
+spring.datasource.password=<your-supabase-password>
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# JPA / Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.properties.hibernate.format_sql=true
+
+# ── JWT ──────────────────────────────────────────────────────────────────────
+# Use a strong random string of at least 32 characters
+jwt.secret=${JWT_SECRET:replace-this-with-a-strong-secret-key}
+jwt.expiration=${JWT_EXPIRATION:86400000}
+
+# ── AI Service ───────────────────────────────────────────────────────────────
+ai.service.base-url=${AI_SERVICE_BASE_URL:http://localhost:8000}
+
+# ── File Upload (for document proxying) ──────────────────────────────────────
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=50MB
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.level.com.intellbank=INFO
+logging.level.org.springframework.security=WARN

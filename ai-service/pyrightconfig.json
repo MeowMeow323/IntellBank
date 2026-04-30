@@ -1,0 +1,16 @@
+{
+  "include": ["app"],
+  "exclude": ["**/__pycache__", "**/.venv"],
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Windows",
+  "extraPaths": [
+    "C:\\Users\\samch\\AppData\\Roaming\\Python\\Python314\\site-packages",
+    "C:\\Python314\\Lib\\site-packages",
+    "C:\\Python314"
+  ],
+  "typeCheckingMode": "off",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportMissingTypeStubs": "none",
+  "reportUndefinedVariable": "none"
+}
