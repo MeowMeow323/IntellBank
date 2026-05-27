@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import ExamService from '../services/examService'
+import { ExamService } from '../services/api'
 
 /**
  * Zustand store for exam simulator state.

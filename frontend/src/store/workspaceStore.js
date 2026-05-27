@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import WorkspaceService from '../services/workspaceService'
+import { WorkspaceService } from '../services/api'
 
 /**
  * Zustand store for persistent multi-tab workspace state.

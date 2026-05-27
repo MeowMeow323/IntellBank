@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import QuestionService from '../services/questionService'
+import { QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
 const DIFFICULTY_BADGE = { EASY: 'badge-green', MEDIUM: 'badge-amber', HARD: 'badge-red' }

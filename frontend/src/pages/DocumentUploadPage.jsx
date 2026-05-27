@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-import DocumentService from '../services/documentService'
+import { DocumentService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
 const STATUS_COLORS = {

@@ -1,4 +1,4 @@
-package com.intellbank.security;
+package com.intellbank.config;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -11,16 +11,6 @@ import java.util.Date;
 
 /**
  * JWT utility for JJWT 0.12.x
- *
- * API changes from 0.11 → 0.12:
- *   setSubject()      → subject()
- *   setIssuedAt()     → issuedAt()
- *   setExpiration()   → expiration()
- *   signWith(k, alg)  → signWith(k)          (algorithm inferred from key type)
- *   parserBuilder()   → parser()
- *   setSigningKey()   → verifyWith()
- *   parseClaimsJws()  → parseSignedClaims()
- *   .getBody()        → .getPayload()
  */
 @Component
 public class JwtUtil {

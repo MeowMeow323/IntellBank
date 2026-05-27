@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
-from app.services.generation_service import generate_questions, generate_solution
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from app.services.generation_service import generate_questions, generate_solution, generate_full_paper
 
 router = APIRouter()
 
@@ -20,6 +20,13 @@ class SolutionGenerateRequest(BaseModel):
     topic: Optional[str] = None
 
 
+class PaperGenerateRequest(BaseModel):
+    subject: str
+    total_marks: int = Field(default=100, ge=10, le=200)
+    topics: List[str] = Field(default=["General"], description="List of topics to cover in the exam")
+    difficulty_distribution: str = Field(default="Standard", description="Standard, Easy, or Hard bias")
+
+
 class QuestionGenerateResponse(BaseModel):
     questions: List[str]
     model_used: str
@@ -30,11 +37,17 @@ class SolutionGenerateResponse(BaseModel):
     model_used: str
 
 
+class PaperGenerateResponse(BaseModel):
+    subject: str
+    total_marks: int
+    paper_structure: List[Dict[str, Any]]
+    model_used: str
+
+
 @router.post("/question", response_model=QuestionGenerateResponse)
 async def generate_question_endpoint(request: QuestionGenerateRequest):
     """
     Generate questions using the fine-tuned FLAN-T5-small model.
-    Returns dummy questions until the model is trained and loaded.
     """
     try:
         questions = generate_questions(request)
@@ -53,3 +66,21 @@ async def generate_solution_endpoint(request: SolutionGenerateRequest):
         return SolutionGenerateResponse(solution=solution, model_used="flan-t5-small-finetuned")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Solution generation failed: {str(e)}")
+
+
+@router.post("/paper", response_model=PaperGenerateResponse)
+async def generate_paper_endpoint(request: PaperGenerateRequest):
+    """
+    Orchestrate the generation of a full, structured exam paper.
+    Divides total marks into sub-questions and queries the AI model for each block.
+    """
+    try:
+        paper_structure = generate_full_paper(request)
+        return PaperGenerateResponse(
+            subject=request.subject,
+            total_marks=request.total_marks,
+            paper_structure=paper_structure,
+            model_used="flan-t5-small-finetuned-orchestrator"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Paper generation failed: {str(e)}")

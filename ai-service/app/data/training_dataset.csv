@@ -1,4 +1,754 @@
-context,question,answer
-"Newton's first law of motion states that an object at rest stays at rest and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force.","What does Newton's first law of motion state?","An object at rest stays at rest and an object in motion stays in motion unless acted upon by an unbalanced force."
-"The quadratic formula is used to find the roots of a quadratic equation ax^2 + bx + c = 0. The formula is x = (-b ± sqrt(b^2 - 4ac)) / 2a.","What is the quadratic formula used for?","The quadratic formula is used to find the roots of a quadratic equation."
-"Photosynthesis is the process by which plants use sunlight, water, and carbon dioxide to produce oxygen and energy in the form of glucose.","What is photosynthesis?","Photosynthesis is the process by which plants use sunlight, water, and CO2 to produce oxygen and glucose."
+subject,topic,difficulty,marks,year,input_text,target_text,source_file,pyp_id
+Software Project Management,Stakeholders,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Stakeholders.,Identify and describe TWO (2) stakeholders of the CPS project.,Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Software Process Model,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Software Process Model.,"Identify and explain TWO (2) types of prototyping process models commonly used to address
+uncertain user requirements and adapt to user changes.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Software Process Model,Medium,,2026,Generate a Medium  Software Project Management question about Software Process Model.,"A network diagram can be used to illustrate the interdependencies between tasks in a project.
+Table 1 shows an example of project tasks, its duration and predecessor.
+Table 1: Project tasks, duration and its predecessor
+Task ID
+A
+B
+C
+D
+E
+F
+G
+Task Name
+Project planning
+Feasibility study
+Refine requirements
+Design GUI and database
+Design a prototype model
+Code for core modules
+Integration test
+Duration (in weeks)
+1
+1
+1
+2
+2
+1
+Predecessor
+None
+A
+B
+C
+C
+D, E
+F",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Network Diagram,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Network Diagram.,"Create a network diagram based on the task ID, duration and predecessors provided in
+Table 1.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Network Diagram,Medium,5,2026,Generate a Medium 5-mark Software Project Management question about Network Diagram.,"Based on the answer given in Question 1 c) (i), identify the critical path based on the task
+ID and specify the total duration needed to complete the project.
+
+
+
+3
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Cost Estimation,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Cost Estimation.,"Analyse TWO (2) product standards that should be enforced in CPS's project development.
+Explain your answer.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Fault Management,Medium,,2026,Generate a Medium  Software Project Management question about Fault Management.,"Given the following information of project team A and Bin Table 2.
+Table 2: Size-oriented measurement of project team A and team B.
+Non-normalised
+Team A
+Team B
+Programming language used
+Total Lines of Code (LOC)
+Defects found
+Errors found
+Java
+Php
+Normalised with KLOC
+Team A
+Team B
+Java
+Php
+206,000
+266,000
+22
+40
+25
+35
+Note: KLOC is thousand lines of code. Formula used: defects/KLOC and errors/KLOC.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,KLOC,Hard,9,2026,Generate a Hard 9-mark Software Project Management question about KLOC.,"Calculate the values in Table 2 under normalised with KLOC for both teams. Which project
+team produces higher quality of work? Explain your answer.
+Show your workings in your calculation, round up to five decimal points.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,KLOC,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about KLOC.,"Evaluate TWO (2) drawbacks of size-oriented metric used in CPS's project development.
+Explain your answer.
+
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Network Diagram,Medium,,2026,Generate a Medium  Software Project Management question about Network Diagram.,"The risk projection shows the following information:
+Adam has identified 50% of the existing software components can be reused and integrated into
+the current fares payment system. The remaining core modules have to be developed based on
+new requirements. The project team has to check the existing platform and operating system's
+version used to integrate with the new modules.
+Risk identified is four junior developers have been assigned to develop the 35 new software
+components with duration of 4 weeks. The average software component is 120 Lines of Code",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Risk,Medium,,2026,Generate a Medium  Software Project Management question about Risk.,"and the development cost for each LOC is RM12.00. Risk probability for the identified
+risk is 50%.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Risk,Easy,3,2026,Generate a Easy 3-mark Software Project Management question about Risk.,"Calculate the following values using a Halstead's Risk Exposure (RE) metric:
+• Cost to develop the 35 software components.
+• Risk exposure.
+Note: show the workings in your calculation. The RE formula is probability X cost.
+(3 + )",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Risk,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Risk.,"Identify ONE (1) other potential risk that might occur in the CPS's project. You are
+required to include the following information:
+• Specify the category that the risk belongs to.
+• Propose a risk mitigation action for the identified risk. Explain your answer.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Cost Estimation,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Cost Estimation.,"Adam has decided to use the Distributed Version Control (DVC) system for the CPS's project
+development. Describe TWO (2) benefits of DVC system to the project team's collaboration.
+Provide an explanation in your answers.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,SQA,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about SQA.,"Given below are two software quality attributes:
+Reliability
+• Maintainability
+In your opinion, which software quality attribute is most important to the CPS's project
+development? Justify your answer.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,GQM,Hard,9,2026,Generate a Hard 9-mark Software Project Management question about GQM.,"Adam has identified the project goal as reduce time during system integration to support theCPS's project process improvement.
+Create a Goal Question Metric (GQM) proposal for the given goal and include the following
+information:
+• Analyse ONE (1) question to assess the given goal.
+• Propose TWO (2) relevant software metrics and explain how each of the software metrics
+can be applied to the suggested question.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Fault Management,Medium,,2026,Generate a Medium  Software Project Management question about Fault Management.,"Given below are two fault management approaches:
+• Fault avoidance
+• Fault detection",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Fault Management,Hard,9,2026,Generate a Hard 9-mark Software Project Management question about Fault Management.,"Select a suitable fault management approach that can be applied in the CPS's project
+development. Explain each of the approaches mentioned above with an example.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Fault Management,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Fault Management.,"Any faults in the delivered software do not cause system errors. Do you agree with this
+statement? Provide TWO (2) justifications in your answer.",Software Engineering Test 1,77fe2d39-f87a-4e13-a6ec-efdfe21c40b2
+Software Project Management,Network Diagram,Medium,,2026,Generate a Medium  Software Project Management question about Network Diagram.,"The risk projection shows the following information:
+Adam has identified 50% of the existing software components can be reused and integrated into
+the current fares payment system. The remaining core modules have to be developed based on
+new requirements. The project team has to check the existing platform and operating system's
+version used to integrate with the new modules.
+Risk identified is four junior developers have been assigned to develop the 35 new software
+components with duration of 4 weeks. The average software component is 120 Lines of Code",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Risk,Medium,,2026,Generate a Medium  Software Project Management question about Risk.,"and the development cost for each LOC is RM12.00. Risk probability for the identified
+risk is 50%.",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Risk,Easy,3,2026,Generate a Easy 3-mark Software Project Management question about Risk.,"Calculate the following values using a Halstead's Risk Exposure (RE) metric:
+• Cost to develop the 35 software components.
+• Risk exposure.
+Note: show the workings in your calculation. The RE formula is probability X cost.
+(3 + )",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Risk,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Risk.,"Identify ONE (1) other potential risk that might occur in the CPS's project. You are
+required to include the following information:
+• Specify the category that the risk belongs to.
+• Propose a risk mitigation action for the identified risk. Explain your answer.",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Cost Estimation,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Cost Estimation.,"Adam has decided to use the Distributed Version Control (DVC) system for the CPS's project
+development. Describe TWO (2) benefits of DVC system to the project team's collaboration.
+Provide an explanation in your answers.",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,SQA,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about SQA.,"Given below are two software quality attributes:
+Reliability
+• Maintainability
+In your opinion, which software quality attribute is most important to the CPS's project
+development? Justify your answer.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,GQM,Hard,9,2026,Generate a Hard 9-mark Software Project Management question about GQM.,"Adam has identified the project goal as reduce time during system integration to support the
+CPS's project process improvement.
+Create a Goal Question Metric (GQM) proposal for the given goal and include the following
+information:
+• Analyse ONE (1) question to assess the given goal.
+• Propose TWO (2) relevant software metrics and explain how each of the software metrics
+can be applied to the suggested question.",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Fault Management,Medium,,2026,Generate a Medium  Software Project Management question about Fault Management.,"Given below are two fault management approaches:
+• Fault avoidance
+• Fault detection",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Fault Management,Hard,9,2026,Generate a Hard 9-mark Software Project Management question about Fault Management.,"Select a suitable fault management approach that can be applied in the CPS's project
+development. Explain each of the approaches mentioned above with an example.",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Fault Management,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Fault Management.,"Any faults in the delivered software do not cause system errors. Do you agree with this
+statement? Provide TWO (2) justitications in your answer.",Software Engineering Test 1,f5189fb7-ac44-4273-be47-21fe84244164
+Software Project Management,Unknown,Medium,,2026,Generate a Medium  Software Project Management question about Unknown.,Answer the following questions based on the given scenario.,Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Software Process Model,Medium,,2026,Generate a Medium  Software Project Management question about Software Process Model.,"A network diagram can be used to illustrate the interdependencies between tasks in a project.
+Table 1 shows the tasks, durations and predecessors for the eQS project.
+Table 1: Project tasks, duration and its predecessor
+Task ID
+Task Name
+A
+Proposal
+B
+Requirements analysis
+C
+Design Ul and data models
+D
+Design an initial prototype
+E
+Code on modules
+F
+System testing
+G
+Documentation
+Duration (in weeks)
+1
+2
+2
+1
+2
+1
+Predecessor
+None
+A
+B
+B, C
+D
+E
+B",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Network Diagram,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Network Diagram.,"Create a network diagram based on the task ID, duration and predecessors provided in
+Table 1.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Network Diagram,Medium,4,2026,Generate a Medium 4-mark Software Project Management question about Network Diagram.,"Based on the answer given in Question 1 a) (i), identify the critical path by analysing task
+IDs and their dependencies, specify the total duration needed to complete the entire project.
+
+Maintainability and correctness are two quality attributes in McCall's software quality model.
+Select a suitable quality attribute for eQS's project development. Explain the selected attribute
+and analyse ONE (1) metric that can be used to measure it.
+
+'he eOS project's development process incorporates both Quality Assurance (QA) and Qualit
+ontrol (OC) practices. Explain how each contributes in improving the sottware qualit
+
+
+
+3
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Network Diagram,Medium,,2026,Generate a Medium  Software Project Management question about Network Diagram.,"Answer the following questions based on the given scenario.
+Table 2 shows the current progress of project eQS with a total allocated budget of RM 155,000.
+As the project is now in its seventh week, the planned value reflects the estimated cost of tasks
+scheduled for completion by week 7 and the actual cost (AC) incurred is RM 114,000.
+Table 2: Project task progress, duration, estimated cost and completion status.
+Task ID Estimated Duration (weeks) Estimated Cost (RM) Completion Status (%)
+A
+1
+10,000
+100%
+B
+20,000
+100%
+C
+2
+D
+2
+30,000
+100%
+20,000
+100%
+E
+1
+40,000
+90%
+F
+2
+G
+1
+20,000
+0%
+15,000
+0%
+Total
+10
+155,000
+-
+Note:
+- Show the working in your calculation. Formula used: SV=EV-PV, CV=EV-AC.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Cost Estimation,Easy,2,2026,Generate a Easy 2-mark Software Project Management question about Cost Estimation.,"Calculate the following values based on the information provided in Table 2:
+•
+•
+Planned Value (PV)
+Earned Value (EV)
+•
+Schedule Variance (SV)
+•
+Cost Variance (CV)",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Corrective Action,Medium,4,2026,Generate a Medium 4-mark Software Project Management question about Corrective Action.,"Based on the results of your calculations in Question 2 a) (i):
+Provide comments on the performance of this project.
+Analyse ONE (1) corrective action to ensure this project's success.
+(4 + )
+Challenges in implementing process change within software process improvement initiatives
+include resistance to change and maintaining change persistence. Choose ONE (1) potential
+challenge that may arise during eQS's project implementation. Explain TWO (2) reasons to
+support your choice.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Unknown,Medium,,2026,Generate a Medium  Software Project Management question about Unknown.,Answer the following questions based on the given scenario.,Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Risk,Medium,,2026,Generate a Medium  Software Project Management question about Risk.,"Project manager has identified some potential risks of the eQS project in Table 3.
+Table 3: Project risk, probability, impact and risk score
+Probability of
+occurrence (0 to 1)
+Impact on the
+project (1 to 4)
+Risk score
+Team members are resigned
+Constant changes in
+requirements
+3
+Junior developers unable t
+0.6
+3
+complete modules on time
+4 Lack of teamwork
+0.5
+2
+Note:
+- Risk score metric is probability X impact
+- Impact values: 1 is negligible, 2 is marginal, 3 is critical and 4 is catastrophic.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Risk,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Risk.,"Calculate the risk score for each risk listed in the last column of Table 3. Rank the risks
+according to their priority using risk No. in the first column. (i.e. from highest to lowest risk
+score).",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Risk,Hard,10,2026,Generate a Hard 10-mark Software Project Management question about Risk.,"Based on the results of your calculation in Question 3 a) (i), identify ONE (1) risk with the
+highest risk score. Analyse a suitable risk mitigation, monitoring and management actions
+for the identified highest risk. Explain your answer.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Cost Estimation,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Cost Estimation.,"The project manager has decided to use the Centralised Version Control (CVC) system in eQS's
+project development. Explain TWO WO features of C VC system that the project team can utilise
+effectively and give ONE (1) example of CVC system.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,KLOC,Medium,,2026,Generate a Medium  Software Project Management question about KLOC.,"Table 4 provides size-oriented measurements for Project A and Project B.
+Table 4: Number of lines of code, documentation pages and cost for both projects.
+Project A
+Project B
+Lines of code (LOC)
+125,000
+160,000
+Documentation pages
+165
+152
+Cost (RM)
+150,000
+192,000
+Note:
+- Assume that both projects use the same programming language and same project scopes.
+- Round up your answer to three decimal points.
+- KLOC is 1,000 lines of code",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,KLOC,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about KLOC.,"Using the normalised size-oriented metric, calculates the following values for each project
+based on the information provided in Table 4:
+- Documentation pages per 1,000 lines of code
+- Cost per lines of code
+- Cost per documentation pages",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,SQA,Medium,5,2026,Generate a Medium 5-mark Software Project Management question about SQA.,"Based on the results of your calculations in Question 4 a) (i), give an analysis of which
+project has higher maintainability and incurs lower cost in producing documentation.
+Explain your answer.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,SQA,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about SQA.,"Availability and reliability are essential dimensions of a Cash Deposit Machine's system
+dependability. Explain how availability influences the machine's reliability from the customer's
+perspective.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Software Process Model,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Software Process Model.,"Waterfall and Rapid Application Development software process models are commonly used in
+project development. Analyse TWO (2) factors to be considered when selecting between these
+models in software projects development. Explain your answer.",Software Engineering Test 2,ba6830f7-130d-45d8-a1ec-e4942655ae73
+Software Project Management,Network Diagram,Medium,,2026,Generate a Medium  Software Project Management question about Network Diagram.,"Answer the following questions based on the given scenario.
+Table 2 shows the current progress of project eQS with a total allocated budget of RM 155,000.
+As the project is now in its seventh week, the planned value reflects the estimated cost of tasks
+scheduled for completion by week 7 and the actual cost (AC) incurred is RM 114,000.
+Table 2: Project task progress, duration, estimated cost and completion status.
+Task ID Estimated Duration (weeks) Estimated Cost (RM) Completion Status (%)
+A
+1
+10,000
+100%
+20,000
+100%
+C
+2
+D
+2
+30,000
+100%
+20,000
+100%
+E
+F
+G
+- N-
+40,000
+90%
+20,000
+0%
+15,000
+0%
+Total
+10
+155,000
+-
+Note:
+- Show the working in your calculation. Formula used: SV=EV-PV, CV-EV-AC.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Cost Estimation,Medium,,2026,Generate a Medium  Software Project Management question about Cost Estimation.,"Calculate the following values based on the information provided in Table 2:
+•
+•
+Planned Value (PV)
+Earned Value (EV)
+Schedule Variance (SV)
+Cost Variance (CV)",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Corrective Action,Easy,2,2026,Generate a Easy 2-mark Software Project Management question about Corrective Action.,"Based on the results of your calculations in Question 2 a) (i):
+Provide comments on the performance of this project.
+Analyse ONE (1) corrective action to ensure this project's success.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Software Process Improvement,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Software Process Improvement.,"(4 + )
+Challenges in implementing process change within software process improvement initiatives
+include resistance to change and maintaining change persistence. Choose ONE (1) potential
+challenge that may arise during eQS's project implementation. Explain TWO (2) reasons to
+support your choice.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Unknown,Medium,,2026,Generate a Medium  Software Project Management question about Unknown.,Answer the following questions based on the given senario.,Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Risk,Medium,,2026,Generate a Medium  Software Project Management question about Risk.,"Project manager has identified some potential risks of the eQS project in Table 3.
+Table 3: Project risk, probability, impact and risk score
+Probability of
+occurrence (0 to 1)
+Impact on the
+project (1 to 4)
+Risk score
+Team members are resigned
+Constant changes in
+requirements
+Junior developers unable tc
+complete modules on time
+4 Lack of teamwork
+0.6
+3
+- Risk score metric is probability X impact
+- Impact values: 1 is negligible, 2 is marginal, 3 is critical and 4 is catastrophic.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Risk,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Risk.,"Calculate the risk score for each risk listed in the last column of Table 3. Rank the risks
+according to their priority using risk No. in the first column. (i.e. from highest to lowest risk
+score).",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Risk,Hard,10,2026,Generate a Hard 10-mark Software Project Management question about Risk.,"Based on the results of your calculation in Question 3 a) (i), identify ONE (1) risk with the
+highest risk score. Analyse a suitable risk mitigation, monitoring and management actions
+for the identified highest risk. Explain your answer.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Cost Estimation,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Cost Estimation.,"The project manager has decided to use the Centralised Version Control (CVC) system in eQS's
+project development. Explain TWO (2) features of CVC system that the project team can utılise
+effectively and give ONE (1) example of CVC system.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,KLOC,Medium,,2026,Generate a Medium  Software Project Management question about KLOC.,"Table 4 provides size-oriented measurements for Project A and Project B.
+Table 4: Number of lines of code, documentation pages and cost for both projects.
+Project A
+Project B
+Lines of code (LOC)
+125,000
+160,000
+Documentation pages
+165
+Cost (RM)
+150,000
+152
+192,000
+Note:
+- Assume that both projects use the same programming language and same project scopes.
+- Round up your answer to three decimal points.
+- KLOC is 1,000 lines of code",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,KLOC,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about KLOC.,"Using the normalised size-oriented metric, calculates the following values for each project
+based on the information provided in Table 4:
+- Documentation pages per 1,000 lines of code
+- Cost per lines of code
+- Cost per documentation pages",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Unknown,Medium,5,2026,Generate a Medium 5-mark Software Project Management question about Unknown.,"Based on the results of your calculations in Question 4 a) (i), give an analysis of whic
+rolect has higher maintainabılity and incurs lower cost in producing documentatio
+Explain your answer.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,SQA,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about SQA.,"Availability and reliability are essential dimensions of a Cash Deposit Machine's system
+dependability. Explain how availability influences the machine's reliability from the customer's
+perspective.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Software Process Model,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Software Process Model.,"Waterfall and Rapid Application Development software process models are commonly used in
+project development. Analyse TWO (2) factors to be considered when selecting between these
+models in software projects development. Explain your answer.",Software Engineering Test 2,3ac9a49f-3ed6-4490-997b-3864a79d555a
+Software Project Management,Network Diagram,Medium,5,2026,Generate a Medium 5-mark Software Project Management question about Network Diagram.,"Table 1 shows the progress of project e-schedule with a total allocated budget of RM 200,000.
+Assume that the project is now in the 7th week and as of today, you have paid out RM 183,000 to
+the contractors. Contractors are those who performed the tasks shown in Table 1. Using an earned
+value management technique, calculate the Planned Value (PV), Earned Value (EV), Schedule
+Variance (SV) and Cost Variance (CV) for this project. Based on the results of your calculations,
+give a detailed analysis on the overall performance of this project.
+(6 + )
+Table 1: Task progress of project e-schedule
+Task ID
+Estimated Duration (in weeks) Estimated Cost (RM) Status (percent completed)
+A
+1
+15,000
+100%
+B
+15,000
+100%
+D
+E
+F
+G
+1
+2
+2
+2
+30,000
+100%
+50,000
+100%
+60,000
+100%
+20,000
+50%
+10,000
+0%
+Note: show the working in your calculation. SV formula is EV-PV, CV formula is EV-AC.
+Table 2 shows the function point measurement of the e-schedule project:
+Table 2: Function point measurement
+Measurement parameter
+Weighting factor
+Number of inputs
+Simple (1)
+Number of outputs
+Simple (2)
+Count
+2
+2
+Number of inquiries
+Average (3)
+Number of files
+Average (4)
+Number of external interfaces
+Complex (7)
+5
+Note: FP formula is Count Total X [0.65 + 0.01 2Fi], an adjustment value 2Fi is 35.",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Software Metrics,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Software Metrics.,"Calculate the Function Point (FP) for the above project. Show your workings in your
+calculation.",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Software Metrics,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Software Metrics.,"'Function oriented metric is suitable to assess the project scopes'. Do you agree with this
+statement? Provide a justification to support your answer.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Software Process Model,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Software Process Model.,"Eric has identified a project objective as 'increase passenger's satisfaction by reducing waiting
+time during peak hours'. A well-defined objective should have specific, measureable, achievable,
+relevant, and time-constrained (SMART) criteria.
+Consider any TWO (2) SMART criteria that fulfill the above objective. Justify your suggested
+criteria with an explanation.
+
+Which software process model is most suitable for the e-schedule mobile application: Spiral or
+Rapid Application Development model? Provide TWO (2) justifications that can be applied for
+the suggested software process model used in this project.
+(1 + )",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Stakeholders,Easy,2,2026,Generate a Easy 2-mark Software Project Management question about Stakeholders.,"Gantt charts are used to illustrate the sequence of activities in a project. Figure 1 is an example
+of a Gantt chart.
+Assume that Task ID A will starts in week 1 of January 2025.
+Redraw the Gantt chart in Figure 1 using the predecessor information provided in Table 3 to
+illustrate the interdependencies between project activities. Identify the month and week for Task
+ID G will be completed.
+Figure 1: An example of a Gantt chart.
+January 2025
+Task
+Week
+Week
+Week
+Week
+ID
+1
+2
+3
+4
+A
+B
+Week
+5
+February 2025
+Week
+Week
+6
+7
+Week
+March 2025
+Week
+Week
+9
+10
+D
+E
+G
+Table 3: Project activity and its predecessor
+Task ID Task Name
+A
+Meeting with stakeholders
+B
+Requirement gathering
+C
+Business modelling
+Data modelling for schedule and notification
+D
+modules
+E
+F
+G
+Code for schedule and notification modules
+System testing
+Conduct user acceptance test
+Duration (in weeks)
+2
+2
+2
+1
+Predecessor
+None
+A
+A
+B, C
+D
+E
+(8 + )
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Risk,Medium,,2026,Generate a Medium  Software Project Management question about Risk.,"Eric has identified some potential risks of the e-schedule project in the Table 4.
+Table 4: Project risk, probability and cost
+No.
+Risk
+Tight schedule
+Unclear system specification
+3
+Poor quality software caused by
+junior members
+4
+Conflict occurs in team
+0.2
+Note: Risk Exposure (RE) metric is Probability X Cost
+Probability of
+occurrence (0 to 1)
+0.3
+0.4
+0.5
+Cost
+Risk Exposure
+2000
+3000
+4000
+1000",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Risk,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Risk.,"Calculate the Risk Exposure (RE) for each risk in Table 4. Rank the risks according to their
+priority (i.e. from highest to Inwest RF). Show the working in your calculation.",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Risk,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Risk.,"Based on the results of your calculation in Question 3 a) (i), identify ONE (1) risk with the
+highest risk exposure. Propose a suitable risk mitigation, monitoring and management
+actions for the identified risk. Provide an explanation in your answer.
+(1 + )",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Stakeholders,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Stakeholders.,"Change management is to ensure that system evolution is properly managed in the change
+process. Evaluate TWO (2) factors in change analysis that influence the change request from City
+LRT stakeholders. Provide an explanation in your answers.
+
+The e-schedule project implementation is considered to be which type of critical system?
+Provide a justification with an example in your answer.
+
+
+
+5
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Cost Estimation,Medium,4,2026,Generate a Medium 4-mark Software Project Management question about Cost Estimation.,"Performing quality management activities will incur costs in the e-schedule mobile application.
+Given below are two categories of quality costs:
+• Appraisal costs
+• Failure cost
+Using the quality management activities given below, categorised each of them into one of the
+categories listed above. Explain which category is likely to be most costly to the City LRT
+Company. Justify your answer.
+Complaint resolution, conduct technical reviews, poor reputation, perform system testing and
+provide help line support inquiries.
+(5 + )",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Network Diagram,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about Network Diagram.,"Given below are three dimensions of system dependability:
+• Availability
+• Reliability
+• Security
+Select TWO (2) dimensions listed above that are likely to be most important to an e-schedule
+mobile application of City LRT. Briefly describe the selected dimensions and explain their inter-
+dependencies.",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,GQM,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about GQM.,"Eric has identified the project goal as 'Increase Passenger's Satisfaction Rating' to support the
+software process improvement initiative.
+Create a Goal Question Metric (GQM) proposal for the given goal and include the following
+information:
+• Formulate ONE (1) question to assess the given goal.
+• Propose TWO (2) relevant software metrics and explain how each of the software metrics
+can be applied to the suggested question.",Software Engineering Test 3,59a65f73-3514-414c-bf3a-d1447398cb57
+Software Project Management,Network Diagram,Medium,,2026,Generate a Medium  Software Project Management question about Network Diagram.,"ABC Tech Solutions, a mid-sized software development company specialising in custom software
+solutions for various industries, has been approached by HealthPlus, a healthcare provider, with 20
+branches in Malaysia, to develop a comprehensive patient management system (PMS). The system
+aims to streamline patient data management, appointment scheduling, billing, and telemedicine
+services. HealthPlus provided several key requirements for the PMS, including secure storage of patient
+medical histories, an intuitive interface for booking and managing appointments, an automated billing
+system with insurance processing and online payments, and a secure telemedicine feature for virtual
+consultations. The system also needs to support different user roles to ensure data privacy and security,
+and comply with healthcare regulations
+such
+as
+HIPAA (Health Insurance
+Portability and
+Accountability Act). It is anticipated that there will be high risks with the system installation as it
+involves the entire nation.
+The project has a duration of 12 months and a budgel of RM500,000. The project team includes John
+Smith as the Project Manager, Alice Johnson as the Lead Developer, Sarah Lee as the UL/UX Designer,
+Mark Brown as the QA Specialist, and Emma White as the Business Analyst.
+Answer the following questions based on the ABC Tech Solutions scenario.",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,GQM,Hard,12,2026,Generate a Hard 12-mark Software Project Management question about GQM.,"Identify TWO (2) major business
+goals and ONE (1) project goals. For each objective
+mentioned, elahorate on one effectiveness measurement that could be used to determine if the
+objective has been achieved.
+
+Discuss TWO (2) importance of resource allocation and resource leveling in the context of the
+given project scenario. Identify TWO (2) challenges might ABC Tech Solutions face if these
+processes are not managed effectively?
+(4 + )
+During the project execution, John Smith, the project manager, identified the issues related to
+task slippage and poor-quality deliverables. Identify ONE (1) corrective action for each
+identified issue and evaluate the potential drawbacks of each corrective action.
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Unknown,Medium,,2026,Generate a Medium  Software Project Management question about Unknown.,Answer the following questions based on the ABC Tech Solutions scenario from Question 1.,Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Software Process Model,Medium,,2026,Generate a Medium  Software Project Management question about Software Process Model.,"During the requirement analysis, HealthPlus CEO, Mr. Alan, told Mr. John Smith, the project
+manager, ""We hope to use certain parts of the system earlier than the full implementation to
+address our immediate needs. This will allow us to start managing patient data more efficiently
+while the remaining functionalities are still being developed.""
+Identify a suitable software process model to be adopted for the above scenario. Justify TWO",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Standards,Medium,4,2026,Generate a Medium 4-mark Software Project Management question about Standards.,"reasons of your choice.
+(1 + )
+Establishing a proper quantitative standard to measure the software is crucial for ensuring its
+quality. By defining specific metrics, the system can be effectively assessed and improved.",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,SQA,Hard,8,2026,Generate a Hard 8-mark Software Project Management question about SQA.,"Considering McCall's software quality attributes, explain TWO (2) possible quality
+attributes relevant to the HealthPlus Patient Management System. For each identified
+quality attribute, provide TWO (2) metrics that can be used to measure them.
+(6 + )",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Software Metrics,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Software Metrics.,Discuss TWO (2) characteristics of good metrics.,Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Unknown,Medium,,2026,Generate a Medium  Software Project Management question about Unknown.,Answer the following questions based on the ABC Tech Solutions scenario from Question 1.,Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Cost Estimation,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Cost Estimation.,"During project execution, John Smith faced some difficulties in tracing the project progress.
+Justify TWO (2) reasons why software project's progress is not visible as compared to other
+types of projects.
+
+John Smith would like to improve the software development process. He needs to carry out
+process measurement and process analysis before any process changes can be made.",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Software Metrics,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Software Metrics.,"Elaborate THREE (3) process metrics which can be collected during process
+measurement.",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Software Process Model,Medium,6,2026,Generate a Medium 6-mark Software Project Management question about Software Process Model.,"Based on the challenge faced by John Smith mentioned in Question 3 a), suggest a
+goal for the Software Process Improvement (SPI). Elaborate on TWO (2) most
+significant process attributes to be considered during the SPI to achieve the suggested
+goal.
+(1 + )
+System release is a crucial phase in the software development lifecycle where the developed
+software is made available to users. Proper release planning is essential to ensure the software
+is delivered on time, within budget, and with the desired quality. Discuss TWO (2) major
+factors that influence system release planning.
+
+
+
+
+BAIT3153 SOFTWARE PROJECT MANAGEMENT",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Unknown,Medium,,2026,Generate a Medium  Software Project Management question about Unknown.,Answer the following questions based on the ABC Tech Solutions scenario from Question 1.,Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Risk,Hard,9,2026,Generate a Hard 9-mark Software Project Management question about Risk.,"One of the identified risks during the risk analysis activity is project slippage. Propose a suitable
+plan for risk mitigation, monitoring, and management actions to resolve this issue.",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c
+Software Project Management,Network Diagram,Hard,7,2026,Generate a Hard 7-mark Software Project Management question about Network Diagram.,"Dependability is one of the important properties for a system. Based on the given
+scenario, evaluate if the HealthPlus Patient Management System is a safety-critical or
+business-critical system. Provide TWO (2) justifications for your answer.
+(1 + )
+Propose ONE (1) suitable approach to achieve dependability for the HealthPlus Patient
+Management System. Provide ONE (1) justification for the selected approach with
+ONE (1) appropriate example.",Software Engineering Test 4,28a1d2b2-f50d-4890-9c07-4277af20790c

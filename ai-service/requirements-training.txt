@@ -1,0 +1,28 @@
+# ── Training-only dependencies ────────────────────────────────────────────────
+# Install with: pip install --only-binary=:all: -r requirements-training.txt
+#
+# --only-binary=:all: forces pip to use pre-built wheels only.
+# This avoids source compilation errors (no Visual Studio needed).
+#
+# Version notes for Python 3.14:
+#   pandas 2.2.2 has no Python 3.14 wheel  → bumped to >=2.3.0
+#   sentencepiece 0.2.0 has no Python 3.14 wheel → use latest
+#   numpy, torch, sklearn, transformers → loose pins work fine
+
+# Data handling
+pandas>=2.3.0
+numpy>=2.0.0
+scikit-learn>=1.5.0
+
+# Hugging Face – model, tokenizer, trainer
+transformers>=4.41.1
+datasets>=2.19.1
+accelerate>=0.30.0
+sentencepiece
+
+# PyTorch – loose pin so pip picks the right Python 3.14 wheel
+torch>=2.3.0
+
+# Evaluation metrics
+evaluate>=0.4.2
+rouge_score>=0.1.2

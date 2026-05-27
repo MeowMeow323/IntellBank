@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import AuthService from '../services/authService'
+import { AuthService } from '../services/api'
 
 /**
  * Zustand store for authentication state.

@@ -1,0 +1,71 @@
+{
+  "Stakeholders": [
+    "stakeholder", "stakeholders", "client", "end user", "project owner", "sponsor"
+  ],
+  "Software Process Model": [
+    "process model", "prototyping", "waterfall", "agile", "spiral", "incremental",
+    "iterative", "sdlc", "software development lifecycle", "prototype"
+  ],
+  "Network Diagram": [
+    "network diagram", "critical path", "cpm", "pert", "task id", "predecessor",
+    "duration", "project tasks", "dependencies", "interdependencies"
+  ],
+  "Risk": [
+    "risk", "risk exposure", "halstead", "re formula", "probability", "risk mitigation",
+    "risk category", "risk management", "risk identification"
+  ],
+  "GQM": [
+    "gqm", "goal question metric", "project goal", "software metric", "goal measurement"
+  ],
+  "Fault Management": [
+    "fault", "fault avoidance", "fault detection", "fault management", "system error",
+    "software fault", "fault tolerance", "defect"
+  ],
+  "SQA": [
+    "sqa", "software quality assurance", "quality assurance", "quality attribute",
+    "reliability", "maintainability", "quality model", "mccall"
+  ],
+  "QA/QC": [
+    "quality assurance", "quality control", "qa", "qc", "qa/qc", "process quality",
+    "product quality", "quality practice"
+  ],
+  "KLOC": [
+    "kloc", "size-oriented", "size oriented", "lines of code", "normalized",
+    "productivity", "size metric"
+  ],
+  "Cost Estimation": [
+    "planned value", "earned value", "cost variance", "schedule variance",
+    "pv", "ev", "sv", "cv", "evm", "earned value management", "cost estimation",
+    "estimated cost", "completion status", "task progress"
+  ],
+  "Corrective Action": [
+    "corrective action", "project performance", "project recovery",
+    "performance result", "behind schedule", "over budget"
+  ],
+  "DVC": [
+    "dvc", "distributed version control", "version control", "git", "repository",
+    "collaboration", "version management"
+  ],
+  "McCall": [
+    "mccall", "mcCall", "correctness", "reliability", "efficiency", "integrity",
+    "usability", "maintainability", "flexibility", "testability", "portability",
+    "reusability", "interoperability", "quality model", "quality attribute"
+  ],
+  "Standards": [
+    "standard", "standards", "product standard", "process standard",
+    "ieee", "iso", "coding standard", "documentation standard"
+  ],
+  "Software Metrics": [
+    "metric", "metrics", "software metric", "function point", "cyclomatic",
+    "complexity", "defect rate", "error rate", "measurement", "size-oriented",
+    "function-oriented"
+  ],
+  "Software Process Improvement": [
+    "process improvement", "software process improvement", "spi", "cmm", "cmmi",
+    "process change", "resistance to change", "maturity model"
+  ],
+  "Diagram": [
+    "diagram", "draw", "create a diagram", "illustrate", "network diagram",
+    "use case", "class diagram", "flowchart", "dfd"
+  ]
+}

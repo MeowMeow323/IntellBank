@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts'
-import AnalyticsService from '../services/analyticsService'
+import { AnalyticsService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
 // ── Placeholder data while API is not connected ───────────────────────────

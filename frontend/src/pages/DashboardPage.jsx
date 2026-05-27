@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
-import ProjectService from '../services/projectService'
+import { ProjectService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
 const DashboardPage = () => {

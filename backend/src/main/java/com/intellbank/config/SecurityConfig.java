@@ -1,6 +1,5 @@
 package com.intellbank.config;
 
-import com.intellbank.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

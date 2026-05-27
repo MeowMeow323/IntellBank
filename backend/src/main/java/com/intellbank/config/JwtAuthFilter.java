@@ -1,4 +1,4 @@
-package com.intellbank.security;
+package com.intellbank.config;
 
 import com.intellbank.repository.UserRepository;
 import jakarta.servlet.FilterChain;

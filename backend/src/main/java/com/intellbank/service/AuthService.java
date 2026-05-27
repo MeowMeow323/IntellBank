@@ -3,7 +3,7 @@ package com.intellbank.service;
 import com.intellbank.entity.*;
 import com.intellbank.exception.AppException;
 import com.intellbank.repository.*;
-import com.intellbank.security.JwtUtil;
+import com.intellbank.config.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
