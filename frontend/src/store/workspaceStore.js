@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { WorkspaceService } from '../services/api'
+import { DocumentService } from '../services/api'
 
 /**
  * Zustand store for persistent multi-tab workspace state.
@@ -16,63 +16,104 @@ const useWorkspaceStore = create((set, get) => ({
   loadTabs: async (projectId) => {
     set({ isLoading: true, error: null, currentProjectId: projectId })
     try {
-      const response = await WorkspaceService.getTabs(projectId)
-      const tabs = response.data
+      const response = await DocumentService.getByProject(projectId)
+      const tabs = (response.data || []).map((tab) => ({
+        ...tab,
+        localDraftContent: tab.storageUrl || ''
+      }))
       const active = tabs.find((t) => t.isActive) || tabs[0] || null
-      set({ tabs, activeTabId: active?.id || null, isLoading: false })
+      set({ tabs, activeTabId: active?.documentId || null, isLoading: false })
     } catch (err) {
+      console.error('Error loading workspace tabs:', err)
       set({ error: 'Failed to load workspace tabs', isLoading: false })
     }
   },
 
-  setActiveTab: async (tabId) => {
-    set({ activeTabId: tabId })
-    try {
-      await WorkspaceService.setActiveTab(tabId)
-    } catch {
-      // Silent fail – local state still updated
-    }
+  setActiveTab: (tabId) => {
+    set({ activeTabId: tabId });
   },
 
   addTab: async (tabData) => {
-    try {
-      const response = await WorkspaceService.createTab({
-        ...tabData,
-        projectId: get().currentProjectId,
-      })
-      const newTab = response.data
-      set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
-    } catch (err) {
-      set({ error: 'Failed to create tab' })
+    const projectId = get().currentProjectId
+    if (!projectId) {
+      set({ error: 'No project selected' })
+      return
     }
-  },
 
-  updateTab: async (tabId, data) => {
     try {
-      const response = await WorkspaceService.updateTab(tabId, data)
+      const response = await DocumentService.upload(
+        projectId,
+        tabData.title || 'Untitled Document',
+        tabData.type || 'Raw Document',
+        null
+      )
+      const newDocumentTab = response.data
+
       set((state) => ({
-        tabs: state.tabs.map((t) => (t.id === tabId ? response.data : t)),
+        tabs: [...state.tabs, newDocumentTab],
+        activeTabId: newDocumentTab.documentId,
+        error: null
       }))
-    } catch {
-      set({ error: 'Failed to update tab' })
+    } catch (err) {
+      console.error('Error creating document:', err)
+      set({ error: 'Failed to create document' })
     }
   },
 
-  removeTab: async (tabId) => {
+  // Updates the content in the tab
+  updateTabContent: async (documentId, newContent) => {
+    // 1. Instantly update the text in local frontend memory so typing is flawless
+    set((state) => ({
+      tabs: (state.tabs || []).map((tab) =>
+        tab.documentId === documentId ? { ...tab, localDraftContent: newContent, storageUrl: newContent } : tab
+      )
+    }));
+
     try {
-      await WorkspaceService.deleteTab(tabId)
+      const currentState = get();
+      const activeTab = (currentState.tabs || []).find(t => t.documentId === documentId);
+      if (!activeTab) return;
+
+      const projectId = currentState.currentProjectId || activeTab.project?.projectId;
+      if (!projectId) return;
+
+      // 2. Wrap text into a clean file blob
+      const textBlob = new Blob([newContent], { type: 'text/plain' });
+      const fileName = activeTab.title ? `${activeTab.title}.txt` : `Document_${documentId}.txt`;
+      const virtualFile = new File([textBlob], fileName, { type: 'text/plain' });
+
+      // 3. Post to backend
+      await DocumentService.upload(
+        projectId,
+        activeTab.title || 'Untitled Document',
+        activeTab.type || 'Raw Document',
+        virtualFile
+      );
+
+      console.log("Cloud text synchronized successfully.");
+    } catch (err) {
+      console.error("Cloud auto-save deferred:", err);
+      throw err;
+    }
+  },
+
+  removeTab: async (documentId) => {
+    try {
+      await DocumentService.delete(documentId)
+
       set((state) => {
-        const remaining = state.tabs.filter((t) => t.id !== tabId)
+        const remaining = state.tabs.filter((t) => t.documentId !== documentId)
         return {
           tabs: remaining,
           activeTabId:
-            state.activeTabId === tabId
-              ? remaining[0]?.id || null
+            state.activeTabId === documentId
+              ? remaining[0]?.documentId || null
               : state.activeTabId,
+          error: null
         }
       })
-    } catch {
-      set({ error: 'Failed to delete tab' })
+    } catch (err) {
+      set({ error: 'Failed to delete document' })
     }
   },
 

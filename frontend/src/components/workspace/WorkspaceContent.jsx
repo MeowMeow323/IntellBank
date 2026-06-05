@@ -1,89 +1,124 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import useWorkspaceStore from '../../store/workspaceStore'
 
-/**
- * WorkspaceContent renders the content of the active workspace tab.
- * Tab type determines what content to display.
- */
 const WorkspaceContent = () => {
-  const { tabs, activeTabId } = useWorkspaceStore()
+  const { tabs = [], activeTabId, updateTabContent } = useWorkspaceStore()
+  const activeTab = tabs.find((t) => t.documentId === activeTabId)
 
-  const activeTab = tabs.find((t) => t.id === activeTabId)
+  // Isolated local string text state
+  const [localText, setLocalText] = useState('')
+  // Save status states: 'saved' | 'saving' | 'error'
+  const [saveStatus, setSaveStatus] = useState('saved')
+
+  // 1. TRIGGER ON TAB CHANGE: Safely load text values from store memory
+  useEffect(() => {
+    if (activeTab) {
+      setLocalText(activeTab.localDraftContent !== undefined ? activeTab.localDraftContent : activeTab.storageUrl || '')      
+      setSaveStatus('saved')
+    } else {
+      setLocalText('')
+    }
+  }, [activeTabId, activeTab])
+
+  // 2. BACKGROUND AUTO-SAVE DEBOUNCE MACHINE
+  useEffect(() => {
+    if (!activeTabId || !activeTab) return
+
+    const databaseText = activeTab.storageUrl || ''
+    if (localText === databaseText) {
+      return
+    }
+
+    setSaveStatus('saving')
+    const autoSaveTimer = setTimeout(async () => {
+      try {
+        await updateTabContent(activeTabId, localText)
+        setSaveStatus('saved')
+      } catch (err) {
+        console.warn("Cloud sync error intercepted gracefully:", err)
+        setSaveStatus('error') // Displays the local save warning instead of crashing the app
+      }
+    }, 1500)
+
+    return () => clearTimeout(autoSaveTimer)
+  }, [localText, activeTabId])
 
   if (!activeTab) {
     return (
-      <div className="workspace-empty" id="workspace-empty">
+      <div className="workspace-empty">
         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📂</div>
-        <h3>No tabs open</h3>
-        <p>Click the + button in the tab bar to add a new tab</p>
+        <h3>No Document Selected</h3>
+        <p>Select a file from your sidebar directory tree to begin typing.</p>
       </div>
     )
   }
 
   return (
-    <div className="workspace-tab-content fade-in" id={`tab-content-${activeTab.id}`}>
-      <div className="workspace-tab-header">
-        <h2>{activeTab.tabTitle}</h2>
-        <span className="badge badge-blue" style={{ textTransform: 'capitalize' }}>
-          {activeTab.tabType?.replace('-', ' ')}
-        </span>
+    <div className="workspace-tab-content">
+      
+      {/* GOOGLE DOCS MINIMAL TOOLBAR CONSOLE STATUS HEADER */}
+      <div className="docs-minimal-toolbar">
+        <div className="toolbar-left-group">
+          <span className="toolbar-item bold-text">B</span>
+          <span className="toolbar-item italic-text">I</span>
+          <span className="toolbar-item underline-text">U</span>
+          <div className="toolbar-separator" />
+          <span className="toolbar-item format-algo">LaTeX Editor Active</span>
+        </div>
+
+        <div className="toolbar-save-status">
+          {saveStatus === 'saved' && (
+            <span className="status-msg text-success">
+              ☁️ All changes saved to cloud storage
+            </span>
+          )}
+          {saveStatus === 'saving' && (
+            <span className="status-msg text-warning">
+              ⏳ Saving your modifications...
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="status-msg text-danger">
+              ⚠️ Saved locally inside workspace browser memory
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Render content based on tab type */}
-      {activeTab.tabType === 'notes' && (
-        <div className="notes-area">
+      {/* SINGLE GOOGLE DOCS CENTERED SHEET COMPONENT */}
+      <div className="google-docs-canvas-centered">
+        <div className="docs-page-sheet">
           <textarea
-            className="form-textarea notes-textarea"
-            placeholder="Write your notes here..."
-            defaultValue={activeTab.tabData?.content || ''}
-            id={`notes-${activeTab.id}`}
+            className="docs-inline-storyteller"
+            value={localText}
+            onChange={(e) => setLocalText(e.target.value)}
+            placeholder="Start drafting your text content or mathematical equations here..."
           />
         </div>
-      )}
-
-      {activeTab.tabType === 'document' && (
-        <div className="tab-placeholder">
-          <span>📄</span>
-          <p>Document viewer will render here. Linked document: <strong>{activeTab.tabData?.documentId || 'None'}</strong></p>
-        </div>
-      )}
-
-      {activeTab.tabType === 'question-bank' && (
-        <div className="tab-placeholder">
-          <span>❓</span>
-          <p>Question bank filtered view will render here for this project.</p>
-        </div>
-      )}
-
-      {activeTab.tabType === 'exam' && (
-        <div className="tab-placeholder">
-          <span>📝</span>
-          <p>Exam simulator embedded view will render here.</p>
-        </div>
-      )}
+      </div>
 
       <style>{`
-        .workspace-empty {
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          height: 60vh; text-align: center; color: var(--color-text-secondary);
-        }
-        .workspace-empty h3 { font-size: 1.25rem; color: var(--color-text-primary); margin-bottom: 0.5rem; }
-        .workspace-tab-header {
-          display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;
-        }
-        .workspace-tab-header h2 { font-size: 1.1rem; font-weight: 600; }
-        .notes-textarea {
-          min-height: 60vh; width: 100%;
-          background: var(--color-bg-secondary);
-          font-family: var(--font-primary);
-          font-size: 0.95rem; line-height: 1.7;
-          resize: vertical;
-        }
-        .tab-placeholder {
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          height: 50vh; gap: 1rem; color: var(--color-text-secondary); font-size: 0.95rem;
-        }
-        .tab-placeholder span { font-size: 3rem; }
+        .workspace-tab-content { display: flex; flex-direction: column; height: calc(100vh - 120px); width: 100%; background: #182635; }
+        .docs-minimal-toolbar { display: flex; align-items: center; justify-content: space-between; background: #111c24; border-bottom: 1px solid #1f2e3d; padding: 0.6rem 2rem; user-select: none; }
+        .toolbar-left-group { display: flex; align-items: center; gap: 1.25rem; }
+        .toolbar-item { font-size: 0.9rem; color: #a4b3c1; cursor: pointer; font-weight: 600; }
+        .bold-text { font-family: sans-serif; font-weight: 800; }
+        .italic-text { font-family: serif; font-style: italic; }
+        .underline-text { text-decoration: underline; }
+        .format-algo { font-size: 0.75rem; background: #0066cc; color: #fff; padding: 2px 8px; border-radius: 4px; }
+        .toolbar-separator { width: 1px; height: 16px; background: #1f2e3d; }
+        
+        .status-msg { font-size: 0.8rem; font-weight: 500; }
+        .text-success { color: #2ecc71; }
+        .text-warning { color: #f1c40f; animation: pulse 1.5s infinite alternate; }
+        .text-danger { color: #e74c3c; font-weight: 600; background: rgba(231, 76, 60, 0.1); padding: 4px 10px; border-radius: 4px; }
+
+        @keyframes pulse { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .google-docs-canvas-centered { flex: 1; overflow-y: auto; background: #182635; display: flex; justify-content: center; padding: 2rem 0; }
+        .docs-page-sheet { background: #ffffff; width: 820px; min-height: 1050px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); border-radius: 4px; display: flex; flex-direction: column; padding: 4rem; }
+        .docs-inline-storyteller { flex: 1; width: 100%; border: none; resize: none; outline: none; font-family: 'Georgia', serif; font-size: 1.15rem; line-height: 1.65; color: #222222; background: transparent; padding: 0; margin: 0; }
+        .workspace-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; color: #6c7d8c; }
       `}</style>
     </div>
   )

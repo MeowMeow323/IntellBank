@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
-import { ProjectService } from '../services/api'
+import { ProjectService, projectApi } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
 const DashboardPage = () => {
@@ -10,7 +10,9 @@ const DashboardPage = () => {
   const [projects, setProjects] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [newProject, setNewProject] = useState({ name: '', description: '', subject: '' })
+
+  // Use 'projectName' to seamlessly map with the Java controller body extractor map
+  const [newProject, setNewProject] = useState({ projectName: '', description: '', subject: '' })
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -22,8 +24,8 @@ const DashboardPage = () => {
     try {
       const res = await ProjectService.getAll()
       setProjects(res.data)
-    } catch {
-      // TODO: handle error
+    } catch (err) {
+      console.error("Failed to fetch folders:", err)
     } finally {
       setIsLoading(false)
     }
@@ -33,12 +35,20 @@ const DashboardPage = () => {
     e.preventDefault()
     setCreating(true)
     try {
-      await ProjectService.create(newProject)
+      // Use ProjectService.create with full project object
+      const res = await ProjectService.create({
+        projectName: newProject.projectName,
+        description: newProject.description,
+        subject: newProject.subject,
+      })
+
       setShowCreate(false)
-      setNewProject({ name: '', description: '', subject: '' })
+      setNewProject({ projectName: '', description: '', subject: '' })
+
+      // Refresh list to instantly see the new project folder on your dashboard grid
       await loadProjects()
-    } catch {
-      // TODO: handle error
+    } catch (error) {
+      console.error("Failed to create folder project:", error)
     } finally {
       setCreating(false)
     }
@@ -76,8 +86,8 @@ const DashboardPage = () => {
                     id="project-name"
                     className="form-input"
                     placeholder="e.g. Physics Year 3"
-                    value={newProject.name}
-                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                    value={newProject.projectName}
+                    onChange={(e) => setNewProject({ ...newProject, projectName: e.target.value })}
                     required
                   />
                 </div>
@@ -133,17 +143,17 @@ const DashboardPage = () => {
           <div className="grid-3" id="projects-grid">
             {projects.map((project) => (
               <div
-                key={project.id}
+                key={project.projectId} // Fixed property mapping
                 className="card project-card"
-                id={`project-${project.id}`}
-                onClick={() => navigate(`/workspace/${project.id}`)}
+                id={`project-${project.projectId}`} // Fixed property mapping
+                onClick={() => navigate(`/workspace/${project.projectId}`)} // Fixed navigation pathing
                 style={{ cursor: 'pointer' }}
               >
                 <div className="project-card-icon">
-                  {project.subject?.[0] || project.name?.[0] || 'P'}
+                  {project.subject?.[0] || project.projectName?.[0] || 'P'}
                 </div>
                 <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  {project.name}
+                  {project.projectName} {/* Fixed property title rendering */}
                 </h3>
                 {project.subject && (
                   <span className="badge badge-blue" style={{ marginBottom: '0.75rem' }}>

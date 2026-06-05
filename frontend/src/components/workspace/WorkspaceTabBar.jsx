@@ -1,22 +1,13 @@
 import React from 'react'
 import useWorkspaceStore from '../../store/workspaceStore'
 
-const TAB_TYPES = [
-  { value: 'document', label: '📄 Documents' },
-  { value: 'question-bank', label: '❓ Questions' },
-  { value: 'exam', label: '📝 Exam' },
-  { value: 'notes', label: '📓 Notes' },
-]
-
 const WorkspaceTabBar = ({ projectId }) => {
   const { tabs, activeTabId, setActiveTab, addTab, removeTab } = useWorkspaceStore()
 
   const handleAddTab = () => {
     addTab({
-      tabType: 'notes',
-      tabTitle: `Tab ${tabs.length + 1}`,
-      tabData: {},
-      projectId,
+      title: `Document ${tabs.length + 1}`,
+      type: 'Raw Document'
     })
   }
 
@@ -25,18 +16,18 @@ const WorkspaceTabBar = ({ projectId }) => {
       <div className="tab-list">
         {tabs.map((tab) => (
           <div
-            key={tab.id}
-            className={`tab-item ${activeTabId === tab.id ? 'active' : ''}`}
-            id={`tab-${tab.id}`}
-            onClick={() => setActiveTab(tab.id)}
+            key={tab.documentId}
+            className={`tab-item ${activeTabId === tab.documentId ? 'active' : ''}`}
+            id={`tab-${tab.documentId}`}
+            onClick={() => setActiveTab(tab.documentId)}
           >
-            <span className="tab-label">{tab.tabTitle}</span>
+            <span className="tab-label">{tab.title || 'Untitled'}</span>
             <button
               className="tab-close"
-              id={`close-tab-${tab.id}`}
+              id={`close-tab-${tab.documentId}`}
               onClick={(e) => {
                 e.stopPropagation()
-                removeTab(tab.id)
+                removeTab(tab.documentId)
               }}
               title="Close tab"
             >

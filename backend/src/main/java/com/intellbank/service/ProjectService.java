@@ -4,6 +4,7 @@ import com.intellbank.entity.*;
 import com.intellbank.exception.AppException;
 import com.intellbank.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.util.UUID;
 @SuppressWarnings("null")
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
@@ -21,18 +23,26 @@ public class ProjectService {
     private final UserRepository userRepository;
 
     public List<Project> getProjectsForStudent(String email) {
+        log.info("Getting projects for student with email: {}", email);
         Student student = getStudent(email);
-        return projectRepository.findByStudentStudentId(student.getStudentId());
+        log.info("Found student: {}", student.getStudentId());
+        List<Project> projects = projectRepository.findByStudentStudentId(student.getStudentId());
+        log.info("Found {} projects", projects.size());
+        return projects;
     }
 
     @Transactional
     public Project create(String projectName, String email) {
+        log.info("Creating project '{}' for user: {}", projectName, email);
         Student student = getStudent(email);
+        log.info("Found student: {}", student.getStudentId());
         Project project = Project.builder()
                 .student(student)
                 .projectName(projectName)
                 .build();
-        return projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        log.info("Project created with ID: {}", saved.getProjectId());
+        return saved;
     }
 
     public Project getById(UUID projectId) {
@@ -56,10 +66,16 @@ public class ProjectService {
     }
 
     private Student getStudent(String email) {
+        log.info("Looking up user by email: {}", email);
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
-        return studentRepository.findByUserUserId(user.getUserId())
+        log.info("Found user: {} (ID: {})", email, user.getUserId());
+        
+        log.info("Looking up student for user ID: {}", user.getUserId());
+        Student student = studentRepository.findByUserUserId(user.getUserId())
                 .orElseThrow(() -> new AppException("Student profile not found", HttpStatus.NOT_FOUND));
+        log.info("Found student: {}", student.getStudentId());
+        return student;
     }
 
     private void verifyOwner(Project project, String email) {

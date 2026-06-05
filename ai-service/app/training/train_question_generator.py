@@ -18,6 +18,8 @@ import pandas as pd
 from dotenv import load_dotenv
 
 # === ML & Transformers Imports ================================================
+# * Loads sklearn to split data into training and testing sets
+# * Loads HuggingFace tools to build and train the AI model
 from sklearn.model_selection import train_test_split
 from datasets import Dataset
 from transformers import (
@@ -49,7 +51,13 @@ TEST_SPLIT     = 0.15     # 15% held out for evaluation
 
 
 def check_dataset() -> bool:
-    """Validate that the training CSV dataset is present, clean, and well-formed."""
+    """
+    Validate that the training CSV dataset is present, clean, and well-formed.
+    * Checks if the CSV exists
+    * Removes blank rows
+    * Ensures all required columns are present
+    * Prints out summary statistics (e.g. how many Easy vs Hard questions)
+    """
     print("\n" + "=" * 60)
     print("  [STEP 1] Dataset Validation")
     print("=" * 60)
@@ -111,7 +119,12 @@ def check_dataset() -> bool:
 
 
 def tokenize(batch, tokenizer):
-    """Tokenize dataset batches for Seq2Seq learning."""
+    """
+    Tokenize dataset batches for Seq2Seq learning.
+    * Converts human-readable text into mathematical numbers (tokens)
+    * Pads short sentences with empty tokens so they all match the max length
+    * Tells the AI to ignore the empty padding tokens during training
+    """
     model_inputs = tokenizer(
         batch["input_text"],
         max_length=MAX_INPUT_LEN,
@@ -133,7 +146,14 @@ def tokenize(batch, tokenizer):
 
 
 def train_model():
-    """Fine-tune the FLAN-T5-small model on the training dataset."""
+    """
+    Fine-tune the FLAN-T5-small model on the training dataset.
+    * Loads the CSV and splits it: 85% for training, 15% for testing/grading
+    * Downloads the base Google FLAN-T5-Small brain
+    * Converts our CSV text into tokens
+    * Trains the model for 10 epochs (loops) using the Seq2SeqTrainer
+    * Saves the newly educated brain to the 'models' folder
+    """
     print("\n" + "=" * 60)
     print("  [STEP 2] Model Training & Fine-Tuning")
     print("=" * 60)

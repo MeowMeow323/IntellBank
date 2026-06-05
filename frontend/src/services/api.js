@@ -20,7 +20,8 @@ export const AuthService = {
 
   login: async (credentials) => {
     const response = await api.post('/api/auth/login', credentials)
-    const { token, user } = response.data
+    const { token, userId, email, fullName, role } = response.data
+    const user = { userId, email, fullName, username: email, role }
     localStorage.setItem('intellbank_token', token)
     localStorage.setItem('intellbank_user', JSON.stringify(user))
     return response
@@ -35,7 +36,14 @@ export const AuthService = {
 
   getLocalUser: () => {
     const raw = localStorage.getItem('intellbank_user')
-    return raw ? JSON.parse(raw) : null
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch (e) {
+      console.warn("Corrupted user data in localStorage, clearing it.")
+      localStorage.removeItem('intellbank_user')
+      return null
+    }
   },
 
   isAuthenticated: () => !!localStorage.getItem('intellbank_token'),
@@ -43,8 +51,8 @@ export const AuthService = {
 
 export const authApi = {
   register: (data) => api.post('/api/auth/register', data),
-  login:    (data) => api.post('/api/auth/login', data),
-  me:       ()     => api.get('/api/auth/me'),
+  login: (data) => api.post('/api/auth/login', data),
+  me: () => api.get('/api/auth/me'),
 }
 
 // ── Project Service & API ─────────────────────────────────────────────────────
@@ -57,15 +65,15 @@ export const ProjectService = {
 }
 
 export const projectApi = {
-  getAll:   ()              => api.get('/api/projects'),
-  getById:  (id)            => api.get(`/api/projects/${id}`),
-  create:   (projectName)   => api.post('/api/projects', { projectName }),
-  update:   (id, projectName) => api.put(`/api/projects/${id}`, { projectName }),
-  delete:   (id)            => api.delete(`/api/projects/${id}`),
+  getAll: () => api.get('/api/projects'),
+  getById: (id) => api.get(`/api/projects/${id}`),
+  create: (data) => api.post('/api/projects', data),
+  update: (id, data) => api.put(`/api/projects/${id}`, data),
+  delete: (id) => api.delete(`/api/projects/${id}`),
 }
 
 // ── Document Service & API ────────────────────────────────────────────────────
-export const DocumentService = {
+/*export const DocumentService = {
   upload: (formData) =>
     api.post('/api/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -78,15 +86,33 @@ export const DocumentService = {
 export const documentApi = {
   getByProject: (projectId)             => api.get(`/api/documents/by-project/${projectId}`),
   getById:      (documentId)            => api.get(`/api/documents/${documentId}`),
-  upload:       (projectId, title, type, file) => {
+  upload:       (projectId, title, type = "Raw Document", file = null) => {
     const fd = new FormData()
     fd.append('projectId', projectId)
     fd.append('title', title)
     fd.append('type', type)
     if (file) fd.append('file', file)
-    return api.post('/api/documents/upload', fd)
+    return api.post('/api/documents/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   },
   delete:       (documentId)            => api.delete(`/api/documents/${documentId}`),
+}*/
+export const DocumentService = {
+  getByProject: (projectId) => api.get(`/api/documents/by-project/${projectId}`),
+  getById: (documentId) => api.get(`/api/documents/${documentId}`),
+  upload: (projectId, title, type = "Raw Document", file = null) => {
+    const fd = new FormData()
+    fd.append('projectId', projectId)
+    fd.append('title', title)
+    fd.append('type', type)
+    if (file) fd.append('file', file)
+    return api.post('/api/documents/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  delete: (documentId) => api.delete(`/api/documents/${documentId}`),
+  process: (documentId) => api.post(`/api/documents/${documentId}/process`),
 }
 
 // ── Exam Service & API ────────────────────────────────────────────────────────
@@ -99,7 +125,7 @@ export const ExamService = {
 
 export const examApi = {
   generate: (data) => api.post('/api/exams/generate', data),
-  getById:  (documentId) => api.get(`/api/exams/${documentId}`),
+  getById: (documentId) => api.get(`/api/exams/${documentId}`),
 }
 
 // ── Submission Service & API ──────────────────────────────────────────────────
@@ -110,9 +136,9 @@ export const SubmissionService = {
 }
 
 export const submissionApi = {
-  submit:       (documentId) => api.post('/api/submissions', { documentId }),
-  getByDocument:(documentId) => api.get(`/api/submissions/by-document/${documentId}`),
-  getById:      (id)         => api.get(`/api/submissions/${id}`),
+  submit: (documentId) => api.post('/api/submissions', { documentId }),
+  getByDocument: (documentId) => api.get(`/api/submissions/by-document/${documentId}`),
+  getById: (id) => api.get(`/api/submissions/${id}`),
 }
 
 // ── Question Service & API ────────────────────────────────────────────────────
@@ -127,13 +153,13 @@ export const QuestionService = {
 }
 
 export const questionApi = {
-  getAll:       ()           => api.get('/api/questions'),
-  getById:      (id)         => api.get(`/api/questions/${id}`),
-  getByPyp:     (pypId)      => api.get(`/api/questions/by-pyp/${pypId}`),
-  getByDocument:(docId)      => api.get(`/api/questions/by-document/${docId}`),
-  create:       (data)       => api.post('/api/questions', data),
-  update:       (id, data)   => api.put(`/api/questions/${id}`, data),
-  delete:       (id)         => api.delete(`/api/questions/${id}`),
+  getAll: () => api.get('/api/questions'),
+  getById: (id) => api.get(`/api/questions/${id}`),
+  getByPyp: (pypId) => api.get(`/api/questions/by-pyp/${pypId}`),
+  getByDocument: (docId) => api.get(`/api/questions/by-document/${docId}`),
+  create: (data) => api.post('/api/questions', data),
+  update: (id, data) => api.put(`/api/questions/${id}`, data),
+  delete: (id) => api.delete(`/api/questions/${id}`),
 }
 
 // ── Verification Service & API ────────────────────────────────────────────────
@@ -147,11 +173,11 @@ export const VerificationService = {
 }
 
 export const verificationApi = {
-  getPending: ()            => api.get('/api/verification/pending'),
-  getById:    (solutionId)  => api.get(`/api/verification/${solutionId}`),
-  approve:    (solutionId)  => api.post(`/api/verification/${solutionId}/approve`),
-  reject:     (solutionId)  => api.post(`/api/verification/${solutionId}/reject`),
-  edit:       (solutionId, data) => api.put(`/api/verification/${solutionId}`, data),
+  getPending: () => api.get('/api/verification/pending'),
+  getById: (solutionId) => api.get(`/api/verification/${solutionId}`),
+  approve: (solutionId) => api.post(`/api/verification/${solutionId}/approve`),
+  reject: (solutionId) => api.post(`/api/verification/${solutionId}/reject`),
+  edit: (solutionId, data) => api.put(`/api/verification/${solutionId}`, data),
 }
 
 // ── Workspace Service & API ───────────────────────────────────────────────────
@@ -174,9 +200,9 @@ export const AnalyticsService = {
 // ── AI Gateway API ────────────────────────────────────────────────────────────
 export const aiApi = {
   generateQuestions: (data) => api.post('/api/ai/generate/question', data),
-  generateSolution:  (data) => api.post('/api/ai/generate/solution', data),
-  classifyQuestion:  (data) => api.post('/api/ai/classify/question', data),
-  predictTopics:     (data) => api.post('/api/ai/predict/topics', data),
+  generateSolution: (data) => api.post('/api/ai/generate/solution', data),
+  classifyQuestion: (data) => api.post('/api/ai/classify/question', data),
+  predictTopics: (data) => api.post('/api/ai/predict/topics', data),
 }
 
 // Default export is the Axios client instance

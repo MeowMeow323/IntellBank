@@ -1,6 +1,7 @@
 package com.intellbank.controller;
 
 import com.intellbank.entity.Project;
+import com.intellbank.entity.User;
 import com.intellbank.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,15 +19,19 @@ public class ProjectController {
 
     private final ProjectService projectService;
 
+    private String getEmailFromAuth(Authentication auth) {
+        return ((User) auth.getPrincipal()).getEmail();
+    }
+
     @GetMapping
     public ResponseEntity<List<Project>> getAll(Authentication auth) {
-        return ResponseEntity.ok(projectService.getProjectsForStudent(auth.getName()));
+        return ResponseEntity.ok(projectService.getProjectsForStudent(getEmailFromAuth(auth)));
     }
 
     @PostMapping
     public ResponseEntity<Project> create(@RequestBody Map<String, Object> body, Authentication auth) {
         String name = (String) body.get("projectName");
-        return ResponseEntity.ok(projectService.create(name, auth.getName()));
+        return ResponseEntity.ok(projectService.create(name, getEmailFromAuth(auth)));
     }
 
     @GetMapping("/{id}")
@@ -39,12 +44,12 @@ public class ProjectController {
                                           @RequestBody Map<String, Object> body,
                                           Authentication auth) {
         String name = (String) body.get("projectName");
-        return ResponseEntity.ok(projectService.update(id, name, auth.getName()));
+        return ResponseEntity.ok(projectService.update(id, name, getEmailFromAuth(auth)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id, Authentication auth) {
-        projectService.delete(id, auth.getName());
+        projectService.delete(id, getEmailFromAuth(auth));
         return ResponseEntity.noContent().build();
     }
 }
