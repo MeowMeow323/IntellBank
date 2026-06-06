@@ -1,0 +1,175 @@
+/* WORKSPACE MAIN GRID LAYOUT */
+.workspace-layout-grid {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  background: #0b131a; /* Base dark theme background */
+  overflow: hidden;
+  color: #ffffff;
+}
+
+.workspace-sidebar {
+  width: 260px;
+  background: #111c24;
+  border-right: 1px solid #1f2e3d;
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 1rem;
+}
+
+.sidebar-project-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.project-id-sub {
+  font-size: 0.75rem;
+  color: #6c7d8c;
+}
+
+.generate-btn {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.generate-btn:hover {
+  background: #0052a3;
+}
+
+.sidebar-document-list {
+  flex: 1;
+  margin-top: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Document List Item Container */
+.sidebar-doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Ensures space on right side for delete actions if added */
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #a4b3c1;
+  transition: background 0.2s, color 0.2s;
+  position: relative;
+}
+
+.sidebar-doc-item:hover {
+  background: #1c2b36;
+  color: #ffffff;
+}
+
+.sidebar-doc-item.active-item {
+  background: #0066cc;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.doc-icon {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.doc-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-text,
+.status-textempty {
+  font-size: 0.8rem;
+  color: #6c7d8c;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.back-projects-btn {
+  background: transparent;
+  border: 1px solid #1f2e3d;
+  color: #a4b3c1;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: auto;
+  transition: border-color 0.2s;
+}
+
+.back-projects-btn:hover {
+  border-color: #0066cc;
+  color: #ffffff;
+}
+
+.workspace-main-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Overrides display properties to remove the Tab Bar layout block cleanly */
+.workspace-main-panel > div:first-child,
+.workspace-tab-bar,
+.workspace-tab-container {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Main inner display box where Document Content lives */
+.workspace-canvas-scrollbox {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  background: #0f172a; /* Main backing fill */
+}
+
+/* These classes isolate your document panel style from standard global styles */
+.workspace-canvas-scrollbox .document-container,
+.workspace-canvas-scrollbox .editor-paper-canvas,
+.workspace-canvas-scrollbox .document-card-view {
+  background: #ffffff !important; /* Forces premium clean white document canvas style */
+  color: #1e293b !important;       /* Contrasting deep slate gray font text for high reading legibility */
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 2.5rem;
+  margin: 0 auto;
+  max-width: 850px; /* Emulates a standard physical paper reading block width */
+  min-height: 100%;
+}
+
+/* Meta headers and subtitles nested inside your independent white document engine */
+.workspace-canvas-scrollbox .document-title-text {
+  color: #0f172a !important;
+  font-size: 1.75rem;
+  font-weight: 700;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.workspace-canvas-scrollbox .document-body-content {
+  color: #334155 !important;
+  line-height: 1.7;
+  font-size: 1rem;
+}

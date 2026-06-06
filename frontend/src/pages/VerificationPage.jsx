@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
-import { verificationApi } from '../services/api'
+import { VerificationService } from '../services/api'
 
-/**
- * VerificationPage – shows Solutions where isVerified = false.
- *
- * NOTE: Question does NOT have a verification status.
- *       All verification is done through the Solution.
- */
 export default function VerificationPage() {
   const [solutions, setSolutions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +15,7 @@ export default function VerificationPage() {
 
   const fetchPending = async () => {
     try {
-      const res = await verificationApi.getPending()
+      const res = await VerificationService.getPending()
       setSolutions(res.data)
     } catch {
       setError('Failed to load pending solutions')
@@ -31,13 +25,22 @@ export default function VerificationPage() {
   }
 
   const handleApprove = async (solutionId) => {
-    await verificationApi.approve(solutionId)
-    setSolutions(s => s.filter(x => x.solutionId !== solutionId))
+    try {
+      await VerificationService.approve(solutionId)
+      setSolutions(s => s.filter(x => x.solutionId !== solutionId))
+    } catch {
+      console.error("Failed to approve solution")
+    }
   }
 
   const handleReject = async (solutionId) => {
-    await verificationApi.reject(solutionId)
-    fetchPending()
+    try {
+      const reason = prompt("Enter reason for rejection:") || "Does not meet verification standards"
+      await VerificationService.reject(solutionId, reason)
+      fetchPending()
+    } catch {
+      console.error("Failed to reject solution")
+    }
   }
 
   const startEdit = (solution) => {
@@ -47,9 +50,13 @@ export default function VerificationPage() {
   }
 
   const saveEdit = async (solutionId) => {
-    await verificationApi.edit(solutionId, { content: editContent, explanation: editExplanation })
-    setEditId(null)
-    fetchPending()
+    try {
+      await VerificationService.edit(solutionId, { content: editContent, explanation: editExplanation })
+      setEditId(null)
+      fetchPending()
+    } catch {
+      console.error("Failed to update solution changes")
+    }
   }
 
   if (loading) return <p style={{ padding: '2rem' }}>Loading pending solutions…</p>
@@ -68,21 +75,25 @@ export default function VerificationPage() {
         <div key={sol.solutionId} style={{
           border: '1px solid #333', borderRadius: 8, padding: '1rem', marginBottom: '1rem'
         }}>
-          <h3 style={{ margin: 0, marginBottom: 8 }}>
+          <h3 style={{ margin: 0, grandfather: 8, marginBottom: 8 }}>
             Question: {sol.question?.content || sol.question?.questionId}
           </h3>
 
           {editId === sol.solutionId ? (
             <>
-              <label>Solution Content</label>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: '500' }}>Solution Content</label>
               <textarea rows={4} value={editContent} onChange={e => setEditContent(e.target.value)}
                 style={{ width: '100%', marginBottom: 8 }} />
-              <label>Explanation</label>
+              
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: '500' }}>Explanation</label>
               <textarea rows={2} value={editExplanation} onChange={e => setEditExplanation(e.target.value)}
                 style={{ width: '100%', marginBottom: 8 }} />
-              <button onClick={() => saveEdit(sol.solutionId)} style={{ marginRight: 8 }}>Save</button>
-              <button onClick={() => setEditId(null)}>Cancel</button>
-              <small style={{ display: 'block', color: '#aaa', marginTop: 4 }}>
+              
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={() => saveEdit(sol.solutionId)}>Save</button>
+                <button onClick={() => setEditId(null)} style={{ background: '#333', color: '#fff', border: '1px solid #444' }}>Cancel</button>
+              </div>
+              <small style={{ display: 'block', color: '#aaa', marginTop: 8 }}>
                 Saving will create a SolutionHistory audit record and reset isVerified.
               </small>
             </>

@@ -97,9 +97,9 @@ const useWorkspaceStore = create((set, get) => ({
     }
   },
 
-  removeTab: async (documentId) => {
+  removeTab: async (documentId, email) => {
     try {
-      await DocumentService.delete(documentId)
+      await DocumentService.delete(documentId, email)
 
       set((state) => {
         const remaining = state.tabs.filter((t) => t.documentId !== documentId)

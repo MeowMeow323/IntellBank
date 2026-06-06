@@ -4,11 +4,11 @@ import com.intellbank.entity.*;
 import com.intellbank.exception.AppException;
 import com.intellbank.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -18,6 +18,7 @@ import java.util.UUID;
 @SuppressWarnings("null")
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
@@ -55,9 +56,8 @@ public class DocumentService {
                 .findFirst();
 
         if (existingDocumentOpt.isPresent()) {
-            // 👉 UPDATE existing entity row with the actual text content!
             Document existingDocument = existingDocumentOpt.get();
-            existingDocument.setStorageUrl(documentTextContent); // Saving the actual text content here
+            existingDocument.setStorageUrl(documentTextContent); 
             if (type != null) {
                 existingDocument.setType(type);
             }
@@ -68,14 +68,21 @@ public class DocumentService {
                     .project(project)
                     .title(title)
                     .type(type != null ? type : "Raw Document")
-                    .storageUrl(documentTextContent) // Saving the actual text content here
+                    .storageUrl(documentTextContent) 
                     .build();
             return documentRepository.save(document);
         }
     }
 
     @Transactional
-    public void delete(UUID documentId) {
-        documentRepository.delete(getById(documentId));
+    public void delete(UUID documentId, String email) {
+        log.info("Deleting document with ID: {} for user: {}", documentId, email);
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new AppException("Document not found", HttpStatus.NOT_FOUND));
+        if (!document.getProject().getStudent().getUser().getEmail().equals(email)) {
+            throw new AppException("Unauthorized to delete this document", HttpStatus.FORBIDDEN);
+        }
+        documentRepository.delete(document);
+        log.info("Document deleted: {}", documentId);
     }
 }

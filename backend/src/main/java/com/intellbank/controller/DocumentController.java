@@ -37,8 +37,8 @@ public class DocumentController {
     }
 
     @DeleteMapping("/{documentId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID documentId) {
-        documentService.delete(documentId);
+    public ResponseEntity<Void> delete(@PathVariable UUID documentId, @RequestParam String email) {
+        documentService.delete(documentId, email);
         return ResponseEntity.noContent().build();
     }
 }

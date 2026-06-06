@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import '../styles/question-bank.css'
 
 const DIFFICULTY_BADGE = { EASY: 'badge-green', MEDIUM: 'badge-amber', HARD: 'badge-red' }
 
@@ -50,7 +51,6 @@ const QuestionBankPage = () => {
             placeholder="Filter by subject..."
             value={filters.subject}
             onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
-            style={{ maxWidth: '200px' }}
           />
           <input
             id="filter-topic"
@@ -58,7 +58,6 @@ const QuestionBankPage = () => {
             placeholder="Filter by topic..."
             value={filters.topic}
             onChange={(e) => setFilters({ ...filters, topic: e.target.value })}
-            style={{ maxWidth: '200px' }}
           />
           <button type="submit" className="btn btn-secondary">Apply Filters</button>
           <button
@@ -72,7 +71,7 @@ const QuestionBankPage = () => {
 
         {/* Questions List */}
         {isLoading ? (
-          <div className="flex justify-center" style={{ padding: '2rem' }}>
+          <div className="flex justify-center">
             <div className="spinner" />
           </div>
         ) : questions.length === 0 ? (
@@ -84,7 +83,7 @@ const QuestionBankPage = () => {
           <div className="flex flex-col gap-3" id="questions-list">
             {questions.map((q) => (
               <div key={q.id} className="card question-card" id={`question-${q.id}`}>
-                <div className="flex justify-between items-center" style={{ marginBottom: '0.75rem' }}>
+                <div className="flex justify-between items-center">
                   <div className="flex gap-2">
                     {q.subject && <span className="badge badge-blue">{q.subject}</span>}
                     {q.topic && <span className="badge badge-purple">{q.topic}</span>}
@@ -98,8 +97,8 @@ const QuestionBankPage = () => {
                     {q.verificationStatus}
                   </span>
                 </div>
-                <p style={{ fontSize: '0.95rem', lineHeight: '1.6' }}>{q.questionText}</p>
-                <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                <p>{q.questionText}</p>
+                <div>
                   {q.marks} mark{q.marks !== 1 ? 's' : ''} · {q.sourceType?.replace(/_/g, ' ')}
                 </div>
               </div>
@@ -107,14 +106,6 @@ const QuestionBankPage = () => {
           </div>
         )}
       </main>
-
-      <style>{`
-        .filter-bar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        .question-card { transition: transform 0.15s ease; }
-        .question-card:hover { transform: translateX(4px); }
-        .empty-state { text-align: center; padding: 4rem; color: var(--color-text-secondary); font-size: 1rem; }
-        .empty-state div { font-size: 2.5rem; margin-bottom: 1rem; }
-      `}</style>
     </div>
   )
 }

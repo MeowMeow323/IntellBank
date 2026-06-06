@@ -1,0 +1,29 @@
+/* Question Bank Page Styles */
+
+.filter-bar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.question-card {
+  transition: transform 0.15s ease;
+}
+
+.question-card:hover {
+  transform: translateX(4px);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem;
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+}
+
+.empty-state div {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}

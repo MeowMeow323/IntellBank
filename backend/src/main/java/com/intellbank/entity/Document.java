@@ -4,9 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -32,7 +30,7 @@ public class Document {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
-    @JsonIgnore
+    @JsonBackReference
     private Project project;
 
     @Column(length = 500)
@@ -58,6 +56,6 @@ public class Document {
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 
-    @Column(name = "storage_url")
+    @Column(name = "storage_url", columnDefinition = "TEXT")
     private String storageUrl;
 }

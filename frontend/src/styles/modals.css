@@ -1,0 +1,67 @@
+/* ==========================================================================
+   ✨ BRAND SYSTEM UNIFIED DARK MODALS (modals.css)
+   ========================================================================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 16, 0.75); /* Deep slate translucent screen mask */
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 1.5rem;
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.modal-content {
+  background: var(--color-bg-card) !important;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2.25rem;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: var(--shadow-lg);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Header Configs */
+.modal-content h2,
+.modal-content h3 {
+  color: var(--color-text-primary) !important;
+  font-family: var(--font-heading);
+  font-size: 1.45rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Override input styling within modals */
+.modal-content .form-input,
+.modal-content .form-textarea,
+.input-group input {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.modal-content .form-input:focus,
+.modal-content .form-textarea:focus,
+.input-group input:focus {
+  border-color: var(--color-accent-blue) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Standardized modal actions row layout */
+.modal-actions, .form-actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}

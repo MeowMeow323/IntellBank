@@ -60,9 +60,11 @@ public class ProjectService {
 
     @Transactional
     public void delete(UUID projectId, String email) {
+        log.info("Deleting project with ID: {} for user: {}", projectId, email);
         Project project = getById(projectId);
         verifyOwner(project, email);
-        projectRepository.delete(project);
+        projectRepository.deleteById(projectId);
+        log.info("Project deleted: {}", projectId);
     }
 
     private Student getStudent(String email) {

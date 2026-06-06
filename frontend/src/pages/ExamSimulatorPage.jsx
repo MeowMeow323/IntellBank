@@ -1,12 +1,6 @@
 import { useState } from 'react'
-import { examApi, submissionApi } from '../services/api'
+import { ExamService, SubmissionService } from '../services/api'
 
-/**
- * ExamSimulatorPage – generates an AI exam stored as a Document.
- *
- * After generation the response contains:
- *   documentId, title, type ("AI Generated Exam"), totalScore, questions[]
- */
 export default function ExamSimulatorPage() {
   const [projectId, setProjectId] = useState('')
   const [title, setTitle] = useState('')
@@ -27,7 +21,7 @@ export default function ExamSimulatorPage() {
     setGeneratedExam(null)
     setSubmitted(false)
     try {
-      const res = await examApi.generate({ projectId, title, subject, topic, difficulty, questionCount })
+      const res = await ExamService.generate({ projectId, title, subject, topic, difficulty, questionCount })
       setGeneratedExam(res.data)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to generate exam')
@@ -39,7 +33,7 @@ export default function ExamSimulatorPage() {
   const handleSubmit = async () => {
     if (!generatedExam?.documentId) return
     try {
-      await submissionApi.submit(generatedExam.documentId)
+      await SubmissionService.submit(generatedExam.documentId)
       setSubmitted(true)
     } catch (err) {
       setError(err.response?.data?.message || 'Submission failed')

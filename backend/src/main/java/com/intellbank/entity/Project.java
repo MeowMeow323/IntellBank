@@ -3,6 +3,9 @@ package com.intellbank.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 /** Project belongs to a Student (not directly to User). */
 @Entity
@@ -21,4 +24,9 @@ public class Project {
 
     @Column(name = "project_name", nullable = false, length = 255)
     private String projectName;
+
+    @Builder.Default
+    @JsonManagedReference
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Document> documents = new ArrayList<>();
 }
