@@ -109,97 +109,48 @@ def generate_solution(question_text: str) -> str:
     return solution
 
 
-def generate_full_paper(request) -> list:
+def generate_full_paper(request) -> dict:
     """
-    Orchestrate a full exam paper generation by sub-dividing total marks 
-    into topics and querying the ML model for each sub-question.
+    Fetch questions from Supabase and strictly format them into the requested Markdown template.
+    Returns a dict with {"markdown_content": str} or {"error": str}.
     """
-    _load_model()
-    import torch
-    import random
+    from .db_service import fetch_questions_for_topics
     
     subject = request.subject
-    total_marks = request.total_marks
-    topics = request.topics if request.topics else ["General"]
+    topics = request.topics if request.topics else []
     
-    num_topics = len(topics)
-    marks_per_topic = total_marks // num_topics
-    remainder = total_marks % num_topics
+    if not subject or not topics:
+        return {"error": "INVALID_INPUT"}
+        
+    # Fetch exactly 4 questions
+    questions = fetch_questions_for_topics(subject, topics, limit=4)
     
-    paper_structure = []
-    part_letters = ['a.', 'b.', 'c.', 'd.', 'e.']
-    roman_numerals = ['(i)', '(ii)', '(iii)', '(iv)', '(v)', '(vi)', '(vii)']
+    if len(questions) != 4:
+        return {"error": "INVALID_INPUT"}
+        
+    # Build strict markdown
+    lines = []
+    lines.append("[METADATA_START]")
+    lines.append(f"SUBJECT: {subject}")
+    lines.append(f"ALL_TOPICS: {', '.join(topics)}")
+    lines.append("TOTAL_MARKS: 100")
+    lines.append("[METADATA_END]")
+    lines.append("")
+    lines.append(f"# {subject} Examination Paper")
+    lines.append("")
+    lines.append("### Total Marks: 100 Marks (25 Marks per Question)")
+    lines.append("")
     
-    for idx, topic in enumerate(topics):
-        # Distribute any remainder marks to the first few topics
-        section_marks = marks_per_topic + (1 if idx < remainder else 0)
+    for i, q in enumerate(questions):
+        lines.append("---")
+        lines.append("")
+        lines.append(f"## Question {i + 1} (25 Marks)")
+        lines.append("")
+        lines.append(f"TOPICS: {', '.join(q['topics'])}")
+        lines.append(q['text'])
+        lines.append("")
         
-        # Split section into 2 top-level parts (e.g. a. 12 marks, b. 13 marks)
-        part_a_marks = section_marks // 2
-        part_b_marks = section_marks - part_a_marks
-        parts_marks = [part_a_marks, part_b_marks]
-        
-        section_parts = []
-        for p_idx, p_marks in enumerate(parts_marks):
-            if p_marks <= 0: continue
-            
-            # Sub-divide into roman numeral sub-questions using buckets
-            sub_configs = []
-            remaining = p_marks
-            while remaining > 0:
-                if remaining <= 3:
-                    marks = remaining
-                else:
-                    marks = random.randint(2, min(10, remaining))
-                    # Prevent leaving a 1-mark remainder
-                    if remaining - marks == 1:
-                        marks -= 1
-                        if marks < 2: marks = remaining
-                
-                diff = "Easy" if marks <= 3 else ("Medium" if marks <= 6 else "Hard")
-                sub_configs.append({"marks": marks, "difficulty": diff})
-                remaining -= marks
-                
-            sub_questions = []
-            for r_idx, config in enumerate(sub_configs):
-                marks = config["marks"]
-                diff = config["difficulty"]
-                
-                prompt = f"Generate a {diff} {marks}-mark {subject} question about {topic}.".strip()
-                inputs = _tokenizer(prompt, return_tensors="pt", max_length=128, truncation=True)
-                
-                with torch.no_grad():
-                    outputs = _model.generate(
-                        inputs.input_ids,
-                        max_length=256,
-                        num_return_sequences=1,
-                        do_sample=True,
-                        temperature=0.8,
-                        top_p=0.9,
-                        early_stopping=True,
-                        no_repeat_ngram_size=2
-                    )
-                
-                q_text = _tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
-                
-                sub_questions.append({
-                    "numeral": roman_numerals[r_idx] if r_idx < len(roman_numerals) else f"({r_idx+1})",
-                    "difficulty": diff,
-                    "marks": marks,
-                    "question_text": q_text
-                })
-                
-            section_parts.append({
-                "part": part_letters[p_idx],
-                "part_total_marks": p_marks,
-                "sub_questions": sub_questions
-            })
-            
-        paper_structure.append({
-            "question_number": idx + 1,
-            "topic": topic,
-            "section_marks": section_marks,
-            "parts": section_parts
-        })
-        
-    return paper_structure
+    lines.append("---")
+    
+    return {"markdown_content": "\n".join(lines)}
+

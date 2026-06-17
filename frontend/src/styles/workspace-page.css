@@ -57,7 +57,7 @@
 .sidebar-doc-item {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Ensures space on right side for delete actions if added */
+  justify-content: space-between;
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
   border-radius: 6px;
@@ -123,8 +123,8 @@
   overflow: hidden;
 }
 
-/* Overrides display properties to remove the Tab Bar layout block cleanly */
-.workspace-main-panel > div:first-child,
+/* ⚠️ FIXED: Removed the dangerous general immediate-child selector (.workspace-main-panel > div:first-child) */
+/* It now only safely hides the explicit TabBar classes if they ever pop back up */
 .workspace-tab-bar,
 .workspace-tab-container {
   display: none !important;
@@ -135,41 +135,72 @@
   border: none !important;
 }
 
-/* Main inner display box where Document Content lives */
+/* Main inner viewport display box where Document Content lives */
 .workspace-canvas-scrollbox {
   flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
-  background: #0f172a; /* Main backing fill */
+  padding: 2.5rem 1rem;
+  overflow-y: auto;          /* 💡 The scrollbar stays locked inside this viewport frame */
+  background: #0f172a;       /* Dark premium workspace backdrop fill */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;                 /* Creates clean gaps between consecutive page blocks */
 }
 
-/* These classes isolate your document panel style from standard global styles */
+/* 📄 GOOGLE DOCS STYLE PAGED CONTAINER ENGINE */
+/* These classes isolate your page sheets, creating a strict physical footprint */
 .workspace-canvas-scrollbox .document-container,
 .workspace-canvas-scrollbox .editor-paper-canvas,
 .workspace-canvas-scrollbox .document-card-view {
-  background: #ffffff !important; /* Forces premium clean white document canvas style */
-  color: #1e293b !important;       /* Contrasting deep slate gray font text for high reading legibility */
+  background: #ffffff !important; 
+  color: #1e293b !important;       
   border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
-  padding: 2.5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  padding: 3.5rem 3.5rem 4.5rem 3.5rem; /* Large bottom padding allocates safe zone for a fixed footer */
   margin: 0 auto;
-  max-width: 850px; /* Emulates a standard physical paper reading block width */
-  min-height: 100%;
+  
+  /* 📐 Enforces explicit standard A4 physical document dimenions */
+  width: 100%;
+  max-width: 812px; 
+  height: 1123px;            /* 💡 HARD LIMIT: Keeps height locked exactly to standard document sheet scaling */
+  min-height: 1123px;        
+  max-height: 1123px;        
+  
+  position: relative;        /* Permits absolute positioning vectors inside the page sheet context */
+  box-sizing: border-box;
+  overflow: hidden;          /* Prevents expanding content strings from physically warping or dragging the page block */
+  
+  /* Modern styling token to manage printing configurations neatly */
+  page-break-after: always;
+  break-after: page;
 }
 
-/* Meta headers and subtitles nested inside your independent white document engine */
-.workspace-canvas-scrollbox .document-title-text {
-  color: #0f172a !important;
-  font-size: 1.75rem;
-  font-weight: 700;
-  border-bottom: 2px solid #f1f5f9;
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
+/* 🎯 FIXED POSITION FOOTER WITHIN THE APEX OF EACH SHEET */
+/* Ensure your internal footer uses this class format so it locks securely above the lower fold */
+.workspace-canvas-scrollbox .document-footer {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 3.5rem;
+  right: 3.5rem;
+  height: 2rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #94a3b8 !important;
+  font-size: 0.75rem;
+  background: #ffffff;
+  z-index: 10;
+  pointer-events: none;      /* Assures click inputs pass completely cleanly through structural margins */
 }
 
+/* Dynamic Editor Workspace Canvas constraints */
 .workspace-canvas-scrollbox .document-body-content {
   color: #334155 !important;
   line-height: 1.7;
   font-size: 1rem;
+  height: calc(100% - 6rem); /* 💡 Locks typing boundaries safely above the structural footer ceiling */
+  overflow: hidden;
 }

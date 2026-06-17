@@ -21,8 +21,6 @@ const DocumentUploadPage = () => {
   const [dragActive, setDragActive] = useState(false)
 
   // New UI States for Flow Alignment
-  const [showGenerateModal, setShowGenerateModal] = useState(false)
-  const [generateState, setGenerateState] = useState('idle') // idle, generating, done
   const [mockedTopics, setMockedTopics] = useState({})
   const [showTopicAlert, setShowTopicAlert] = useState(false)
 
@@ -86,20 +84,11 @@ const DocumentUploadPage = () => {
     setTimeout(() => setShowTopicAlert(false), 4000)
   }
 
-  const handleGeneratePaper = (e) => {
-    e.preventDefault()
-    setGenerateState('generating')
-    // Simulate API delay for paper generation
-    setTimeout(() => {
-      setGenerateState('done')
-    }, 2000)
-  }
-
   return (
     <div className="page-layout">
       <Sidebar />
       <main className="main-content relative">
-        
+
         {/* Floating System Alerts */}
         {showTopicAlert && (
           <div className="topic-alert">
@@ -112,12 +101,6 @@ const DocumentUploadPage = () => {
             <h1 className="page-title">Document Upload</h1>
             <p className="page-subtitle">Upload PDFs and images to extract questions automatically</p>
           </div>
-          <button 
-            className="btn btn-primary" 
-            onClick={() => { setShowGenerateModal(true); setGenerateState('idle') }}
-          >
-            + Generate New Paper
-          </button>
         </div>
 
         {/* Drop Zone */}
@@ -164,7 +147,7 @@ const DocumentUploadPage = () => {
                     <p>
                       Uploaded {new Date(doc.createdAt).toLocaleDateString()}
                     </p>
-                    
+
                     {/* Topic Labels (Shown after Analysis) */}
                     {mockedTopics[doc.id] && (
                       <div className="flex gap-2">
@@ -181,7 +164,7 @@ const DocumentUploadPage = () => {
                     <span className={`badge ${STATUS_COLORS[doc.processingStatus] || 'badge-blue'}`}>
                       {doc.processingStatus}
                     </span>
-                    
+
                     {doc.processingStatus === 'UPLOADED' && (
                       <button
                         className="btn btn-secondary"
@@ -191,7 +174,7 @@ const DocumentUploadPage = () => {
                         Extract Text
                       </button>
                     )}
-                    
+
                     {/* Analyze Topics Button for PROCESSED files */}
                     {doc.processingStatus === 'PROCESSED' && (
                       <button
@@ -207,87 +190,6 @@ const DocumentUploadPage = () => {
             </div>
           )}
         </div>
-
-        {/* Paper Generation Modal */}
-        {showGenerateModal && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <div className="flex justify-between items-center">
-                <h2>Generate New Paper</h2>
-                <button 
-                  onClick={() => setShowGenerateModal(false)}
-                  className="close-modal-btn"
-                >
-                  &times;
-                </button>
-              </div>
-
-              {generateState === 'idle' && (
-                <form onSubmit={handleGeneratePaper}>
-                  <div>
-                    <label>Number of Questions</label>
-                    <input 
-                      type="number" min="1" max="50" defaultValue="10" 
-                      className="input-field" 
-                      required 
-                    />
-                  </div>
-                  <div>
-                    <label>Topic Selection (Optional)</label>
-                    <select 
-                      className="input-field"
-                    >
-                      <option value="">All Topics</option>
-                      <option value="Calculus">Calculus</option>
-                      <option value="Algebra">Algebra</option>
-                      <option value="Kinematics">Kinematics</option>
-                    </select>
-                  </div>
-                  <button type="submit" className="btn btn-primary">
-                    Generate Paper
-                  </button>
-                </form>
-              )}
-
-              {generateState === 'generating' && (
-                <div className="flex flex-col items-center justify-center generating-state">
-                  <div className="spinner generating-spinner" />
-                  <p className="generating-text">AI is generating your paper...</p>
-                </div>
-              )}
-
-              {generateState === 'done' && (
-                <div className="generated-paper-view">
-                  
-                  {/* Structured Format Output */}
-                  <div className="paper-section">
-                    <h3>Section A: Short Answer Questions</h3>
-                    <div className="question-block">
-                      <p className="question-text">Q1. Explain the concept of limits in your own words. [2 marks]</p>
-                      <div className="answer-space"></div>
-                    </div>
-                    <div className="question-block">
-                      <p className="question-text">Q2. Differentiate f(x) = 3x^2 + 2x with respect to x. [3 marks]</p>
-                      <div className="answer-space"></div>
-                    </div>
-                  </div>
-
-                  <div className="paper-section">
-                    <h3>Section B: Long Answer Questions</h3>
-                    <div className="question-block">
-                      <p className="question-text">Q3. Using first principles, prove the derivative of sin(x). Show all working clearly. [10 marks]</p>
-                      <div className="answer-space" style={{ height: '150px' }}></div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                     <button className="btn btn-primary" onClick={() => setShowGenerateModal(false)}>Done</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
       </main>
     </div>

@@ -38,11 +38,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         String token = authHeader.substring(7);
-        String email = jwtUtil.extractEmail(token);
+        
+        // ── ADD THIS DEBUG BLOCK ──────────────────────────────────────
+        String email;
+        try {
+            email = jwtUtil.extractEmail(token);
+            System.out.println("✅ JWT extracted email: " + email);
+        } catch (Exception e) {
+            System.out.println("❌ JWT extractEmail FAILED: " + e.getClass().getSimpleName() + " – " + e.getMessage());
+            filterChain.doFilter(request, response);
+            return;
+        }
+        // ─────────────────────────────────────────────────────────────
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
-                if (jwtUtil.validateToken(token, email)) {
+                boolean valid = jwtUtil.validateToken(token, email);
+                System.out.println("🔑 validateToken: " + valid + " | role: " + user.getRole());
+                if (valid) {
                     String role = "ROLE_" + user.getRole();
                     UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(

@@ -1,729 +1,606 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import useWorkspaceStore from '../../store/workspaceStore'
+import S from '../../utils/workspaceStyles'
+import { useEditorKeyboard } from '../../utils/useEditorKeyboard'
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+const PAGE_SIZES = {
+  letter: { width: 816, height: 1056 },
+  a4: { width: 794, height: 1123 },
+}
+const PAD_V = 96
+const PAD_H = 96
+const HDR_H = 32
+const FTR_H = 32
+const PAGE_BREAK_MARKER = '<!--PAGE-->'
+
+// ─── PageEditor ───────────────────────────────────────────────────────────────
+const PageEditor = React.forwardRef(({
+  pageNum, pageCount, pageW, pageH,
+  headerText, footerText, editingHF,
+  onDoubleClickHF, onBlurHeader, onBlurFooter,
+  onInput, onKeyDown, onPaste,
+}, ref) => {
+  const contentH = pageH - PAD_V * 2 - HDR_H - FTR_H - 12
+  return (
+    <div style={{
+      width: `${pageW}px`, height: `${pageH}px`, maxHeight: `${pageH}px`,
+      background: '#fff',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.1), 0 6px 20px rgba(0,0,0,0.06)',
+      border: '1px solid #e0e0e0',
+      display: 'flex', flexDirection: 'column',
+      boxSizing: 'border-box', overflow: 'hidden', flexShrink: 0,
+      padding: `${PAD_V}px ${PAD_H}px`,
+      ...(editingHF ? { outline: '1.5px dashed #0b57d0' } : {}),
+    }}>
+      {/* Header */}
+      <div
+        contentEditable={editingHF}
+        suppressContentEditableWarning
+        onDoubleClick={onDoubleClickHF}
+        onBlur={onBlurHeader}
+        dangerouslySetInnerHTML={editingHF ? undefined : {
+          __html: headerText || '<span style="color:#ccc;font-style:italic">Double-click to add header…</span>'
+        }}
+        style={{
+          fontSize: '8pt', color: '#70757a', fontFamily: 'Arial,sans-serif',
+          height: `${HDR_H}px`, flexShrink: 0, outline: 'none', cursor: 'pointer', overflow: 'hidden'
+        }}
+      />
+      <div style={{ borderTop: '1px dashed #e8eaed', marginBottom: '4px', flexShrink: 0 }} />
+      {/* Content */}
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={onInput}
+        onKeyDown={onKeyDown}
+        onPaste={onPaste}
+        data-page={pageNum}
+        style={{
+          height: `${contentH}px`, maxHeight: `${contentH}px`, minHeight: `${contentH}px`,
+          overflow: 'hidden', outline: 'none', border: 'none',
+          fontFamily: 'Arial, sans-serif', fontSize: '11pt', lineHeight: 1.6,
+          color: '#222', background: 'transparent', wordWrap: 'break-word',
+          boxSizing: 'border-box', flexShrink: 0,
+        }}
+      />
+      <div style={{ borderTop: '1px dashed #e8eaed', marginTop: '4px', flexShrink: 0 }} />
+      {/* Footer */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        height: `${FTR_H}px`, flexShrink: 0
+      }}>
+        <span
+          contentEditable={editingHF}
+          suppressContentEditableWarning
+          onDoubleClick={onDoubleClickHF}
+          onBlur={onBlurFooter}
+          dangerouslySetInnerHTML={editingHF ? undefined : { __html: footerText || '' }}
+          style={{ fontSize: '8pt', color: '#70757a', fontFamily: 'Arial,sans-serif', outline: 'none', cursor: 'pointer' }}
+        />
+        <span style={{
+          fontSize: '8pt', color: '#0b57d0', fontWeight: 600,
+          background: '#f0f4f9', padding: '1px 8px', borderRadius: '4px'
+        }}>
+          {pageNum} / {pageCount}
+        </span>
+      </div>
+    </div>
+  )
+})
+PageEditor.displayName = 'PageEditor'
+
+// ─── WorkspaceContent ─────────────────────────────────────────────────────────
 const WorkspaceContent = () => {
   const { tabs = [], activeTabId, updateTabContent } = useWorkspaceStore()
   const activeTab = tabs.find((t) => t.documentId === activeTabId)
 
-  const editorRef = useRef(null)
-  
-  // App UI State Vectors
+  const [pages, setPages] = useState(['<p><br></p>'])
   const [saveStatus, setSaveStatus] = useState('saved')
-  const [zoomScale, setZoomScale] = useState(100) // 🔍 Google Docs Zoom Scaling State
+  const [zoomScale, setZoomScale] = useState(100)
   const [fontSize, setFontSize] = useState(11)
-  
-  // UI Toggles
-  const [showMoreMenu, setShowMoreMenu] = useState(false)
-  const [showFindReplace, setShowFindReplace] = useState(false)
-  const [isEditingHeaderFooter, setIsEditingHeaderFooter] = useState(false) // 📝 Interactive Header/Footer Editing State
-  
-  // Active Window Menu Popovers
-  const [activeMenuHeader, setActiveMenuHeader] = useState(null)
-  
-  // Real-time Metrics Trackers
   const [wordCount, setWordCount] = useState(0)
   const [charCount, setCharCount] = useState(0)
-  const [pageCount, setPageCount] = useState(1) // Dynamic physical sheets counter
-
-  // Overlay Component Controllers
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [showFind, setShowFind] = useState(false)
   const [findText, setFindText] = useState('')
   const [replaceText, setReplaceText] = useState('')
-  const [selectedImage, setSelectedImage] = useState(null)
-
-  // Format Painter Clipboard Cache State
-  const [activePaintStyle, setActivePaintStyle] = useState(null)
-  const [isPainterActive, setIsPainterActive] = useState(false)
-
-  // Responsive Document Geometry Setup State Variables
+  const [activeMenu, setActiveMenu] = useState(null)
+  const [editingHF, setEditingHF] = useState(false)
   const [pageSetup, setPageSetup] = useState({
-    orientation: 'portrait', 
-    paperSize: 'letter',     
-    marginTop: 1,            
-    marginBottom: 1,
-    marginLeft: 1,
-    marginRight: 1,
-    headerText: 'Double-click to customize header content...',
-    footerText: 'Internal Working Document'
+    orientation: 'portrait', paperSize: 'letter',
+    headerText: '', footerText: '',
   })
 
-  // Synchronize and load canvas HTML string securely on tab mutation
-  useEffect(() => {
-    if (activeTab && editorRef.current) {
-      const targetContent = activeTab.localDraftContent !== undefined 
-        ? activeTab.localDraftContent 
-        : (activeTab.storageUrl || '')
-      
-      editorRef.current.innerHTML = targetContent || '<div><p><br></p></div>'
-      document.execCommand('styleWithCSS', false, true)
-      recalculateMetricsAndPages()
-      setSaveStatus('saved')
-    }
-  }, [activeTabId])
+  const pageRefs = useRef([])
+  const saveTimer = useRef(null)
+  const focusedPage = useRef(0)
+  // Track whether we're doing AI bulk injection — suppresses typing reflow
+  const isInjecting = useRef(false)
 
-  // Contextual Element Click Interceptor Loop
-  useEffect(() => {
-    const handleElementSelection = (e) => {
-      if (e.target.tagName === 'IMG') {
-        if (selectedImage && selectedImage !== e.target) {
-          selectedImage.style.outline = 'none'
-        }
-        setSelectedImage(e.target)
-        e.target.style.outline = '3px solid #1a73e8'
-      } else {
-        if (selectedImage) {
-          selectedImage.style.outline = 'none'
-          setSelectedImage(null)
-        }
-      }
+  const dim = PAGE_SIZES[pageSetup.paperSize] || PAGE_SIZES.letter
+  const isLandscape = pageSetup.orientation === 'landscape'
+  const pageW = isLandscape ? dim.height : dim.width
+  const pageH = isLandscape ? dim.width : dim.height
+  const contentH = pageH - PAD_V * 2 - HDR_H - FTR_H - 12
 
-      if (isPainterActive && activePaintStyle) {
-        e.preventDefault()
-        applyCachedPaintStyles(e.target)
-        setIsPainterActive(false)
-      }
-    }
+  // Keep pageRefs array in sync with pages count
+  pageRefs.current = pageRefs.current.slice(0, pages.length)
+  while (pageRefs.current.length < pages.length) {
+    pageRefs.current.push(React.createRef())
+  }
 
-    const editorNode = editorRef.current
-    if (editorNode) {
-      editorNode.addEventListener('click', handleElementSelection)
-    }
-    return () => {
-      if (editorNode) {
-        editorNode.removeEventListener('click', handleElementSelection)
-      }
-    }
-  }, [selectedImage, isPainterActive, activePaintStyle, activeTabId])
-
-  // Close menus when clicking outside anywhere on the window viewport document
-  useEffect(() => {
-    const closeMenus = (e) => {
-      if (!e.target.closest('.more-tools-container')) {
-        setShowMoreMenu(false)
-      }
-      if (!e.target.closest('.menu-bar-item-wrapper')) {
-        setActiveMenuHeader(null)
-      }
-    }
-    document.addEventListener('click', closeMenus)
-    return () => document.removeEventListener('click', closeMenus)
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const recalcStats = useCallback(() => {
+    const allText = pageRefs.current.map(r => r.current?.innerText || '').join(' ')
+    const words = allText.trim() ? allText.trim().split(/\s+/).length : 0
+    setWordCount(words)
+    setCharCount(allText.length)
   }, [])
 
-  // Core Mutation Wrapper
-  const executeCmd = (command, value = null) => {
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const triggerSave = useCallback(() => {
+    if (!activeTabId) return
+    setSaveStatus('saving')
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      const html = pageRefs.current
+        .map(r => r.current?.innerHTML || '')
+        .join(PAGE_BREAK_MARKER)
+      try {
+        await updateTabContent(activeTabId, html)
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 1200)
+  }, [activeTabId, updateTabContent])
+
+  const cmd = useCallback((command, value = null) => {
     document.execCommand(command, false, value)
-    recalculateMetricsAndPages()
-    triggerAutoSave()
-  }
+    recalcStats()
+    triggerSave()
+  }, [triggerSave, recalcStats])
 
-  // Real-Time Analytics & Automated Page-Overflow Geometry Recalculator
-  const recalculateMetricsAndPages = () => {
-    if (!editorRef.current) return
-    const plainText = editorRef.current.innerText || ''
-    const words = plainText.trim() === '' ? 0 : plainText.trim().split(/\s+/).length
-    const chars = plainText.length
-    
-    setWordCount(words)
-    setCharCount(chars)
-
-    // 🔄 Dynamic Page Overflow Engine:
-    // Standard Letter Page height allowance minus running margin zones maps to approx 960px.
-    // If text flows continuously past this threshold, it increments page count metrics immediately.
-    const maxPageContentHeight = 960
-    const currentScrollHeight = editorRef.current.scrollHeight
-    const calculatedPages = Math.max(1, Math.ceil(currentScrollHeight / maxPageContentHeight))
-    setPageCount(calculatedPages)
-  }
-
-  // Paint Styles Core Block Logic
-  const triggerFormatPainter = () => {
-    const selection = window.getSelection()
-    if (selection.rangeCount > 0) {
-      const anchorNode = selection.anchorNode.parentElement
-      if (anchorNode) {
-        const computedStyles = window.getComputedStyle(anchorNode)
-        setActivePaintStyle({
-          fontWeight: computedStyles.fontWeight,
-          fontStyle: computedStyles.fontStyle,
-          textDecoration: computedStyles.textDecoration,
-          color: computedStyles.color,
-          fontSize: computedStyles.fontSize,
-          fontFamily: computedStyles.fontFamily
-        })
-        setIsPainterActive(true)
-      }
-    }
-  }
-
-  const applyCachedPaintStyles = (targetElement) => {
-    if (!activePaintStyle) return
-    targetElement.style.fontWeight = activePaintStyle.fontWeight
-    targetElement.style.fontStyle = activePaintStyle.fontStyle
-    targetElement.style.textDecoration = activePaintStyle.textDecoration
-    targetElement.style.color = activePaintStyle.color
-    targetElement.style.fontSize = activePaintStyle.fontSize
-    targetElement.style.fontFamily = activePaintStyle.fontFamily
-    triggerAutoSave()
-  }
-
-  const insertGridTable = () => {
-    const rows = parseInt(prompt("Enter row allocation count:", "3") || "0")
-    const cols = parseInt(prompt("Enter column capacity count:", "3") || "0")
-    if (rows <= 0 || cols <= 0) return
-
-    let tableHTML = `<table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 11pt;"><tbody>`
-    for (let r = 0; r < rows; r++) {
-      tableHTML += `<tr>`
-      for (let c = 0; c < cols; c++) {
-        tableHTML += `<td style="border: 1px solid #c4c7c5; padding: 8px; min-width: 50px; height: 24px; vertical-align: top; background-color: #ffffff;">&nbsp;</td>`
-      }
-      tableHTML += `</tr>`
-    }
-    tableHTML += `</tbody></table><p><br></p>`
-    executeCmd('insertHTML', tableHTML)
-    setShowMoreMenu(false)
-  }
-
-  const adjustLineSpacing = (spacingValue) => {
-    const selection = window.getSelection()
-    if (selection.rangeCount > 0) {
-      let parentNode = selection.getRangeAt(0).commonAncestorContainer
-      if (parentNode.nodeType === Node.TEXT_NODE) parentNode = parentNode.parentNode
-      
-      const blockNode = parentNode.closest('p, li, h1, h2, h3, h4, h5, h6') || parentNode
-      blockNode.style.lineHeight = spacingValue
-      triggerAutoSave()
-    }
-  }
-
-  const handleEditorInput = () => {
-    recalculateMetricsAndPages()
-    triggerAutoSave()
-  }
-
-  // Comprehensive Hotkey Macro Interceptor Loop
-  const handleKeyDown = (e) => {
-    const isCtrl = e.ctrlKey || e.metaKey
-    const isShift = e.shiftKey
-    const key = e.key.toLowerCase()
-
-    // 📄 Ctrl + N: Google Docs Native Dynamic Page Split Break
-    if (isCtrl && key === 'n') {
-      e.preventDefault()
-      // Injects a print-safe native structural break block into the unified editor stream
-      executeCmd('insertHTML', '<div class="google-docs-page-break" style="page-break-before: always; break-before: page; margin-top: 40px; height: 1px;" contenteditable="false"></div><p><br></p>')
+  // ── Effect 1: Load content on tab switch ─────────────────────────────────
+  // Splits saved HTML by PAGE_BREAK_MARKER into pages array.
+  // For AI-generated docs the content arrives via localDraftContent update
+  // AFTER the tab is already active, so we also watch localDraftContent.
+  useEffect(() => {
+    if (!activeTab) return
+    const raw = activeTab.localDraftContent ?? activeTab.storageUrl ?? ''
+    if (!raw || raw === '<p><br></p>') {
+      setPages(['<p><br></p>'])
       return
     }
+    const parts = raw.split(PAGE_BREAK_MARKER).filter(p => p.trim())
+    setPages(parts.length ? parts : ['<p><br></p>'])
+  }, [activeTabId, activeTab?.localDraftContent])
 
-    // 🔀 Structural Inline Manipulations
-    if (isShift && e.key === 'Enter') {
-      e.preventDefault()
-      executeCmd('insertLineBreak')
-      return
-    }
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      const selection = window.getSelection()
-      let insideList = false
-      if (selection.rangeCount > 0) {
-        let node = selection.getRangeAt(0).commonAncestorContainer
-        if (node.nodeType === Node.TEXT_NODE) node = node.parentNode
-        if (node.closest('li')) insideList = true
+  // ── Effect 2: Inject HTML into DOM after pages state changes ─────────────
+  // IMPORTANT: This effect only injects — it does NOT reflow or redistribute.
+  // Reflow on typing is handled by reflowOnType.
+  // Reflow after AI injection is handled by the separate aiPaginate effect.
+  useEffect(() => {
+    pages.forEach((html, i) => {
+      const el = pageRefs.current[i]?.current
+      if (el && el.innerHTML !== html) {
+        el.innerHTML = html || '<p><br></p>'
       }
+    })
+    recalcStats()
+  }, [pages, activeTabId, recalcStats])
 
-      if (insideList) {
-        executeCmd(isShift ? 'outdent' : 'indent')
+  // ── Effect 3: AI pagination — only runs when a single large page is loaded ─
+  // Detects that page 0 overflows (AI content all on one page) and
+  // redistributes nodes across multiple pages WITHOUT touching normal documents.
+  useEffect(() => {
+    const el = pageRefs.current[0]?.current
+    if (!el) return
+    // Only paginate if: single page AND content overflows AND not already multi-page
+    if (pages.length !== 1) return
+
+    requestAnimationFrame(() => {
+      if (!el || el.scrollHeight <= contentH + 2) return
+
+      // This is AI content on a single overflowing page — redistribute
+      isInjecting.current = true
+      redistributeNodes(el)
+      isInjecting.current = false
+    })
+  }, [activeTabId, activeTab?.localDraftContent]) // eslint-disable-line
+
+  // ── redistributeNodes: AI pagination engine ───────────────────────────────
+  // Takes all child nodes from the first page and distributes them
+  // across as many pages as needed. Only called for AI-generated content.
+  const redistributeNodes = useCallback((firstPageEl) => {
+    // Snapshot all nodes
+    const allNodes = Array.from(firstPageEl.childNodes).map(n => n.cloneNode(true))
+    if (allNodes.length === 0) return
+
+    // Build pages by filling each one node-by-node
+    const pageContents = [[]] // array of arrays of nodes
+    let pageIdx = 0
+
+    // Use a temporary off-screen div to measure scrollHeight
+    const testDiv = document.createElement('div')
+    testDiv.style.cssText = `
+      position:absolute; visibility:hidden; pointer-events:none;
+      width:${firstPageEl.offsetWidth}px;
+      font-family:Arial,sans-serif; font-size:11pt; line-height:1.6;
+      word-wrap:break-word; box-sizing:border-box;
+    `
+    document.body.appendChild(testDiv)
+
+    for (const node of allNodes) {
+      // Try adding node to current page test
+      testDiv.innerHTML = ''
+      pageContents[pageIdx].forEach(n => testDiv.appendChild(n.cloneNode(true)))
+      testDiv.appendChild(node.cloneNode(true))
+
+      if (testDiv.scrollHeight > contentH + 2 && pageContents[pageIdx].length > 0) {
+        // Overflow — start new page
+        pageIdx++
+        pageContents.push([node.cloneNode(true)])
       } else {
-        executeCmd('insertHTML', '&nbsp;&nbsp;&nbsp;&nbsp;')
+        pageContents[pageIdx].push(node.cloneNode(true))
       }
-      return
     }
 
-    // ✍️ Core Rich Content Editing Hooks
-    if (isCtrl && key === 'z') { e.preventDefault(); executeCmd('undo'); return; }
-    if (isCtrl && key === 'f') { e.preventDefault(); setShowFindReplace(true); return; }
-    if (isCtrl && key === 'b') { e.preventDefault(); executeCmd('bold'); return; }
-    if (isCtrl && key === 'i') { e.preventDefault(); executeCmd('italic'); return; }
-    if (isCtrl && key === 'u') { e.preventDefault(); executeCmd('underline'); return; }
-  }
+    document.body.removeChild(testDiv)
 
-  const handleExportPDF = () => {
-    window.print()
-  }
+    // Convert node arrays to HTML strings
+    const newPages = pageContents.map(nodes => {
+      const tmp = document.createElement('div')
+      nodes.forEach(n => tmp.appendChild(n))
+      return tmp.innerHTML || '<p><br></p>'
+    })
 
-  const executeFindReplace = (replaceAll = false) => {
-    if (!findText || !editorRef.current) return
-    const content = editorRef.current.innerHTML
-    const escapedSearchTerm = findText.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
-    const regex = new RegExp(escapedSearchTerm, replaceAll ? 'g' : '')
-    
-    editorRef.current.innerHTML = content.replace(regex, replaceText)
-    recalculateMetricsAndPages()
-    triggerAutoSave()
-  }
+    setPages(newPages)
+  }, [contentH])
+
+  // ── Typing reflow: move ONE overflowing node to next page ─────────────────
+  const reflowOnType = useCallback((pageIdx) => {
+    if (isInjecting.current) return
+    const el = pageRefs.current[pageIdx]?.current
+    if (!el) return
+
+    if (el.scrollHeight > contentH + 2) {
+      const lastChild = el.lastChild
+      if (!lastChild) return
+
+      // Create next page if needed
+      setPages(prev => {
+        if (prev[pageIdx + 1] !== undefined) return prev
+        return [...prev, '<p><br></p>']
+      })
+
+      setTimeout(() => {
+        const nextEl = pageRefs.current[pageIdx + 1]?.current
+        if (!nextEl || !el.lastChild) return
+
+        const node = el.lastChild
+        if (nextEl.innerHTML === '<p><br></p>' || nextEl.innerHTML === '') {
+          nextEl.innerHTML = ''
+        }
+        // Move node (not clone) so it's removed from current page
+        nextEl.insertBefore(node, nextEl.firstChild)
+
+        // Place cursor at start of next page
+        setTimeout(() => {
+          const next = pageRefs.current[pageIdx + 1]?.current
+          if (!next) return
+          next.focus()
+          const range = document.createRange()
+          range.setStart(next, 0)
+          range.collapse(true)
+          window.getSelection().removeAllRanges()
+          window.getSelection().addRange(range)
+          focusedPage.current = pageIdx + 1
+        }, 10)
+
+        recalcStats()
+        triggerSave()
+      }, 0)
+
+    } else if (pageRefs.current[pageIdx + 1]?.current) {
+      // Underflow check: if current page has room, pull from next page
+      const nextEl = pageRefs.current[pageIdx + 1]?.current
+      if (!nextEl?.firstChild) return
+
+      const candidate = nextEl.firstChild.cloneNode(true)
+      el.appendChild(candidate)
+
+      if (el.scrollHeight <= contentH) {
+        nextEl.removeChild(nextEl.firstChild)
+        // Remove empty trailing page
+        if (!nextEl.firstChild) {
+          setPages(prev => prev.length > 1
+            ? prev.filter((_, i) => i !== pageIdx + 1)
+            : prev
+          )
+        }
+      } else {
+        el.removeChild(el.lastChild)
+      }
+
+      recalcStats()
+      triggerSave()
+    }
+  }, [contentH, recalcStats, triggerSave])
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  const { makeOnKeyDown } = useEditorKeyboard({
+    pageRefs, contentH, pagesLength: pages.length,
+    setPages, reflowPage: reflowOnType,
+    triggerSave, recalcStats, setShowFind, focusedPage,
+  })
+
+  const makeOnInput = useCallback((pageIdx) => () => {
+    if (isInjecting.current) return
+    reflowOnType(pageIdx)
+    recalcStats()
+    triggerSave()
+  }, [reflowOnType, recalcStats, triggerSave])
+
+  const makeOnPaste = useCallback((pageIdx) => (e) => {
+    e.preventDefault()
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'))
+    setTimeout(() => reflowOnType(pageIdx), 0)
+  }, [reflowOnType])
+
+  // ── Close menus on outside click ──────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.target.closest('.wc-more-wrap')) setShowMoreMenu(false)
+      if (!e.target.closest('.wc-menu-item')) setActiveMenu(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const changeFontSize = (delta) => {
-    const newSize = Math.max(1, fontSize + delta)
-    setFontSize(newSize)
-    executeCmd('fontSize', '7') 
-    const selection = window.getSelection()
-    if (selection.rangeCount > 0) {
-      let parent = selection.getRangeAt(0).commonAncestorContainer
-      if (parent.nodeType === Node.TEXT_NODE) parent = parent.parentNode
-      parent.style.fontSize = `${newSize}pt`
+    const next = Math.max(6, fontSize + delta)
+    setFontSize(next)
+    const sel = window.getSelection()
+    if (sel?.rangeCount) {
+      let node = sel.getRangeAt(0).commonAncestorContainer
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentNode
+      node.style.fontSize = `${next}pt`
     }
+    triggerSave()
   }
 
-  const promptLink = () => {
-    const targetUrl = prompt("Enter destination Hyperlink URL:")
-    if (targetUrl) executeCmd('createLink', targetUrl)
+  const insertTable = () => {
+    const r = parseInt(prompt('Rows:', '3') || '0')
+    const c = parseInt(prompt('Columns:', '3') || '0')
+    if (r <= 0 || c <= 0) return
+    let html = `<table style="width:100%;border-collapse:collapse;margin:8px 0"><tbody>`
+    for (let i = 0; i < r; i++) {
+      html += '<tr>'
+      for (let j = 0; j < c; j++)
+        html += `<td style="border:1px solid #c4c7c5;padding:6px 8px;min-width:40px">&nbsp;</td>`
+      html += '</tr>'
+    }
+    html += '</tbody></table><p><br></p>'
+    document.execCommand('insertHTML', false, html)
     setShowMoreMenu(false)
   }
 
-  // Cloud Synchronization Save Debouncer
-  let saveTimer = null
-  const triggerAutoSave = () => {
-    if (!activeTabId || !editorRef.current) return
-    setSaveStatus('saving')
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(async () => {
-      try {
-        await updateTabContent(activeTabId, editorRef.current.innerHTML)
-        setSaveStatus('saved')
-      } catch (err) { setSaveStatus('error') }
-    }, 1500)
+  const doFindReplace = (all) => {
+    if (!findText) return
+    const escaped = findText.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const re = new RegExp(escaped, all ? 'g' : '')
+    pageRefs.current.forEach(r => {
+      if (r.current) r.current.innerHTML = r.current.innerHTML.replace(re, replaceText)
+    })
+    triggerSave()
   }
-
-  const toggleMenuHeader = (menuKey, e) => {
-    e.stopPropagation()
-    setActiveMenuHeader(activeMenuHeader === menuKey ? null : menuKey)
-  }
-
-  // Dynamic iteration generation matrix layout indexer mapped to screen loop layers
-  const sheetsRenderMatrixArray = Array.from({ length: pageCount }, (_, i) => i + 1)
 
   if (!activeTab) {
     return (
-      <div className="workspace-empty">
-        <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>📂</div>
-        <h3>No Document Selected</h3>
-        <p>Select an asset node entry pointer path from your active catalog workspace explorer to load page buffers.</p>
+      <div style={S.empty}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📄</div>
+        <h3 style={{ color: '#3c4043', marginBottom: '0.5rem' }}>No document open</h3>
+        <p style={{ color: '#70757a', fontSize: '0.9rem' }}>Select a document from the sidebar.</p>
       </div>
     )
   }
 
+  const menus = [
+    {
+      key: 'file', label: 'File', items: [
+        { label: '🖨️ Export PDF', action: () => window.print() },
+        { label: '💾 Save now', action: () => triggerSave() },
+      ]
+    },
+    {
+      key: 'insert', label: 'Insert', items: [
+        { label: '📊 Table…', action: insertTable },
+        { label: '🔗 Hyperlink…', action: () => { const u = prompt('URL:'); if (u) cmd('createLink', u) } },
+        { label: '➖ Horizontal rule', action: () => cmd('insertHorizontalRule') },
+      ]
+    },
+    {
+      key: 'view', label: 'View', items: [
+        { label: '🔍 Find & Replace', action: () => setShowFind(true) },
+      ]
+    },
+  ]
+
   return (
-    <div className="workspace-tab-content" onClick={() => setIsEditingHeaderFooter(false)}>
-      
-      {/* 🏛️ TOP TIER: DESKTOP APPLICATION MENU ROW BAR */}
-      <div className="google-docs-desktop-menu-bar" onClick={(e) => e.stopPropagation()}>
-        <div className="menu-bar-left-cluster">
-          
-          {/* File Tab */}
-          <div className="menu-bar-item-wrapper">
-            <button className={`menu-bar-tab ${activeMenuHeader === 'file' ? 'active-tab' : ''}`} onClick={(e) => toggleMenuHeader('file', e)}>File</button>
-            {activeMenuHeader === 'file' && (
-              <div className="menu-bar-dropdown-panel">
-                <button className="dropdown-panel-item" onClick={() => { handleExportPDF(); setActiveMenuHeader(null); }}>🖨️ Export to PDF File</button>
-                <button className="dropdown-panel-item" onClick={() => { triggerAutoSave(); setActiveMenuHeader(null); }}>💾 Save State Snapshot</button>
-              </div>
-            )}
-          </div>
+    <div style={S.root} onClick={() => setEditingHF(false)}>
 
-          {/* View Tab */}
-          <div className="menu-bar-item-wrapper">
-            <button className={`menu-bar-tab ${activeMenuHeader === 'view' ? 'active-tab' : ''}`} onClick={(e) => toggleMenuHeader('view', e)}>View</button>
-            {activeMenuHeader === 'view' && (
-              <div className="menu-bar-dropdown-panel">
-                <button className="dropdown-panel-item" onClick={() => { setShowFindReplace(true); setActiveMenuHeader(null); }}>🔍 Show Find & Replace</button>
-              </div>
-            )}
-          </div>
-
-          {/* Insert Tab */}
-          <div className="menu-bar-item-wrapper">
-            <button className={`menu-bar-tab ${activeMenuHeader === 'insert' ? 'active-tab' : ''}`} onClick={(e) => toggleMenuHeader('insert', e)}>Insert</button>
-            {activeMenuHeader === 'insert' && (
-              <div className="menu-bar-dropdown-panel">
-                <button className="dropdown-panel-item" onClick={() => { insertGridTable(); setActiveMenuHeader(null); }}>📊 Matrix Grid Table...</button>
-                <button className="dropdown-panel-item" onClick={() => { promptLink(); setActiveMenuHeader(null); }}>🔗 Hyperlink Anchor URL...</button>
-                <button className="dropdown-panel-item" onClick={() => { executeCmd('insertHorizontalRule'); setActiveMenuHeader(null); }}>➖ Horizontal Page Divider Line</button>
-              </div>
-            )}
-          </div>
-
+      {/* ── Menu bar ── */}
+      <div style={S.menuBar} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', gap: '2px' }}>
+          {menus.map(menu => (
+            <div key={menu.key} className="wc-menu-item" style={{ position: 'relative' }}>
+              <button
+                style={{ ...S.menuTab, ...(activeMenu === menu.key ? S.menuTabActive : {}) }}
+                onClick={e => { e.stopPropagation(); setActiveMenu(activeMenu === menu.key ? null : menu.key) }}
+              >{menu.label}</button>
+              {activeMenu === menu.key && (
+                <div style={S.dropdown}>
+                  {menu.items.map(item => (
+                    <button key={item.label} style={S.dropdownItem}
+                      onMouseDown={e => { e.preventDefault(); item.action(); setActiveMenu(null) }}
+                    >{item.label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-
-        <div className="toolbar-cloud-sync-status-capsule">
-          {saveStatus === 'saved' && <span className="cloud-badge text-success">☁️ Saved</span>}
-          {saveStatus === 'saving' && <span className="cloud-badge text-warning">⏳ Syncing...</span>}
-          {saveStatus === 'error' && <span className="cloud-badge text-danger">⚠️ Offline</span>}
+        <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+          {saveStatus === 'saved' && <span style={{ color: '#146c43' }}>☁️ Saved</span>}
+          {saveStatus === 'saving' && <span style={{ color: '#664d03' }}>⏳ Saving…</span>}
+          {saveStatus === 'error' && <span style={{ color: '#842029' }}>⚠️ Error</span>}
         </div>
       </div>
 
-      {/* 💻 SECOND TIER: MINIMALISTIC INTERACTIVE TOOLBAR RIBBON */}
-      <div className="google-docs-toolbar" onClick={(e) => e.stopPropagation()}>
-        <button className="toolbar-icon-btn" onClick={() => executeCmd('undo')} title="Undo">↩</button>
-        <button className="toolbar-icon-btn" onClick={() => executeCmd('redo')} title="Redo">↪</button>
-        
-        <div className="toolbar-divider-line" />
-
-        {/* 🔍 EXCLUSIVE GOOGLE DOCS CANVAS PAGE SCALE FACTOR SELECTOR */}
-        <select 
-          className="toolbar-dropdown zoom-dropdown" 
-          value={zoomScale} 
-          onChange={(e) => setZoomScale(Number(e.target.value))}
-          title="Change Page Scaling"
-        >
-          <option value="50">50%</option>
-          <option value="75">75%</option>
-          <option value="90">90%</option>
-          <option value="100">100%</option>
-          <option value="125">125%</option>
-          <option value="150">150%</option>
+      {/* ── Toolbar ── */}
+      <div style={S.toolbar} onClick={e => e.stopPropagation()}>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('undo') }}>↩</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('redo') }}>↪</button>
+        <div style={S.div} />
+        <select style={S.tbSel} value={zoomScale} onChange={e => setZoomScale(+e.target.value)}>
+          {[50, 75, 90, 100, 125, 150].map(z => <option key={z} value={z}>{z}%</option>)}
         </select>
-
-        <div className="toolbar-divider-line" />
-
-        <select className="toolbar-dropdown style-dropdown" onChange={(e) => executeCmd('formatBlock', e.target.value)} defaultValue="p" title="Paragraph Style">
-          <option value="p">Normal text</option>
+        <div style={S.div} />
+        <select style={S.tbSel} onChange={e => cmd('formatBlock', e.target.value)} defaultValue="p">
+          <option value="p">Normal</option>
           <option value="h1">Heading 1</option>
           <option value="h2">Heading 2</option>
           <option value="h3">Heading 3</option>
         </select>
-
-        <select className="toolbar-dropdown font-dropdown" onChange={(e) => executeCmd('fontName', e.target.value)} defaultValue="Arial" title="Font Family">
-          <option value="Arial">Arial</option>
-          <option value="Times New Roman">Times New Roman</option>
-          <option value="Courier New">Courier New</option>
-          <option value="Georgia">Georgia</option>
+        <select style={S.tbSel} onChange={e => cmd('fontName', e.target.value)} defaultValue="Arial">
+          {['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'].map(f =>
+            <option key={f} value={f}>{f}</option>)}
         </select>
-
-        <div className="font-size-stepper-control">
-          <button className="step-btn" onClick={() => changeFontSize(-1)}>−</button>
-          <input type="text" className="size-value-readout" value={fontSize} readOnly />
-          <button className="step-btn" onClick={() => changeFontSize(1)}>+</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); changeFontSize(-1) }}>−</button>
+        <span style={S.szLabel}>{fontSize}</span>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); changeFontSize(1) }}>+</button>
+        <div style={S.div} />
+        <button style={{ ...S.tbBtn, fontWeight: 800 }} onMouseDown={e => { e.preventDefault(); cmd('bold') }}>B</button>
+        <button style={{ ...S.tbBtn, fontStyle: 'italic' }} onMouseDown={e => { e.preventDefault(); cmd('italic') }}>I</button>
+        <button style={{ ...S.tbBtn, textDecoration: 'underline' }} onMouseDown={e => { e.preventDefault(); cmd('underline') }}>U</button>
+        <button style={{ ...S.tbBtn, textDecoration: 'line-through' }} onMouseDown={e => { e.preventDefault(); cmd('strikeThrough') }}>S</button>
+        <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '24px', padding: '0 4px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 'bold', pointerEvents: 'none' }}>A</span>
+          <input type="color" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}
+            onChange={e => cmd('foreColor', e.target.value)} defaultValue="#222" />
         </div>
-
-        <div className="toolbar-divider-line" />
-
-        <button className="toolbar-icon-btn font-bold-weight" onClick={() => executeCmd('bold')} title="Bold">B</button>
-        <button className="toolbar-icon-btn font-italic-style" onClick={() => executeCmd('italic')} title="Italic">I</button>
-        <button className="toolbar-icon-btn font-underline-style" onClick={() => executeCmd('underline')} title="Underline">U</button>
-        
-        <div className="color-picker-wrapper" title="Font Color">
-          <span className="color-label-indicator">A</span>
-          <input type="color" className="native-color-node" onChange={(e) => executeCmd('foreColor', e.target.value)} defaultValue="#222222" />
-        </div>
-
-        <div className="toolbar-divider-line" />
-
-        <button className="toolbar-icon-btn" onClick={() => executeCmd('justifyLeft')} title="Align Left">⫷</button>
-        <button className="toolbar-icon-btn" onClick={() => executeCmd('justifyCenter')} title="Align Center">⫸</button>
-        <button className="toolbar-icon-btn" onClick={() => executeCmd('justifyFull')} title="Justify">≡</button>
-
-        <div className="toolbar-divider-line" />
-
-        {/* 🛠️ CONSOLIDATED MORE TOOLS DROPDOWN */}
-        <div className="more-tools-container">
-          <button 
-            className={`toolbar-icon-btn more-tools-trigger-btn ${showMoreMenu ? 'popover-active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }}
-            title="More tools"
-          >
-            ⚙️ More Tools ▾
-          </button>
-
+        <div style={S.div} />
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('justifyLeft') }}>⫷</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('justifyCenter') }}>⫸</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('justifyFull') }}>≡</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('insertUnorderedList') }}>•≡</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('insertOrderedList') }}>1≡</button>
+        <div style={S.div} />
+        <div className="wc-more-wrap" style={{ position: 'relative' }}>
+          <button style={{ ...S.tbBtn, color: '#0b57d0', fontWeight: 600 }}
+            onMouseDown={e => { e.stopPropagation(); setShowMoreMenu(m => !m) }}>⚙️ More ▾</button>
           {showMoreMenu && (
-            <div className="more-tools-popover-menu" onClick={(e) => e.stopPropagation()}>
-              <div className="popover-section-label">Formatting Layouts</div>
-              
-              <button 
-                className={`popover-item-btn ${isPainterActive ? 'painter-active-node' : ''}`} 
-                onClick={() => { triggerFormatPainter(); setShowMoreMenu(false); }}
-              >
-                🎨 Paint Format Brush
-              </button>
-              
-              <button className="popover-item-btn font-strikethrough-style" onClick={() => { executeCmd('strikeThrough'); setShowMoreMenu(false); }}>
-                S Strikethrough Layout
-              </button>
-              
-              <button className="popover-item-btn" onClick={() => { executeCmd('removeFormat'); setShowMoreMenu(false); }}>
-                ✕ Clear All Custom Stylings
-              </button>
-
-              <div className="popover-item-wrapper-row">
-                <span className="row-title">Highlight Marker</span>
-                <div className="color-picker-wrapper highlight-wrapper">
-                  <span className="color-label-indicator">✏️ Selection</span>
-                  <input type="color" className="native-color-node" onChange={(e) => executeCmd('hiliteColor', e.target.value)} defaultValue="#ffffff" />
-                </div>
-              </div>
-
-              <div className="popover-item-wrapper-row">
-                <span className="row-title">Line Spacing</span>
-                <select className="popover-inline-dropdown" onChange={(e) => { adjustLineSpacing(e.target.value); setShowMoreMenu(false); }} defaultValue="1.5">
-                  <option value="1.0">Single Space</option>
-                  <option value="1.15">1.15 Balanced</option>
-                  <option value="1.5">1.5 Standard</option>
-                  <option value="2.0">Double Space</option>
-                </select>
+            <div style={S.dropdown} onClick={e => e.stopPropagation()}>
+              <button style={S.dropdownItem} onMouseDown={e => { e.preventDefault(); cmd('removeFormat'); setShowMoreMenu(false) }}>✕ Clear formatting</button>
+              <button style={S.dropdownItem} onMouseDown={e => { e.preventDefault(); insertTable() }}>📊 Insert table…</button>
+              <div style={{ padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                <span>Highlight</span>
+                <input type="color" onChange={e => cmd('hiliteColor', e.target.value)} defaultValue="#ffffff"
+                  style={{ width: '32px', height: '20px', cursor: 'pointer', border: '1px solid #ccc', borderRadius: '3px' }} />
               </div>
             </div>
           )}
         </div>
-
-        <button className="toolbar-icon-btn primary-pdf-btn" onClick={handleExportPDF} title="Export canvas to PDF">
-          🖨️ Export PDF
-        </button>
+        <button style={{ ...S.tbBtn, background: '#0b57d0', color: '#fff', marginLeft: 'auto', padding: '4px 14px', borderRadius: '4px' }}
+          onClick={() => window.print()}>🖨️ Export PDF</button>
       </div>
 
-      {/* SEARCH HUD OVERLAY */}
-      {showFindReplace && (
-        <div className="google-docs-find-hud" onClick={(e) => e.stopPropagation()}>
-          <input type="text" placeholder="Search query..." value={findText} onChange={(e) => setFindText(e.target.value)} />
-          <input type="text" placeholder="Replace string..." value={replaceText} onChange={(e) => setReplaceText(e.target.value)} />
-          <button onClick={() => executeFindReplace(false)}>Replace</button>
-          <button onClick={() => executeFindReplace(true)}>Replace All</button>
-          <button className="hud-close" onClick={() => setShowFindReplace(false)}>✕</button>
+      {/* ── Find & Replace ── */}
+      {showFind && (
+        <div style={S.findHud} onClick={e => e.stopPropagation()}>
+          <input style={S.findInput} placeholder="Find…" value={findText} onChange={e => setFindText(e.target.value)} />
+          <input style={S.findInput} placeholder="Replace…" value={replaceText} onChange={e => setReplaceText(e.target.value)} />
+          <button style={S.findBtn} onClick={() => doFindReplace(false)}>Replace</button>
+          <button style={S.findBtn} onClick={() => doFindReplace(true)}>All</button>
+          <button style={{ ...S.findBtn, background: 'transparent', color: '#5f6368' }} onClick={() => setShowFind(false)}>✕</button>
         </div>
       )}
 
-      {/* 👥 DESKTOP PLATFORM WORKSPACE BODY GRID */}
-      <div className="workspace-desktop-split-view-body">
-        
-        {/* 📄 TRANSLUCENT CENTRIFUGAL CANVAS VIEWPORT */}
-        <div className="google-docs-canvas-centered">
-          <div 
-            className="docs-zoom-scaler-node"
-            style={{ transform: `scale(${zoomScale / 100})`, transformOrigin: 'top center' }}
-          >
-            {sheetsRenderMatrixArray.map((pageNum) => (
-              <div 
-                key={pageNum}
-                className={`docs-page-sheet size-${pageSetup.paperSize} orientation-${pageSetup.orientation} ${isEditingHeaderFooter ? 'editing-margins-mode' : ''}`}
-                style={{ 
-                  paddingTop: `${pageSetup.marginTop}in`,
-                  paddingBottom: `${pageSetup.marginBottom}in`,
-                  paddingLeft: `${pageSetup.marginLeft}in`,
-                  paddingRight: `${pageSetup.marginRight}in`
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* 📝 DOUBLE CLICKABLE HEADER REGION */}
-                <div 
-                  className="docs-running-header-margin" 
-                  contentEditable={isEditingHeaderFooter}
-                  suppressContentEditableWarning
-                  onDoubleClick={(e) => { e.stopPropagation(); setIsEditingHeaderFooter(true); }}
-                  onBlur={(e) => setPageSetup({ ...pageSetup, headerText: e.target.innerText })}
-                  title="Double-click to edit header inline"
-                >
-                  {pageSetup.headerText}
-                  <div className="header-divider-border" />
-                </div>
-
-                {/* SINGLE SEAMLESS INTEGRATED EDITOR CONTEXT BODY */}
-                {pageNum === 1 ? (
-                  <div
-                    ref={editorRef}
-                    className="docs-inline-rich-editor master-flow-container"
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={handleEditorInput}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Start typing... Content automatically increments pages when full, or press Ctrl + N to force a split layout."
-                  />
-                ) : (
-                  // Downstream structural sheet extension mask layers
-                  <div className="docs-inline-rich-editor view-proxy-overflow-placeholder" contentEditable="false">
-                    <span className="scrolling-flow-notice">(Continuous multi-page document sheet workflow buffer)</span>
-                  </div>
-                )}
-
-                {/* 📄 DOUBLE CLICKABLE FOOTER REGION WITH INTEGRATED AUTO NUMBERING */}
-                <div 
-                  className="docs-running-footer-margin"
-                  onDoubleClick={(e) => { e.stopPropagation(); setIsEditingHeaderFooter(true); }}
-                  title="Double-click to change custom footer description tokens"
-                >
-                  <div className="footer-divider-border" />
-                  <div className="footer-flex-row-layout">
-                    <span
-                      contentEditable={isEditingHeaderFooter}
-                      suppressContentEditableWarning
-                      onBlur={(e) => setPageSetup({ ...pageSetup, footerText: e.target.innerText })}
-                      style={{ outline: 'none', minWidth: '20px', display: 'inline-block' }}
-                    >
-                      {pageSetup.footerText}
-                    </span>
-                    
-                    {/* Native dynamic page pagination tracker badge indicator */}
-                    <span className="page-numerical-indexer-badge">
-                      Page {pageNum} of {pageCount}
-                    </span>
-                  </div>
-                </div>
-              </div>
+      {/* ── Body ── */}
+      <div style={S.body}>
+        <div style={S.canvas} onClick={() => setEditingHF(false)}>
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: '28px', alignItems: 'center',
+            transform: `scale(${zoomScale / 100})`,
+            transformOrigin: 'top center',
+            paddingBottom: '48px',
+          }}>
+            {pages.map((_, i) => (
+              <PageEditor
+                key={i}
+                ref={pageRefs.current[i]}
+                pageNum={i + 1}
+                pageCount={pages.length}
+                pageW={pageW}
+                pageH={pageH}
+                headerText={pageSetup.headerText}
+                footerText={pageSetup.footerText}
+                editingHF={editingHF}
+                onDoubleClickHF={e => { e.stopPropagation(); setEditingHF(true) }}
+                onBlurHeader={e => setPageSetup(p => ({ ...p, headerText: e.currentTarget.innerText }))}
+                onBlurFooter={e => setPageSetup(p => ({ ...p, footerText: e.currentTarget.innerText }))}
+                onInput={makeOnInput(i)}
+                onKeyDown={makeOnKeyDown(i)}
+                onPaste={makeOnPaste(i)}
+              />
             ))}
           </div>
         </div>
 
-        {/* 📋 MINIMALIST PAGE SETUP SINGLE SIDEBAR CONTROL SYSTEM */}
-        <div className="google-docs-utility-sidebar" onClick={(e) => e.stopPropagation()}>
-          <div className="sidebar-tab-selectors-header">
-            <div className="sidebar-header-title-label">⚙️ Page Setup Parameters</div>
-          </div>
-
-          <div className="sidebar-tab-viewport-contents">
-            <div className="sidebar-panel-wrapper setup-panel">
-              
-              <label className="input-group-label-block">Orientation</label>
-              <div className="flex-radio-row">
-                <label><input type="radio" name="orientation" checked={pageSetup.orientation === 'portrait'} onChange={() => setPageSetup({...pageSetup, orientation: 'portrait'})} /> Portrait</label>
-                <label><input type="radio" name="orientation" checked={pageSetup.orientation === 'landscape'} onChange={() => setPageSetup({...pageSetup, orientation: 'landscape'})} /> Landscape</label>
+        {/* ── Page Setup Sidebar ── */}
+        <div style={S.sidebar} onClick={e => e.stopPropagation()}>
+          <div style={S.sideHdr}>⚙️ Page Setup</div>
+          <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <div style={S.label}>Orientation</div>
+              <div style={{ display: 'flex', gap: '16px', fontSize: '0.82rem' }}>
+                {['portrait', 'landscape'].map(o => (
+                  <label key={o} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                    <input type="radio" name="orientation" checked={pageSetup.orientation === o}
+                      onChange={() => setPageSetup(p => ({ ...p, orientation: o }))} />
+                    {o.charAt(0).toUpperCase() + o.slice(1)}
+                  </label>
+                ))}
               </div>
-
-              <label className="input-group-label-block">Paper Metrics</label>
-              <select className="panel-select-node" value={pageSetup.paperSize} onChange={(e) => setPageSetup({...pageSetup, paperSize: e.target.value})}>
-                <option value="letter">Letter Size Dimensions (8.5" x 11")</option>
-                <option value="a4">A4 International Sheet (210mm x 297mm)</option>
+            </div>
+            <div>
+              <div style={S.label}>Paper size</div>
+              <select style={S.sideSel} value={pageSetup.paperSize}
+                onChange={e => setPageSetup(p => ({ ...p, paperSize: e.target.value }))}>
+                <option value="letter">Letter (8.5" × 11")</option>
+                <option value="a4">A4 (210mm × 297mm)</option>
               </select>
-
-              <label className="input-group-label-block">Page Margin Allocations (Inches)</label>
-              <div className="grid-margin-inputs-quad">
-                <label>Top <input type="number" step="0.1" value={pageSetup.marginTop} onChange={(e) => setPageSetup({...pageSetup, marginTop: parseFloat(e.target.value) || 0})} /></label>
-                <label>Bottom <input type="number" step="0.1" value={pageSetup.marginBottom} onChange={(e) => setPageSetup({...pageSetup, marginBottom: parseFloat(e.target.value) || 0})} /></label>
-                <label>Left <input type="number" step="0.1" value={pageSetup.marginLeft} onChange={(e) => setPageSetup({...pageSetup, marginLeft: parseFloat(e.target.value) || 0})} /></label>
-                <label>Right <input type="number" step="0.1" value={pageSetup.marginRight} onChange={(e) => setPageSetup({...pageSetup, marginRight: parseFloat(e.target.value) || 0})} /></label>
-              </div>
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* 📊 FOOTER SUMMARY STATUS METRICS PANEL */}
-      <div className="google-docs-footer-status-bar">
-        <div className="status-item">📄 Document Size: <strong>{pageCount} Page{pageCount !== 1 ? 's' : ''}</strong></div>
-        <div className="status-item">✍️ Volume Metrics: <strong>{wordCount} Words</strong></div>
-        <div className="status-item">🔤 Stream Size: <strong>{charCount} Characters</strong></div>
-        <div className="status-item shortcuts-notice">Tip: Double-click header or footer margins to unlock full inline editing configuration screens.</div>
+      {/* ── Status bar ── */}
+      <div style={S.statusBar}>
+        <span>📄 {pages.length} page{pages.length !== 1 ? 's' : ''}</span>
+        <span>✍️ {wordCount} words</span>
+        <span>🔤 {charCount} chars</span>
+        <span style={{ marginLeft: 'auto', color: '#9aa0a6', fontSize: '0.72rem' }}>Double-click header/footer to edit</span>
       </div>
 
-      {/* 🎨 INTERACTIVE STYLING REGIME SCHEMA */}
       <style>{`
-        .workspace-tab-content { display: flex; flex-direction: column; height: 100vh; width: 100%; background: #f9fbfd; position: relative; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
-        
-        /* 🏛️ Tier 1 Navigation System styles */
-        .google-docs-desktop-menu-bar { display: flex; align-items: center; justify-content: space-between; background: #f0f4f9; padding: 0.25rem 0.85rem; border-bottom: 1px solid #d3e3fd; height: 32px; z-index: 110; }
-        .menu-bar-left-cluster { display: flex; gap: 0.2rem; }
-        .menu-bar-item-wrapper { position: relative; }
-        .menu-bar-tab { background: transparent; border: none; color: #444746; font-size: 0.82rem; font-weight: 500; padding: 4px 10px; border-radius: 4px; cursor: pointer; transition: background 0.1s; }
-        .menu-bar-tab:hover, .menu-bar-tab.active-tab { background: #e0e8f6; color: #0b57d0; }
-        
-        .menu-bar-dropdown-panel { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #ffffff; border: 1px solid #c4c7c5; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); width: 210px; padding: 6px 0; z-index: 250; }
-        .dropdown-panel-item { background: transparent; border: none; text-align: left; padding: 6px 14px; font-size: 0.8rem; color: #1f1f1f; width: 100%; cursor: pointer; }
-        .dropdown-panel-item:hover { background: #f0f4f9; color: #0b57d0; }
-
-        /* 💻 Tier 2 Command Ribbon styles */
-        .google-docs-toolbar { display: flex; align-items: center; gap: 0.35rem; background: #edf2fa; padding: 0.4rem 0.82rem; border-bottom: 1px solid #d3e3fd; flex-wrap: wrap; box-shadow: 0 1px 2px rgba(0,0,0,0.02); z-index: 100; }
-        .toolbar-icon-btn { background: transparent; border: none; color: #444746; padding: 5px 9px; font-size: 0.82rem; font-weight: 500; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-        .toolbar-icon-btn:hover { background: #e0e8f6; }
-        
-        .zoom-dropdown { width: 80px; font-weight: 600; color: #0b57d0; text-align: center; background: rgba(11,87,208,0.04); border: 1px solid #d3e3fd; border-radius: 4px; padding: 3px; cursor: pointer; }
-        .primary-pdf-btn { background: #0b57d0 !important; color: #ffffff !important; font-weight: 600; margin-left: auto; padding: 5px 14px; box-shadow: 0 1px 2px rgba(11,87,208,0.2); }
-        .primary-pdf-btn:hover { background: #1b66df !important; }
-        
-        .font-bold-weight { font-weight: 800; }
-        .font-italic-style { font-style: italic; }
-        .font-underline-style { text-decoration: underline; }
-        .font-strikethrough-style { text-decoration: line-through; }
-        
-        .toolbar-dropdown { background: transparent; border: none; color: #444746; font-size: 0.82rem; padding: 4px; cursor: pointer; font-weight: 500; border-radius: 4px; }
-        .toolbar-dropdown:hover { background: #e0e8f6; }
-        .style-dropdown { width: 105px; font-weight: 600; }
-        .font-dropdown { width: 105px; }
-        .toolbar-divider-line { width: 1px; height: 18px; background: #c4c7c5; margin: 0 2px; }
-        
-        .font-size-stepper-control { display: flex; align-items: center; }
-        .font-size-stepper-control .step-btn { background: transparent; border: none; font-size: 0.9rem; cursor: pointer; padding: 0 3px; font-weight: bold; }
-        .font-size-stepper-control .size-value-readout { width: 24px; text-align: center; border: 1px solid #c4c7c5; border-radius: 4px; font-size: 0.8rem; margin: 0 3px; padding: 1px 0; font-weight: bold; }
-        
-        .color-picker-wrapper { position: relative; display: inline-flex; align-items: center; padding: 0 4px; border-radius: 4px; height: 24px; cursor: pointer; }
-        .color-picker-wrapper:hover { background: #e0e8f6; }
-        .color-label-indicator { font-size: 0.82rem; font-weight: bold; pointer-events: none; }
-        .native-color-node { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-
-        /* 🛠️ More Tools Menu Popover */
-        .more-tools-container { position: relative; display: inline-block; }
-        .more-tools-trigger-btn { font-weight: 600; color: #0b57d0; background: rgba(11,87,208,0.05); border: 1px solid rgba(11,87,208,0.15); }
-        
-        .more-tools-popover-menu { position: absolute; top: 100%; left: 0; margin-top: 6px; background: #ffffff; border: 1px solid #c4c7c5; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); width: 230px; padding: 8px 0; display: flex; flex-direction: column; z-index: 200; }
-        .popover-section-label { font-size: 0.68rem; font-weight: 800; color: #70757a; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 14px 4px 14px; }
-        .popover-item-btn { background: transparent; border: none; text-align: left; padding: 8px 14px; font-size: 0.82rem; color: #1f1f1f; cursor: pointer; display: block; width: 100%; }
-        .popover-item-btn:hover { background: #f0f4f9; color: #0b57d0; }
-        .popover-item-wrapper-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 14px; font-size: 0.82rem; color: #1f1f1f; }
-        .popover-inline-dropdown { border: 1px solid #c4c7c5; border-radius: 4px; padding: 3px; font-size: 0.78rem; background: #fff; width: 105px; }
-        .painter-active-node { background: #0b57d0 !important; color: #ffffff !important; }
-
-        .cloud-badge { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
-        .text-success { color: #146c43; background: #d1e7dd; }
-        .text-warning { color: #664d03; background: #fff3cd; }
-        .text-danger { color: #842029; background: #f8d7da; }
-
-        .google-docs-find-hud { position: absolute; top: 84px; right: 320px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.12); border: 1px solid #c4c7c5; border-radius: 8px; padding: 12px; display: flex; gap: 8px; z-index: 150; align-items: center; }
-        .google-docs-find-hud input { border: 1px solid #c4c7c5; border-radius: 4px; padding: 5px 8px; font-size: 0.8rem; outline: none; width: 130px; }
-        .google-docs-find-hud button { background: #1a73e8; border: none; color: #fff; padding: 5px 12px; font-size: 0.78rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
-        .google-docs-find-hud .hud-close { background: transparent; color: #5f6368; font-size: 0.9rem; cursor: pointer; border: none; }
-
-        /* Canvas Layout Viewport Platform */
-        .workspace-desktop-split-view-body { display: flex; flex: 1; overflow: hidden; width: 100%; position: relative; }
-        .google-docs-canvas-centered { flex: 1; overflow-y: auto; background: #f0f4f9; display: flex; justify-content: center; padding: 2rem 0; position: relative; }
-        
-        /* Scaler Node wraps sequential dynamic output pages cleanly */
-        .docs-zoom-scaler-node { display: flex; flex-direction: column; gap: 28px; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-
-        .docs-page-sheet { background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04); border: 1px solid #e0e0e0; display: flex; flex-direction: column; position: relative; box-sizing: border-box; overflow: hidden; }
-        .docs-page-sheet.editing-margins-mode { border: 1px dashed #0b57d0; background-color: #fafbfe; }
-        
-        .docs-page-sheet.size-letter.orientation-portrait { width: 816px; min-height: 1056px; height: 1056px; }
-        .docs-page-sheet.size-letter.orientation-landscape { width: 1056px; min-height: 816px; height: 816px; }
-        .docs-page-sheet.size-a4.orientation-portrait { width: 794px; min-height: 1123px; height: 1123px; }
-        .docs-page-sheet.size-a4.orientation-landscape { width: 1123px; min-height: 794px; height: 794px; }
-
-        /* 📝 Editable Headers and Footers Styles */
-        .docs-running-header-margin { font-size: 8.5pt; color: #70757a; font-family: Arial, sans-serif; margin-bottom: 12px; outline: none; padding: 4px; border-radius: 4px; cursor: pointer; transition: background 0.15s; min-height: 18px; }
-        .docs-running-header-margin:hover { background: rgba(11,87,208,0.06); }
-        .header-divider-border { border-bottom: 1px dashed #e0e0e0; margin-top: 4px; width: 100%; }
-        
-        .docs-running-footer-margin { font-size: 8.5pt; color: #70757a; font-family: Arial, sans-serif; margin-top: auto; padding: 4px; border-radius: 4px; cursor: pointer; transition: background 0.15s; }
-        .docs-running-footer-margin:hover { background: rgba(11,87,208,0.06); }
-        .footer-divider-border { border-top: 1px dashed #e0e0e0; margin-bottom: 4px; width: 100%; }
-        .footer-flex-row-layout { display: flex; justify-content: space-between; align-items: center; }
-        .page-numerical-indexer-badge { background: #f0f4f9; padding: 2px 8px; border-radius: 4px; color: #0b57d0; font-weight: 600; }
-
-        /* Integrated Flow Editor and page proxy breaks */
-        .docs-inline-rich-editor { flex: 1; width: 100%; border: none; outline: none; font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; color: #222222; background: transparent; word-wrap: break-word; overflow: visible; }
-        .google-docs-page-break { border-top: 2px dashed #b1cffc; margin: 24px 0; position: relative; }
-        
-        .view-proxy-overflow-placeholder { display: flex; align-items: center; justify-content: center; background: #fdfdfd; border-radius: 4px; border: 1px dashed #dcdcdc; max-height: 100px; }
-        .scrolling-flow-notice { font-size: 0.8rem; color: #a0a0a0; font-style: italic; }
-        
-        .google-docs-utility-sidebar { width: 280px; border-left: 1px solid #d3e3fd; background: #ffffff; display: flex; flex-direction: column; z-index: 20; box-shadow: -2px 0 6px rgba(0,0,0,0.01); }
-        .sidebar-tab-selectors-header { background: #f8fafc; border-bottom: 1px solid #edf2fa; padding: 12px; }
-        .sidebar-header-title-label { font-size: 0.82rem; font-weight: 700; color: #1f1f1f; text-transform: uppercase; letter-spacing: 0.5px; }
-        
-        .sidebar-tab-viewport-contents { padding: 14px; }
-        .input-group-label-block { display: block; font-size: 0.75rem; font-weight: 700; color: #444746; margin: 14px 0 6px 0; text-transform: uppercase; letter-spacing: 0.3px; }
-        .flex-radio-row { display: flex; gap: 14px; font-size: 0.82rem; color: #1f1f1f; }
-        .panel-select-node { width: 100%; border: 1px solid #c4c7c5; border-radius: 4px; padding: 6px; font-size: 0.8rem; }
-        .grid-margin-inputs-quad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: #5f6368; }
-        .grid-margin-inputs-quad input { border: 1px solid #c4c7c5; border-radius: 4px; padding: 4px; font-size: 0.8rem; width: 100%; box-sizing: border-box; }
-
-        .google-docs-footer-status-bar { height: 26px; background: #ffffff; border-top: 1px solid #d3e3fd; display: flex; align-items: center; font-size: 0.75rem; color: #444746; gap: 20px; padding: 0 12px; z-index: 30; }
-        .shortcuts-notice { margin-left: auto; color: #70757a; }
-        .workspace-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 65vh; color: #5f6368; width: 100%; text-align: center; }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+        * { box-sizing: border-box; }
+        [contenteditable]:focus { outline: none; }
+        [contenteditable] p { margin: 0 0 2px; }
       `}</style>
     </div>
   )

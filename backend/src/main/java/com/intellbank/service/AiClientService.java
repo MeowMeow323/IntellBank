@@ -137,6 +137,28 @@ public class AiClientService {
         }
     }
 
+    /**
+     * Generate a full structured exam paper.
+     * POST /ai/generate/paper
+     */
+    public Map<String, Object> generatePaper(String subject, int totalMarks, List<String> topics) {
+        String url = aiBaseUrl + "/ai/generate/paper";
+        Map<String, Object> body = Map.of(
+                "subject",     subject,
+                "total_marks", totalMarks,
+                "topics",      topics
+        );
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.POST, buildRequest(body), MAP_TYPE);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Paper generation service error: {}", e.getMessage());
+            throw new RuntimeException("AI Paper generation service unavailable: " + e.getMessage());
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private HttpEntity<Map<String, Object>> buildRequest(Map<String, Object> body) {

@@ -40,7 +40,9 @@ class SolutionGenerateResponse(BaseModel):
 class PaperGenerateResponse(BaseModel):
     subject: str
     total_marks: int
-    paper_structure: List[Dict[str, Any]]
+    paper_structure: Optional[str] = None
+    markdown_content: Optional[str] = None
+    error: Optional[str] = None
     model_used: str
 
 
@@ -75,12 +77,20 @@ async def generate_paper_endpoint(request: PaperGenerateRequest):
     Divides total marks into sub-questions and queries the AI model for each block.
     """
     try:
-        paper_structure = generate_full_paper(request)
+        result = generate_full_paper(request)
+        if "error" in result:
+            return PaperGenerateResponse(
+                subject=request.subject,
+                total_marks=request.total_marks,
+                error=result["error"],
+                model_used="db-retrieval"
+            )
+            
         return PaperGenerateResponse(
             subject=request.subject,
             total_marks=request.total_marks,
-            paper_structure=paper_structure,
-            model_used="flan-t5-small-finetuned-orchestrator"
+            markdown_content=result["markdown_content"],
+            model_used="db-retrieval"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Paper generation failed: {str(e)}")

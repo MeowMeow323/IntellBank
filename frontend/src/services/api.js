@@ -72,7 +72,7 @@ export const DocumentService = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
-  delete: (documentId, email) => api.delete(`/api/documents/${documentId}`, { data: { email } }),
+  delete: (documentId, email) => api.delete(`/api/documents/${documentId}`, { params: { email } }),
   process: (documentId) => api.post(`/api/documents/${documentId}/process`),
 }
 
@@ -130,13 +130,18 @@ export const AnalyticsService = {
   getPredictedTopics: () => api.get('/api/analytics/predicted-topics'),
 }
 
+// ── Metadata Service ──────────────────────────────────────────────────────────
+export const MetadataService = {
+  getSubjectTopics: () => api.get('/api/metadata/subject-topics'),
+}
+
 // ── AI Gateway Service ────────────────────────────────────────────────────────
 export const AIService = {
   generateQuestions: (data) => api.post('/api/ai/generate/question', data),
-  generateSolution: (data) => api.post('/api/ai/generate/solution', data),
-  classifyQuestion: (data) => api.post('/api/ai/classify/question', data),
-  predictTopics: (data) => api.post('/api/ai/predict/topics', data),
+  generateSolution:  (data) => api.post('/api/ai/generate/solution', data),
+  classifyQuestion:  (data) => api.post('/api/ai/classify/question', data),
+  predictTopics:     (data) => api.post('/api/ai/predict/topics',    data),
+  generatePaper:     (data) => api.post('/api/ai/generate/paper',    data),  // new
 }
-
 // Default export is the Axios client instance
 export default api
