@@ -12,15 +12,17 @@ const WorkspacePage = () => {
   const { projectId } = useParams()
   const navigate = useNavigate()
   
-  const { 
-    tabs = [], 
-    activeTabId, 
-    loadTabs, 
-    setActiveTab, 
-    isLoading, 
+  const {
+    tabs = [],
+    activeTabId,
+    loadTabs,
+    setActiveTab,
+    isLoading,
     addTab,
     removeTab,
-    generateTabWithAI
+    generateTabWithAI,
+    openPastYearPaperTab,
+    loadPastYearPapers,
   } = useWorkspaceStore()
 
   // AI Generation Configuration Modal States
@@ -34,6 +36,12 @@ const WorkspacePage = () => {
 
   // Dynamic Subject-Topics mapping from database
   const [subjectTopicsMap, setSubjectTopicsMap] = useState({})
+
+  // Past Year Paper Modal States
+  const [isPypModalOpen, setIsPypModalOpen] = useState(false)
+  const [pypList, setPypList] = useState([])
+  const [isPypLoading, setIsPypLoading] = useState(false)
+  const [isOpeningPyp, setIsOpeningPyp] = useState(false)
 
   // Document Deletion Modal States
   const [docToDelete, setDocToDelete] = useState(null)
@@ -68,6 +76,26 @@ const WorkspacePage = () => {
       }
     }
   }, [tabs, activeTabId, setActiveTab])
+
+  const handleOpenPypModal = async () => {
+    setIsPypModalOpen(true)
+    setIsPypLoading(true)
+    const papers = await loadPastYearPapers()
+    setPypList(papers)
+    setIsPypLoading(false)
+  }
+
+  const handleOpenPyp = async (pypId) => {
+    setIsOpeningPyp(true)
+    try {
+      await openPastYearPaperTab(pypId)
+      setIsPypModalOpen(false)
+    } catch (err) {
+      console.error('Failed to open PYP:', err)
+    } finally {
+      setIsOpeningPyp(false)
+    }
+  }
 
   const handleCreateRawDocument = async () => {
     try {
@@ -144,14 +172,24 @@ const WorkspacePage = () => {
             ✨ Generate AI Paper
           </button>
 
-          <button 
-            className="generate-btn" 
+          <button
+            className="generate-btn"
+            onClick={handleOpenPypModal}
+            style={{ margin: 0, background: 'transparent', border: '1px dashed #0d9488', color: '#0d9488' }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(13,148,136,0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            📄 Practice Past Year Paper
+          </button>
+
+          <button
+            className="generate-btn"
             onClick={handleCreateRawDocument}
-            style={{ 
-              margin: 0, 
-              background: 'transparent', 
-              border: '1px dashed #0066cc', 
-              color: '#0066cc' 
+            style={{
+              margin: 0,
+              background: 'transparent',
+              border: '1px dashed #0066cc',
+              color: '#0066cc'
             }}
             onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0, 102, 204, 0.1)'}
             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -251,7 +289,7 @@ const WorkspacePage = () => {
             </div>
 
             <div className="input-group">
-              <label>Topics (Hold Ctrl/Cmd to select multiple)</label>
+              <label>Topics (Hold Ctrl/Cmd to select multiple, max 4)</label>
               <select 
                 multiple
                 className="form-input"
@@ -259,6 +297,7 @@ const WorkspacePage = () => {
                 value={paperConfig.topics}
                 onChange={e => {
                   const values = Array.from(e.target.selectedOptions, option => option.value)
+                  if (values.length > 4) return
                   setPaperConfig({...paperConfig, topics: values})
                 }}
                 disabled={!paperConfig.subject || !subjectTopicsMap[paperConfig.subject]}
@@ -280,6 +319,55 @@ const WorkspacePage = () => {
               </button>
               <button className="btn btn-primary" onClick={handleGenerate} disabled={isGenerating}>
                 {isGenerating ? 'Generating...' : 'Generate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3b. 📄 PAST YEAR PAPER MODAL */}
+      {isPypModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsPypModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h2>📄 Practice Past Year Paper</h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 1rem 0' }}>
+              Select a paper to open as a practice document.
+            </p>
+
+            {isPypLoading ? (
+              <p style={{ color: '#64748b', textAlign: 'center', padding: '1rem' }}>Loading papers...</p>
+            ) : pypList.length === 0 ? (
+              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '1rem' }}>
+                No past year papers found. Upload and process a paper first.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', marginBottom: '1.5rem' }}>
+                {pypList.map(pyp => (
+                  <button
+                    key={pyp.pypId}
+                    onClick={() => handleOpenPyp(pyp.pypId)}
+                    disabled={isOpeningPyp}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0',
+                      background: '#f8fafc', cursor: 'pointer', textAlign: 'left',
+                      opacity: isOpeningPyp ? 0.6 : 1, transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={(e) => { if (!isOpeningPyp) e.currentTarget.style.background = '#e0f2fe' }}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  >
+                    <span style={{ fontWeight: 500, color: '#1e293b', fontSize: '0.875rem' }}>{pyp.title}</span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '1rem', whiteSpace: 'nowrap' }}>
+                      {pyp.status} · {pyp.uploadDate ? new Date(pyp.uploadDate).getFullYear() : '—'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setIsPypModalOpen(false)}>
+                Cancel
               </button>
             </div>
           </div>

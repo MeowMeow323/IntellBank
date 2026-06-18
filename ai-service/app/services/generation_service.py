@@ -5,7 +5,7 @@ The model will be lazily loaded on first request to avoid startup delay.
 """
 
 import os
-from typing import List, Optional
+from typing import List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -111,24 +111,57 @@ def generate_solution(question_text: str) -> str:
 
 def generate_full_paper(request) -> dict:
     """
-    Fetch questions from Supabase and strictly format them into the requested Markdown template.
-    Returns a dict with {"markdown_content": str} or {"error": str}.
+    Generate a full exam paper with 4 questions (25 marks each, 100 marks total).
+    Primary source: random questions from Supabase matching the requested topics.
+    Fallback: FLAN-T5 is used only for any slot not filled by the DB.
+    Returns a dict with {"markdown_content": str, "questions": [...]} or {"error": str}.
     """
-    from .db_service import fetch_questions_for_topics
-    
+    from types import SimpleNamespace
+    from app.services.db_service import fetch_questions_for_topics
+
     subject = request.subject
-    topics = request.topics if request.topics else []
-    
+    topics  = request.topics if request.topics else ['General']
+
     if not subject or not topics:
         return {"error": "INVALID_INPUT"}
-        
-    # Fetch exactly 4 questions
-    questions = fetch_questions_for_topics(subject, topics, limit=4)
-    
-    if len(questions) != 4:
-        return {"error": "INVALID_INPUT"}
-        
-    # Build strict markdown
+
+    difficulty_map = {
+        "Standard": ["Easy", "Medium", "Medium", "Hard"],
+        "Easy":     ["Easy", "Easy", "Medium", "Medium"],
+        "Hard":     ["Medium", "Hard", "Hard", "Hard"],
+    }
+    difficulties = difficulty_map.get(
+        getattr(request, 'difficulty_distribution', 'Standard'),
+        difficulty_map["Standard"]
+    )
+
+    # Step 1 — fetch up to 4 random past-year questions from Supabase
+    print(f"[INFO] Fetching DB questions for subject='{subject}', topics={topics}")
+    db_questions = fetch_questions_for_topics(subject, topics, limit=4)
+    print(f"[INFO] Found {len(db_questions)} questions in DB")
+
+    questions = []
+    for i in range(4):
+        if i < len(db_questions):
+            # Use DB question — assign a topic label from the request list
+            q     = db_questions[i]
+            topic = q.get("topics", [topics[i % len(topics)]])[0]
+            questions.append({"text": q["text"], "topics": [topic]})
+        else:
+            # Fallback to FLAN-T5 for remaining slots
+            topic      = topics[i % len(topics)]
+            difficulty = difficulties[i]
+            req        = SimpleNamespace(subject=subject, topic=topic, difficulty=difficulty, count=1)
+            try:
+                generated = generate_questions(req)
+                text = generated[0] if generated else f"Describe the concept of {topic} in the context of {subject}."
+            except Exception as e:
+                print(f"[WARN] FLAN-T5 fallback failed for Q{i + 1}: {e}")
+                text = f"Describe the concept of {topic} in the context of {subject}."
+            questions.append({"text": text, "topics": [topic]})
+
+    # Build content — cover page first, then one question per page using <!--PAGE--> markers
+    # WorkspaceContent.jsx splits on PAGE_BREAK_MARKER = '<!--PAGE-->' so each block becomes its own page
     lines = []
     lines.append("[METADATA_START]")
     lines.append(f"SUBJECT: {subject}")
@@ -140,17 +173,22 @@ def generate_full_paper(request) -> dict:
     lines.append("")
     lines.append("### Total Marks: 100 Marks (25 Marks per Question)")
     lines.append("")
-    
+    lines.append("Answer ALL questions. Each question carries 25 marks.")
+    lines.append("")
+
     for i, q in enumerate(questions):
-        lines.append("---")
-        lines.append("")
+        lines.append("<!--PAGE-->")
         lines.append(f"## Question {i + 1} (25 Marks)")
         lines.append("")
         lines.append(f"TOPICS: {', '.join(q['topics'])}")
         lines.append(q['text'])
         lines.append("")
-        
-    lines.append("---")
-    
-    return {"markdown_content": "\n".join(lines)}
+
+    return {
+        "markdown_content": "\n".join(lines),
+        "questions": [
+            {"text": q["text"], "topic": q["topics"][0], "marks": 25}
+            for q in questions
+        ]
+    }
 

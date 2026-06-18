@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { DocumentService, AIService } from '../services/api'
+import { DocumentService, AIService, PastYearPaperService } from '../services/api'
 
 // 🛠️ Keep track of the active network request so we can cancel it on delete
 let autoSaveAbortController = null;
@@ -30,7 +30,7 @@ function convertMarkdownToHTML(markdownText) {
   html = paragraphs.map(p => {
     const trimmed = p.trim()
     if (!trimmed) return ''
-    if (trimmed.startsWith('<h') || trimmed.startsWith('<hr')) return trimmed
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<hr') || trimmed.startsWith('<!--PAGE-->')) return trimmed
     return `<p style="margin-bottom: 0.5rem; line-height: 1.6;">${trimmed.replace(/\n/g, '<br/>')}</p>`
   }).join('\n')
 
@@ -137,6 +137,7 @@ const useWorkspaceStore = create((set, get) => ({
         subject: paperConfig.subject,
         total_marks: paperConfig.totalMarks,
         topics: topicsArray,
+        document_id: newDoc.documentId,
       })
 
       if (aiRes.data.error) {
@@ -174,6 +175,40 @@ const useWorkspaceStore = create((set, get) => ({
     })))
 
     return newDoc.documentId
+  },
+
+  openPastYearPaperTab: async (pypId) => {
+    const projectId = get().currentProjectId
+    if (!projectId) { set({ error: 'No project selected' }); return null }
+
+    try {
+      const res = await DocumentService.openPastYearPaper(pypId, projectId)
+      const doc = res.data
+      set((state) => {
+        const already = state.tabs.find(t => t.documentId === doc.documentId)
+        if (already) return { activeTabId: doc.documentId }
+        return {
+          tabs: [...state.tabs, { ...doc, localDraftContent: doc.storageUrl || '' }],
+          activeTabId: doc.documentId,
+          error: null,
+        }
+      })
+      return doc.documentId
+    } catch (err) {
+      console.error('Failed to open past year paper:', err)
+      set({ error: 'Failed to open past year paper' })
+      return null
+    }
+  },
+
+  loadPastYearPapers: async () => {
+    try {
+      const res = await PastYearPaperService.getAll()
+      return res.data || []
+    } catch (err) {
+      console.error('Failed to load past year papers:', err)
+      return []
+    }
   },
 
   // Updates the content in the tab

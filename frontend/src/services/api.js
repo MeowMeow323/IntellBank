@@ -74,6 +74,7 @@ export const DocumentService = {
   },
   delete: (documentId, email) => api.delete(`/api/documents/${documentId}`, { params: { email } }),
   process: (documentId) => api.post(`/api/documents/${documentId}/process`),
+  openPastYearPaper: (pypId, projectId) => api.post('/api/documents/open-past-year-paper', { pypId, projectId }),
 }
 
 // ── Exam Service ──────────────────────────────────────────────────────────────
@@ -128,6 +129,11 @@ export const AnalyticsService = {
   getYearlyTrends: () => api.get('/api/analytics/yearly-trends'),
   getHighPriorityTopics: () => api.get('/api/analytics/high-priority-topics'),
   getPredictedTopics: () => api.get('/api/analytics/predicted-topics'),
+}
+
+// ── Past Year Paper Service ───────────────────────────────────────────────────
+export const PastYearPaperService = {
+  getAll: () => api.get('/api/past-year-papers'),
 }
 
 // ── Metadata Service ──────────────────────────────────────────────────────────

@@ -1,15 +1,7 @@
 {
-  "_comment": "Settings for the OCR-to-dataset preparation tool (ocr_to_dataset.py).",
-
   "default_subject": "Software Project Management",
-
-  "supabase_project_url": "https://your-project-id.supabase.co",
-
+  "supabase_project_url": "https://nntmweewvngjbykbsxtc.supabase.co",
   "supabase_bucket": "documents",
-
   "status_to_process": "Uploaded",
-
-  "update_status_after_processing": false,
-
-  "output_csv": "generated_training_dataset.csv"
+  "update_status_after_processing": true
 }
