@@ -90,56 +90,92 @@ public class DocumentService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException("Project not found", HttpStatus.NOT_FOUND));
 
-        // Reuse existing document if already opened for this project
+        List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
+
+        // Always rebuild HTML so formatting changes in QuestionHtmlFormatter take effect immediately.
+        final String PAGE_BREAK = "<!--PAGE-->";
+        StringBuilder html = new StringBuilder();
+
+        if (questions.isEmpty()) {
+            html.append("<div style=\"text-align:center;\">")
+                .append("<h1 style=\"font-family:Georgia,serif;\">").append(pyp.getTitle()).append("</h1>")
+                .append("</div>")
+                .append("<p style=\"color:#94a3b8;font-style:italic;margin-top:2rem;\">No questions extracted for this paper yet.</p>");
+        } else {
+            // ── Extract scenario from Q1 content (stored as [SCENARIO]...[/SCENARIO]) ────
+            String scenarioHtml = "";
+            String q1Raw = questions.get(0).getContent();
+            if (q1Raw != null && q1Raw.contains("[SCENARIO]")) {
+                int sStart = q1Raw.indexOf("[SCENARIO]") + 10;
+                int sEnd   = q1Raw.indexOf("[/SCENARIO]");
+                if (sEnd > sStart) {
+                    String scenarioText = q1Raw.substring(sStart, sEnd).trim();
+                    scenarioHtml =
+                        "<div style=\"margin-top:1.5rem;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:1rem 1.25rem;\">"
+                      + "<p style=\"font-weight:700;margin:0 0 0.6rem;font-size:0.95rem;\">Context / Scenario</p>"
+                      + "<p style=\"margin:0;line-height:1.75;\">"
+                      + scenarioText.replace("\n\n", "</p><p style=\"margin:0.5rem 0 0 0;line-height:1.75;\">")
+                                   .replace("\n", " ")
+                      + "</p></div>";
+                }
+            }
+
+            // ── Cover page: title + instructions + scenario ───────────────────────────────
+            html.append("<div style=\"text-align:center;padding-bottom:1rem;\">")
+                .append("<h1 style=\"font-family:Georgia,serif;font-size:1.4rem;font-weight:bold;margin-bottom:0.25rem;\">")
+                .append(pyp.getTitle()).append("</h1>")
+                .append("<hr style=\"border:none;border-top:2px solid #334155;width:60%;margin:0.75rem auto;\">")
+                .append("<p style=\"margin:0.5rem 0;\"><strong>Total Marks: ").append(questions.size() * 25)
+                .append(" &nbsp;|&nbsp; Answer ALL ").append(questions.size()).append(" questions (25 marks each)</strong></p>")
+                .append("</div>")
+                .append(scenarioHtml);
+
+            // ── Questions — one per page ─────────────────────────────────────────────────
+            for (int i = 0; i < questions.size(); i++) {
+                Question q = questions.get(i);
+                html.append(PAGE_BREAK);
+
+                html.append("<h2 style=\"font-size:1.2rem;font-weight:bold;border-bottom:2px solid #334155;padding-bottom:0.4rem;margin-bottom:1.25rem;\">")
+                    .append("Question ").append(i + 1).append(" &nbsp; [25 Marks]</h2>");
+
+                String content = q.getContent();
+
+                // Strip [SCENARIO] from Q1 — it's now on the cover page
+                if (content != null && content.contains("[SCENARIO]")) {
+                    int endIdx = content.indexOf("[/SCENARIO]");
+                    if (endIdx >= 0) content = content.substring(endIdx + 11).trim();
+                }
+
+                html.append(QuestionHtmlFormatter.format(content));
+
+                html.append("<div style=\"margin-top:2rem;border-top:1px solid #cbd5e1;padding-top:0.6rem;\">")
+                    .append("<p style=\"text-align:right;font-weight:600;font-size:0.9rem;margin:0;\">[Total: 25 marks]</p>")
+                    .append("</div>");
+                html.append("<p style=\"margin-top:1rem;color:#94a3b8;font-style:italic;font-size:0.85rem;\">")
+                    .append("&mdash; End of Question ").append(i + 1).append(" &mdash;</p>");
+            }
+        }
+
+        String freshHtml = html.toString();
+
+        // Reuse existing document row but always refresh its content
         List<Document> existing = documentRepository.findByProjectProjectId(projectId);
         Optional<Document> reuse = existing.stream()
                 .filter(d -> "Past Year Paper".equals(d.getType()) && pyp.getTitle().equals(d.getTitle()))
                 .findFirst();
-        if (reuse.isPresent()) return reuse.get();
 
-        List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
-
-        // PAGE_BREAK_MARKER matches WorkspaceContent.jsx constant so each question lands on its own page
-        final String PAGE_BREAK = "<!--PAGE-->";
-
-        StringBuilder html = new StringBuilder();
-
-        if (questions.isEmpty()) {
-            html.append("<h1 style=\"text-align:center; font-family: serif; font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;\">")
-                .append(pyp.getTitle()).append("</h1>");
-            html.append("<p style=\"color:#94a3b8; font-style:italic; margin-top:2rem;\">")
-                .append("No questions extracted for this paper yet. Run the OCR pipeline to populate questions.")
-                .append("</p>");
-        } else {
-            // Page 1: cover / header
-            html.append("<h1 style=\"text-align:center; font-family: serif; font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;\">")
-                .append(pyp.getTitle()).append("</h1>");
-            html.append("<h3 style=\"text-align:center; font-weight: normal; margin: 0 0 2rem 0; font-size: 1.1rem;\">")
-                .append("Total Marks: ").append(questions.size() * 25).append(" Marks")
-                .append("</h3>");
-            html.append("<p style=\"color:#64748b; font-size:0.9rem; margin-top:1rem;\">")
-                .append("Answer ALL questions. Each question carries 25 marks.")
-                .append("</p>");
-
-            // One question per page
-            for (int i = 0; i < questions.size(); i++) {
-                Question q = questions.get(i);
-                html.append(PAGE_BREAK);
-                html.append("<h2 style=\"font-size: 1.25rem; font-weight: bold; margin-bottom: 1.5rem;\">")
-                    .append("Question ").append(i + 1).append(" &nbsp;&nbsp; [25 Marks]")
-                    .append("</h2>");
-                html.append(QuestionHtmlFormatter.format(q.getContent()));
-                html.append("<p style=\"margin-top: 3rem; color: #94a3b8; font-size: 0.85rem; font-style: italic;\">")
-                    .append("— End of Question ").append(i + 1).append(" —")
-                    .append("</p>");
-            }
+        if (reuse.isPresent()) {
+            Document doc = reuse.get();
+            doc.setStorageUrl(freshHtml);
+            log.info("Refreshed PYP '{}' document {} with {} questions", pyp.getTitle(), doc.getDocumentId(), questions.size());
+            return documentRepository.save(doc);
         }
 
         Document doc = documentRepository.save(Document.builder()
                 .project(project)
                 .title(pyp.getTitle())
                 .type("Past Year Paper")
-                .storageUrl(html.toString())
+                .storageUrl(freshHtml)
                 .build());
 
         for (Question q : questions) {

@@ -2,10 +2,12 @@ package com.intellbank.controller;
 
 import com.intellbank.service.AiClientService;
 import com.intellbank.service.DocumentService;
+import com.intellbank.util.QuestionHtmlFormatter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,19 +72,77 @@ public class AiGatewayController {
                 : List.of("General");
         String documentIdStr = (String) body.get("document_id");
 
-        Map<String, Object> result = aiClientService.generatePaper(subject, totalMarks, topics);
+        // Copy into a mutable map — Jackson may return an unmodifiable view
+        Map<String, Object> result = new LinkedHashMap<>(aiClientService.generatePaper(subject, totalMarks, topics));
 
-        // Save generated questions + document_questions if document_id was provided
-        if (documentIdStr != null && !documentIdStr.isBlank() && result.containsKey("questions")) {
+        // Replace raw markdown_content with properly formatted HTML
+        System.out.println("[AiGateway] result keys: " + result.keySet());
+        if (result.containsKey("questions")) {
             try {
-                UUID documentId = UUID.fromString(documentIdStr);
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> questions = (List<Map<String, Object>>) result.get("questions");
-                documentService.saveAiGeneratedQuestions(documentId, questions);
+                System.out.println("[AiGateway] building formatted HTML for " + questions.size() + " questions");
+                String formattedHtml = buildFormattedPaperHtml(subject, questions);
+                System.out.println("[AiGateway] formattedHtml length=" + formattedHtml.length()
+                        + " hasPageMarkers=" + formattedHtml.contains("<!--PAGE-->"));
+                result.put("markdown_content", formattedHtml);
+
+                // Save questions to DB non-fatally
+                if (documentIdStr != null && !documentIdStr.isBlank()) {
+                    try {
+                        documentService.saveAiGeneratedQuestions(UUID.fromString(documentIdStr), questions);
+                    } catch (Exception ignored) {}
+                }
             } catch (Exception e) {
-                // Non-fatal — paper still renders even if DB save fails
+                // Log but don't fail — Python markdown will be used as fallback
+                System.err.println("[AiGateway] buildFormattedPaperHtml failed: " + e.getMessage());
             }
         }
 
         return ResponseEntity.ok(result);
+    }
+
+    private String buildFormattedPaperHtml(String subject, List<Map<String, Object>> questions) {
+        final String PB = "<!--PAGE-->";
+        StringBuilder html = new StringBuilder();
+
+        // Cover page — professional centered exam header
+        html.append("<div style=\"text-align:center;padding:1rem 0 2rem;\">")
+            .append("<p style=\"font-size:0.8rem;letter-spacing:0.1em;color:#475569;margin:0 0 0.25rem;\">")
+            .append("FACULTY OF COMPUTING AND INFORMATION TECHNOLOGY</p>")
+            .append("<h1 style=\"font-family:Georgia,serif;font-size:1.5rem;font-weight:bold;margin:0.5rem 0;\">")
+            .append(subject.toUpperCase()).append("</h1>")
+            .append("<p style=\"font-size:0.95rem;color:#475569;margin:0 0 1rem;\">EXAMINATION PAPER</p>")
+            .append("<hr style=\"border:none;border-top:2px solid #334155;margin:0.75rem auto;width:60%;\">")
+            .append("<table style=\"width:100%;margin:0.75rem 0;font-size:0.9rem;\"><tr>")
+            .append("<td style=\"text-align:left;\"><strong>Total Marks:</strong> 100</td>")
+            .append("<td style=\"text-align:center;\"><strong>Questions:</strong> 4</td>")
+            .append("<td style=\"text-align:right;\"><strong>Duration:</strong> 2½ Hours</td>")
+            .append("</tr></table>")
+            .append("<hr style=\"border:none;border-top:1px solid #cbd5e1;margin:0.5rem 0;\">")
+            .append("<p style=\"font-size:0.85rem;color:#64748b;margin:0.5rem 0 0;\">")
+            .append("Answer <strong>ALL</strong> 4 questions. Each question carries <strong>25 marks</strong>.</p>")
+            .append("</div>");
+
+        // Questions — one per page, topic hidden as data attribute (not visible)
+        for (int i = 0; i < questions.size(); i++) {
+            String rawText = String.valueOf(questions.get(i).getOrDefault("text", ""));
+            String topic   = String.valueOf(questions.get(i).getOrDefault("topic", ""));
+
+            html.append(PB);
+            // topic stored as data-topic attribute for JS to read if needed, NOT rendered as text
+            html.append("<h2 style=\"font-size:1.2rem;font-weight:bold;border-bottom:2px solid #334155;padding-bottom:0.4rem;margin-bottom:1.25rem;\" data-topic=\"")
+                .append(topic).append("\">Question ").append(i + 1).append(" &nbsp;&nbsp; [25 Marks]</h2>");
+
+            html.append(QuestionHtmlFormatter.format(rawText));
+
+            html.append("<div style=\"margin-top:2rem;border-top:1px solid #cbd5e1;padding-top:0.6rem;\">")
+                .append("<p style=\"text-align:right;font-weight:600;font-size:0.9rem;margin:0;\">[Total: 25 marks]</p>")
+                .append("</div>");
+            html.append("<p style=\"margin-top:1rem;color:#94a3b8;font-size:0.85rem;font-style:italic;\">")
+                .append("&mdash; End of Question ").append(i + 1).append(" &mdash;</p>");
+        }
+
+        return html.toString();
     }
 }

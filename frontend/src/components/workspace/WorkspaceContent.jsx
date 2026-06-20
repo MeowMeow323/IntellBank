@@ -116,8 +116,9 @@ const WorkspaceContent = () => {
   const pageRefs = useRef([])
   const saveTimer = useRef(null)
   const focusedPage = useRef(0)
-  // Track whether we're doing AI bulk injection — suppresses typing reflow
   const isInjecting = useRef(false)
+  // Tracks last page-length fingerprint we redistributed to prevent infinite loops
+  const lastDistKey = useRef('')
 
   const dim = PAGE_SIZES[pageSetup.paperSize] || PAGE_SIZES.letter
   const isLandscape = pageSetup.orientation === 'landscape'
@@ -180,12 +181,13 @@ const WorkspaceContent = () => {
 
   // ── Effect 2: Inject HTML into DOM after pages state changes ─────────────
   // IMPORTANT: This effect only injects — it does NOT reflow or redistribute.
-  // Reflow on typing is handled by reflowOnType.
-  // Reflow after AI injection is handled by the separate aiPaginate effect.
+  // Skip injection for any page the user is actively editing (prevents cursor jumps).
   useEffect(() => {
     pages.forEach((html, i) => {
       const el = pageRefs.current[i]?.current
-      if (el && el.innerHTML !== html) {
+      if (!el) return
+      if (document.activeElement === el) return   // user is typing here — do not reset
+      if (el.innerHTML !== html) {
         el.innerHTML = html || '<p><br></p>'
       }
     })
@@ -201,15 +203,82 @@ const WorkspaceContent = () => {
     // Only paginate if: single page AND content overflows AND not already multi-page
     if (pages.length !== 1) return
 
-    requestAnimationFrame(() => {
+    // Double RAF: first frame lets Effect 2 inject HTML, second measures the
+    // rendered scrollHeight (which is 0 until the browser paints the content).
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       if (!el || el.scrollHeight <= contentH + 2) return
 
       // This is AI content on a single overflowing page — redistribute
       isInjecting.current = true
       redistributeNodes(el)
       isInjecting.current = false
-    })
+    }))
   }, [activeTabId, activeTab?.localDraftContent]) // eslint-disable-line
+
+  // Reset fingerprint whenever the active tab changes so Effect 4 re-runs on each load
+  useEffect(() => { lastDistKey.current = '' }, [activeTabId])
+
+  // ── Effect 4: per-page overflow fix for pre-split multi-page docs ─────────
+  // Effect 3 only redistributes single-page AI dumps. This handles each
+  // individual pre-split page (past year paper, saved AI paper) that overflows
+  // after injection. Cascades one page per RAF pass until all pages are stable.
+  useEffect(() => {
+    if (pages.length <= 1) return  // Effect 3 handles this
+    const key = pages.map(p => p.length).join('-')
+    if (key === lastDistKey.current) return
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      let changed = false
+      const newPages = [...pages]
+
+      for (let i = 0; i < newPages.length; i++) {
+        const el = pageRefs.current[i]?.current
+        if (!el || el.scrollHeight <= contentH + 4) continue
+
+        const allNodes = Array.from(el.childNodes).map(n => n.cloneNode(true))
+        if (allNodes.length <= 1) continue   // single un-splittable node — skip
+
+        const testDiv = document.createElement('div')
+        testDiv.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;width:${el.offsetWidth || 624}px;font-family:Arial,sans-serif;font-size:11pt;line-height:1.6;word-wrap:break-word;box-sizing:border-box;`
+        document.body.appendChild(testDiv)
+
+        const fit = [], overflow = []
+        for (const node of allNodes) {
+          testDiv.innerHTML = ''
+          fit.forEach(n => testDiv.appendChild(n.cloneNode(true)))
+          testDiv.appendChild(node.cloneNode(true))
+          if (testDiv.scrollHeight > contentH + 4 && fit.length > 0) {
+            overflow.push(node)
+          } else {
+            fit.push(node)
+          }
+        }
+        document.body.removeChild(testDiv)
+        if (overflow.length === 0) continue
+
+        const fitDiv = document.createElement('div')
+        fit.forEach(n => fitDiv.appendChild(n))
+        newPages[i] = fitDiv.innerHTML || '<p><br></p>'
+
+        const ovDiv = document.createElement('div')
+        overflow.forEach(n => ovDiv.appendChild(n))
+        const overflowHtml = ovDiv.innerHTML
+
+        if (i + 1 < newPages.length) {
+          const next = newPages[i + 1]
+          newPages[i + 1] = overflowHtml + (next === '<p><br></p>' ? '' : next)
+        } else {
+          newPages.push(overflowHtml)
+        }
+
+        changed = true
+        break  // one page per pass; re-runs via setPages until stable
+      }
+
+      lastDistKey.current = key
+      if (changed) setPages(newPages)
+    }))
+  }, [pages, contentH]) // eslint-disable-line
 
   // ── redistributeNodes: AI pagination engine ───────────────────────────────
   // Takes all child nodes from the first page and distributes them
@@ -260,74 +329,54 @@ const WorkspaceContent = () => {
     setPages(newPages)
   }, [contentH])
 
-  // ── Typing reflow: move ONE overflowing node to next page ─────────────────
+  // ── Typing reflow: overflow only — runs after browser finishes the input event ──
+  // Underflow (pull-from-next-page) removed: it cloned/removed DOM nodes on every
+  // keypress during the input handler, causing cursor jumps and content flickering.
   const reflowOnType = useCallback((pageIdx) => {
     if (isInjecting.current) return
     const el = pageRefs.current[pageIdx]?.current
     if (!el) return
 
-    if (el.scrollHeight > contentH + 2) {
-      const lastChild = el.lastChild
-      if (!lastChild) return
+    if (el.scrollHeight <= contentH + 2) return   // page has room — nothing to do
 
-      // Create next page if needed
-      setPages(prev => {
-        if (prev[pageIdx + 1] !== undefined) return prev
-        return [...prev, '<p><br></p>']
-      })
+    const lastChild = el.lastChild
+    if (!lastChild) return
 
-      setTimeout(() => {
-        const nextEl = pageRefs.current[pageIdx + 1]?.current
-        if (!nextEl || !el.lastChild) return
+    // Add next page slot if it doesn't exist yet
+    setPages(prev => {
+      if (prev[pageIdx + 1] !== undefined) return prev
+      return [...prev, '<p><br></p>']
+    })
 
-        const node = el.lastChild
-        if (nextEl.innerHTML === '<p><br></p>' || nextEl.innerHTML === '') {
-          nextEl.innerHTML = ''
-        }
-        // Move node (not clone) so it's removed from current page
-        nextEl.insertBefore(node, nextEl.firstChild)
-
-        // Place cursor at start of next page
-        setTimeout(() => {
-          const next = pageRefs.current[pageIdx + 1]?.current
-          if (!next) return
-          next.focus()
-          const range = document.createRange()
-          range.setStart(next, 0)
-          range.collapse(true)
-          window.getSelection().removeAllRanges()
-          window.getSelection().addRange(range)
-          focusedPage.current = pageIdx + 1
-        }, 10)
-
-        recalcStats()
-        triggerSave()
-      }, 0)
-
-    } else if (pageRefs.current[pageIdx + 1]?.current) {
-      // Underflow check: if current page has room, pull from next page
+    // Move the overflowing last node to the start of the next page.
+    // Deferred via setTimeout so the browser finishes processing the input event
+    // before we manipulate the DOM — prevents cursor loss.
+    setTimeout(() => {
       const nextEl = pageRefs.current[pageIdx + 1]?.current
-      if (!nextEl?.firstChild) return
+      if (!nextEl || !el.lastChild) return
 
-      const candidate = nextEl.firstChild.cloneNode(true)
-      el.appendChild(candidate)
-
-      if (el.scrollHeight <= contentH) {
-        nextEl.removeChild(nextEl.firstChild)
-        // Remove empty trailing page
-        if (!nextEl.firstChild) {
-          setPages(prev => prev.length > 1
-            ? prev.filter((_, i) => i !== pageIdx + 1)
-            : prev
-          )
-        }
-      } else {
-        el.removeChild(el.lastChild)
+      const node = el.lastChild
+      if (nextEl.innerHTML === '<p><br></p>' || nextEl.innerHTML === '') {
+        nextEl.innerHTML = ''
       }
+      nextEl.insertBefore(node, nextEl.firstChild)
+
+      // Move cursor to start of next page
+      setTimeout(() => {
+        const next = pageRefs.current[pageIdx + 1]?.current
+        if (!next) return
+        next.focus()
+        const range = document.createRange()
+        range.setStart(next, 0)
+        range.collapse(true)
+        window.getSelection().removeAllRanges()
+        window.getSelection().addRange(range)
+        focusedPage.current = pageIdx + 1
+      }, 10)
 
       recalcStats()
       triggerSave()
-    }
+    }, 0)
   }, [contentH, recalcStats, triggerSave])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────

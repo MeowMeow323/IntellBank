@@ -266,59 +266,121 @@ const WorkspacePage = () => {
         </div>
       </div>
       
-      {/* 3. ✨ GENERATE PAPER MODAL (Classes mapped to dashboard style system) */}
+      {/* 3. ✨ GENERATE PAPER MODAL */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>✨ Generate Exam Paper</h2>
-            
-            <div className="input-group">
-              <label>Subject</label>
-              <select 
-                className="form-input"
+          <div className="modal-content" onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '540px', gap: '1rem' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0 }}>✨ Generate Customized Paper</h2>
+              <button onClick={() => setIsModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1 }}>✕</button>
+            </div>
+
+            {/* Subject */}
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>Subject</label>
+              <select className="form-input"
                 value={paperConfig.subject}
-                onChange={e => setPaperConfig({...paperConfig, subject: e.target.value, topics: []})}
+                onChange={e => setPaperConfig({ ...paperConfig, subject: e.target.value, topics: [] })}
                 disabled={Object.keys(subjectTopicsMap).length === 0}
               >
-                {Object.keys(subjectTopicsMap).length === 0 ? (
-                  <option>No subjects found. Please extract OCR data.</option>
-                ) : (
-                  Object.keys(subjectTopicsMap).map(s => <option key={s} value={s}>{s}</option>)
+                {Object.keys(subjectTopicsMap).length === 0
+                  ? <option>No subjects found — run OCR pipeline first.</option>
+                  : Object.keys(subjectTopicsMap).map(s => <option key={s} value={s}>{s}</option>)
+                }
+              </select>
+            </div>
+
+            {/* Topics — checkbox grid */}
+            <div className="input-group" style={{ marginBottom: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>
+                  Topics
+                </label>
+                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  {paperConfig.topics.length} selected
+                </span>
+              </div>
+
+              {/* Checkbox grid */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem',
+                maxHeight: '220px', overflowY: 'auto', padding: '0.5rem',
+                border: '1px solid var(--color-border, #1f2e3d)',
+                borderRadius: '6px', background: 'var(--color-bg-secondary, #0b131a)'
+              }}>
+                {(subjectTopicsMap[paperConfig.subject] || []).map(topic => {
+                  const checked = paperConfig.topics.includes(topic)
+                  const disabled = false
+                  return (
+                    <label key={topic} style={{
+                      display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      padding: '0.4rem 0.6rem', borderRadius: '5px', cursor: disabled ? 'not-allowed' : 'pointer',
+                      background: checked ? 'rgba(59,130,246,0.18)' : 'transparent',
+                      border: `1px solid ${checked ? 'rgba(59,130,246,0.5)' : 'transparent'}`,
+                      transition: 'all 0.12s',
+                      opacity: disabled ? 0.35 : 1,
+                      fontSize: '0.8rem', color: 'var(--color-text-primary, #e2e8f0)',
+                      userSelect: 'none',
+                    }}>
+                      <input type="checkbox" checked={checked} disabled={disabled}
+                        style={{ accentColor: '#3b82f6', width: '14px', height: '14px', flexShrink: 0 }}
+                        onChange={() => {
+                          if (checked) {
+                            setPaperConfig({ ...paperConfig, topics: paperConfig.topics.filter(t => t !== topic) })
+                          } else if (!disabled) {
+                            setPaperConfig({ ...paperConfig, topics: [...paperConfig.topics, topic] })
+                          }
+                        }}
+                      />
+                      {topic}
+                    </label>
+                  )
+                })}
+                {(subjectTopicsMap[paperConfig.subject] || []).length === 0 && (
+                  <span style={{ gridColumn: '1/-1', color: '#64748b', fontSize: '0.8rem', padding: '0.5rem' }}>
+                    Select a subject to see topics.
+                  </span>
                 )}
-              </select>
+              </div>
+
+              {/* Selected topic chips */}
+              {paperConfig.topics.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  {paperConfig.topics.map(t => (
+                    <span key={t} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                      background: 'rgba(59,130,246,0.22)', color: '#93c5fd',
+                      padding: '2px 10px 2px 10px', borderRadius: '999px',
+                      fontSize: '0.72rem', fontWeight: 500, border: '1px solid rgba(59,130,246,0.35)'
+                    }}>
+                      {t}
+                      <button onClick={() => setPaperConfig({ ...paperConfig, topics: paperConfig.topics.filter(x => x !== t) })}
+                        style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', padding: '0 0 0 2px', lineHeight: 1, fontSize: '0.85rem' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="input-group">
-              <label>Topics (Hold Ctrl/Cmd to select multiple, max 4)</label>
-              <select 
-                multiple
-                className="form-input"
-                style={{ minHeight: '120px' }}
-                value={paperConfig.topics}
-                onChange={e => {
-                  const values = Array.from(e.target.selectedOptions, option => option.value)
-                  if (values.length > 4) return
-                  setPaperConfig({...paperConfig, topics: values})
-                }}
-                disabled={!paperConfig.subject || !subjectTopicsMap[paperConfig.subject]}
-              >
-                {paperConfig.subject && subjectTopicsMap[paperConfig.subject] ? (
-                  subjectTopicsMap[paperConfig.subject].map(t => <option key={t} value={t}>{t}</option>)
-                ) : null}
-              </select>
+            {/* Format info */}
+            <div style={{
+              padding: '0.65rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem',
+              background: 'rgba(15,23,42,0.5)', border: '1px solid var(--color-border, #1f2e3d)',
+              color: '#94a3b8'
+            }}>
+              <strong style={{ color: '#cbd5e1' }}>Format: </strong>
+              4 Questions × 25 Marks = 100 Marks Total
             </div>
 
-            {/* Strict Settings Readonly Display */}
-            <div style={{ padding: '1rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '1.5rem' }}>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#475569' }}><strong>Format Locked:</strong> 100 Marks Total (4 Questions x 25 Marks)</p>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" onClick={handleGenerate} disabled={isGenerating}>
-                {isGenerating ? 'Generating...' : 'Generate'}
+            <div className="modal-actions" style={{ marginTop: '0.25rem' }}>
+              <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleGenerate}
+                disabled={isGenerating || !paperConfig.subject}>
+                {isGenerating ? '⏳ Generating…' : '✨ Generate Paper'}
               </button>
             </div>
           </div>

@@ -28,7 +28,7 @@ public class PastYearPaper {
     @Column(name = "upload_date", updatable = false)
     private OffsetDateTime uploadDate;
 
-    @Column(name = "storage_url")
+    @Column(name = "storage_url", columnDefinition = "TEXT")
     private String storageUrl;
 
     /**

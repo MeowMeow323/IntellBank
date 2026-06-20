@@ -7,6 +7,65 @@ let autoSaveAbortController = null;
 // ── Helper: converts paper_structure from Python into HTML for the editor ──
 // Must live OUTSIDE the store object — plain function declarations can't be
 // object properties, which caused all the ts(1005) / ts(1128) errors.
+// ── JS-side sub-question formatter ───────────────────────────────────────────
+// Mirrors QuestionHtmlFormatter.renderSubQuestions() — applied when Java
+// buildFormattedPaperHtml is not used (Python markdown fallback path).
+function preprocessSubQMarkers(text) {
+  // "a)\n   Content" (lone marker line) → "a) Content"
+  text = text.replace(/^([ \t]*)(\(?[a-z]{1,3}[).]|\(?[ivx]{1,5}[).])\s*\n[ \t]*/gm, '$1$2 ')
+  return text
+}
+
+function formatSubQuestionsInHtml(html) {
+  return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g, (match, _attrs, content) => {
+    if (!content.match(/\([a-z]{1,3}\)|\([ivx]{1,5}\)|(?:^|[\s.;:,])[a-z]{1,3}[).]|(?:^|[\s.;:,])[ivx]{1,5}[).]/)) {
+      return match
+    }
+    const formatted = renderSubQuestionsJs(content)
+    return formatted || match
+  })
+}
+
+function renderSubQuestionsJs(text) {
+  text = preprocessSubQMarkers(text)
+  // Accepts markers after punct/newline/space; allows "a." format and newline between marker and content.
+  const MARKER = /(?:(?<=[.!?;:,])[ \t]+|(?<=\n)[ \t]*|^[ \t]*|(?<=[ \t])(?=\([a-z]{1,3}\)|\([ivx]{1,5}\))|(?<=[ \t])(?=[ivx]{2,5}[).][ \t]))(\([a-z]{1,3}\)|\([ivx]{1,5}\)|[a-z]{1,3}[).]|[ivx]{1,5}[).])[ \t]*\n?[ \t]*(?=[A-Za-z'"(0-9])/gm
+
+  const matches = []
+  let m
+  while ((m = MARKER.exec(text)) !== null) {
+    matches.push({ index: m.index, end: MARKER.lastIndex, marker: m[1] })
+  }
+  if (matches.length === 0) return null
+
+  const pBase = 'margin-bottom:0.8rem;line-height:1.6;text-align:justify;'
+  let out = ''
+  let pos = 0
+
+  for (let i = 0; i < matches.length; i++) {
+    const stem = text.substring(pos, matches[i].index).trim()
+    if (stem) out += `<p style="${pBase}">${stem.replace(/\n/g, ' ')}</p>`
+
+    const contentEnd = i + 1 < matches.length ? matches[i + 1].index : text.length
+    const fullContent = text.substring(matches[i].end, contentEnd).trim()
+    const marker = matches[i].marker
+    const isRoman = /\([ivx]+\)/.test(marker)
+    const ml = isRoman ? '2.5rem' : '1.5rem'
+    const subStyle = `margin-left:${ml};margin-bottom:0.6rem;padding-left:0.75rem;line-height:1.6;text-align:justify;word-wrap:break-word;overflow-wrap:break-word;`
+
+    // Split multi-paragraph sub-questions so each paragraph is a separate moveable node
+    const paras = fullContent.split(/\n{2,}/)
+    out += `<p style="${subStyle}"><strong style="color:#334155;">${marker}</strong>&nbsp;${paras[0].trim().replace(/\n/g, ' ')}</p>`
+    for (let j = 1; j < paras.length; j++) {
+      const para = paras[j].trim()
+      if (para) out += `<p style="${subStyle}">${para.replace(/\n/g, ' ')}</p>`
+    }
+
+    pos = contentEnd
+  }
+  return out || null
+}
+
 function convertMarkdownToHTML(markdownText) {
   let html = markdownText
 
@@ -21,8 +80,8 @@ function convertMarkdownToHTML(markdownText) {
   html = html.replace(/^### (.*)$/gm, '<h3 style="text-align:center; font-weight: normal; margin: 0 0 2rem 0; font-size: 1.1rem;">$1</h3>')
   html = html.replace(/^## (.*)$/gm, '<h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 1rem;">$1</h2>')
 
-  // 4. Replace TOPICS
-  html = html.replace(/^TOPICS: (.*)$/gm, '<p style="margin-bottom: 1rem; font-style: italic; color: #475569;">[Topics: $1]</p>')
+  // 4. Strip TOPICS metadata — stored as data attribute on h2, not visible text
+  html = html.replace(/^TOPICS: (.*)$/gm, '')
 
   // 5. Wrap remaining text in <p> (excluding empty lines and HTML tags we just added)
   // Split by double newline, wrap non-HTML blocks in <p>
@@ -31,7 +90,7 @@ function convertMarkdownToHTML(markdownText) {
     const trimmed = p.trim()
     if (!trimmed) return ''
     if (trimmed.startsWith('<h') || trimmed.startsWith('<hr') || trimmed.startsWith('<!--PAGE-->')) return trimmed
-    return `<p style="margin-bottom: 0.5rem; line-height: 1.6;">${trimmed.replace(/\n/g, '<br/>')}</p>`
+    return `<p style="margin-bottom: 0.8rem; line-height: 1.6; text-align: justify;">${trimmed.replace(/\n/g, ' ')}</p>`
   }).join('\n')
 
   return html
@@ -153,7 +212,18 @@ const useWorkspaceStore = create((set, get) => ({
     }
 
     console.log('⏳ Step 3 - Formatting HTML...')
-    const html = convertMarkdownToHTML(markdownContent)
+    let html
+    if (markdownContent.includes('<!--PAGE-->')) {
+      // Java backend returned pre-formatted paged HTML — use directly
+      html = markdownContent
+    } else {
+      // Fallback: convert Python markdown → HTML, apply sub-question formatting,
+      // then inject page-break markers before each Question header.
+      html = convertMarkdownToHTML(markdownContent)
+      html = formatSubQuestionsInHtml(html)
+      html = html.replace(/(<h2\b[^>]*>Question\s+\d+)/g, '<!--PAGE-->$1')
+    }
+    console.log('✅ Step 3 - has page markers:', html.includes('<!--PAGE-->'))
     console.log('✅ Step 3 - HTML length:', html.length)
     console.log('✅ Step 3 - HTML preview:', html.substring(0, 200))
 
@@ -213,7 +283,9 @@ const useWorkspaceStore = create((set, get) => ({
 
   // Updates the content in the tab
   updateTabContent: async (documentId, newContent) => {
-    // Instantly update local memory so typing feels snappy
+    // Update both fields so tab-switching always shows the latest typed content.
+    // Effect 2 in WorkspaceContent skips DOM injection when the element is focused,
+    // so the cursor is never reset mid-typing even though Effect 1 fires here.
     set((state) => ({
       tabs: (state.tabs || []).map((tab) =>
         tab.documentId === documentId

@@ -25,67 +25,86 @@ def get_db_connection():
         password=password
     )
 
-def fetch_questions_for_topics(subject: str, topics: list, limit: int = 4) -> list:
+def fetch_questions_for_topics(subject: str, topics: list, limit: int = 10) -> list:
     """
-    Fetch up to `limit` random questions that match the subject and ANY of the given topics.
-    Returns a list of dicts: [{'text': str, 'topics': [str]}]
+    Fetch up to `limit` random questions matching the subject and ANY of the given topics.
+    Falls back to any question for that subject when no topic matches are found.
+    Returns: [{'text': str, 'topics': [str]}]
     """
+    conn = None
     try:
         conn = get_db_connection()
         with conn.cursor(cursor_factory=DictCursor) as cur:
-            # 1. Find the subject ID
+            # 1. Find subject — try exact match first, then partial (ILIKE) for cross-subject use
             cur.execute("SELECT subject_id FROM subjects WHERE LOWER(name) = LOWER(%s)", (subject,))
             subject_row = cur.fetchone()
             if not subject_row:
+                cur.execute("SELECT subject_id FROM subjects WHERE name ILIKE %s", (f'%{subject}%',))
+                subject_row = cur.fetchone()
+            if not subject_row:
                 return []
-                
+
             subject_id = subject_row['subject_id']
-            
-            # 2. Find the topic IDs
-            if not topics:
-                return []
-                
-            topic_placeholders = ','.join(['%s'] * len(topics))
-            query = f"""
-                SELECT topic_id, name FROM topics 
-                WHERE subject_id = %s AND LOWER(name) IN ({topic_placeholders})
-            """
-            cur.execute(query, [subject_id] + [t.lower() for t in topics])
-            topic_rows = cur.fetchall()
-            
-            if not topic_rows:
-                return []
-                
-            topic_ids = [row['topic_id'] for row in topic_rows]
-            
-            # 3. Fetch random questions linked to these topic IDs
-            t_ids_placeholders = ','.join(['%s'] * len(topic_ids))
-            
-            q_query = f"""
-                SELECT q.question_id, q.content, array_agg(t.name) as topic_names
-                FROM questions q
-                JOIN question_topics qt ON q.question_id = qt.question_id
-                JOIN topics t ON qt.topic_id = t.topic_id
-                WHERE qt.topic_id IN ({t_ids_placeholders})
-                GROUP BY q.question_id, q.content
-                ORDER BY RANDOM()
-                LIMIT %s
-            """
-            
-            cur.execute(q_query, topic_ids + [limit])
-            question_rows = cur.fetchall()
-            
+
+            # 2. Find topic IDs — exact match, then partial fallback
+            topic_ids = []
+            if topics:
+                topic_placeholders = ','.join(['%s'] * len(topics))
+                cur.execute(
+                    f"SELECT topic_id FROM topics WHERE subject_id = %s AND LOWER(name) IN ({topic_placeholders})",
+                    [subject_id] + [t.lower() for t in topics]
+                )
+                topic_ids = [row['topic_id'] for row in cur.fetchall()]
+
+                # Partial match fallback — "Risk" matches "Risk Management"
+                if not topic_ids:
+                    like_clauses = ' OR '.join(['name ILIKE %s'] * len(topics))
+                    cur.execute(
+                        f"SELECT topic_id FROM topics WHERE subject_id = %s AND ({like_clauses})",
+                        [subject_id] + [f'%{t}%' for t in topics]
+                    )
+                    topic_ids = [row['topic_id'] for row in cur.fetchall()]
+
+            # 3. Fetch questions — by topic if found, otherwise any for this subject
+            if topic_ids:
+                t_ids_placeholders = ','.join(['%s'] * len(topic_ids))
+                q_query = f"""
+                    SELECT q.question_id, q.content,
+                           array_agg(DISTINCT t.name) AS topic_names
+                    FROM questions q
+                    JOIN question_topics qt ON q.question_id = qt.question_id
+                    JOIN topics t ON qt.topic_id = t.topic_id
+                    WHERE qt.topic_id IN ({t_ids_placeholders})
+                    GROUP BY q.question_id, q.content
+                    ORDER BY RANDOM()
+                    LIMIT %s
+                """
+                cur.execute(q_query, topic_ids + [limit])
+            else:
+                # No topic match at all — return any questions for this subject
+                q_query = """
+                    SELECT q.question_id, q.content,
+                           array_agg(DISTINCT t.name) AS topic_names
+                    FROM questions q
+                    JOIN question_topics qt ON q.question_id = qt.question_id
+                    JOIN topics t ON qt.topic_id = t.topic_id
+                    WHERE t.subject_id = %s
+                    GROUP BY q.question_id, q.content
+                    ORDER BY RANDOM()
+                    LIMIT %s
+                """
+                cur.execute(q_query, [subject_id, limit])
+
             results = []
-            for row in question_rows:
+            for row in cur.fetchall():
                 results.append({
-                    "text": row['content'],
-                    "topics": row['topic_names']
+                    "text":   row['content'],
+                    "topics": list(row['topic_names']),
                 })
-                
             return results
     except Exception as e:
         print(f"Database error: {e}")
         return []
     finally:
-        if 'conn' in locals() and conn:
+        if conn:
             conn.close()

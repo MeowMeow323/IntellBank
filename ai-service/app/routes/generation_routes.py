@@ -42,6 +42,7 @@ class PaperGenerateResponse(BaseModel):
     total_marks: int
     paper_structure: Optional[str] = None
     markdown_content: Optional[str] = None
+    questions: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
     model_used: str
 
@@ -90,6 +91,7 @@ async def generate_paper_endpoint(request: PaperGenerateRequest):
             subject=request.subject,
             total_marks=request.total_marks,
             markdown_content=result["markdown_content"],
+            questions=result.get("questions"),
             model_used="db-retrieval"
         )
     except Exception as e:

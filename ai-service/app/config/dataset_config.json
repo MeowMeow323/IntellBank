@@ -3,5 +3,6 @@
   "supabase_project_url": "https://nntmweewvngjbykbsxtc.supabase.co",
   "supabase_bucket": "documents",
   "status_to_process": "Uploaded",
-  "update_status_after_processing": true
+  "update_status_after_processing": true,
+  "delete_pdf_after_ocr": false
 }

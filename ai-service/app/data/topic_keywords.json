@@ -67,5 +67,64 @@
   "Diagram": [
     "diagram", "draw", "create a diagram", "illustrate", "network diagram",
     "use case", "class diagram", "flowchart", "dfd"
+  ],
+
+  "Requirements Engineering": [
+    "requirement", "requirements", "functional requirement", "non-functional",
+    "use case", "user story", "system requirement", "requirements specification",
+    "srs", "requirement elicitation", "requirement validation"
+  ],
+  "Software Design": [
+    "design", "architecture", "software design", "coupling", "cohesion",
+    "abstraction", "modularity", "design pattern", "uml", "class diagram",
+    "sequence diagram", "object-oriented", "oop"
+  ],
+  "Software Testing": [
+    "testing", "test case", "unit test", "integration test", "system test",
+    "acceptance test", "black box", "white box", "test plan", "regression",
+    "test coverage", "boundary value", "equivalence partition"
+  ],
+  "Software Maintenance": [
+    "maintenance", "corrective maintenance", "adaptive maintenance",
+    "perfective maintenance", "preventive maintenance", "legacy system",
+    "refactoring", "software evolution", "reverse engineering"
+  ],
+  "Configuration Management": [
+    "configuration management", "scm", "change management", "baseline",
+    "version control", "release management", "configuration item", "audit"
+  ],
+
+  "Database Design": [
+    "entity", "attribute", "relationship", "erd", "er diagram", "normalisation",
+    "normalization", "1nf", "2nf", "3nf", "bcnf", "primary key", "foreign key",
+    "schema", "relational schema"
+  ],
+  "SQL": [
+    "sql", "query", "select", "insert", "update", "delete", "join", "inner join",
+    "outer join", "group by", "having", "aggregate", "subquery", "view", "trigger",
+    "stored procedure", "index"
+  ],
+  "Transaction Management": [
+    "transaction", "acid", "atomicity", "consistency", "isolation", "durability",
+    "concurrency", "deadlock", "locking", "serializability", "rollback", "commit"
+  ],
+  "Database Security": [
+    "database security", "authorisation", "authorization", "access control",
+    "encryption", "privilege", "role", "grant", "revoke"
+  ],
+
+  "Operating Systems": [
+    "process", "thread", "scheduling", "cpu scheduling", "deadlock", "semaphore",
+    "mutex", "memory management", "paging", "segmentation", "virtual memory",
+    "file system", "kernel", "context switch"
+  ],
+  "Computer Networks": [
+    "network", "protocol", "tcp", "ip", "udp", "osi", "layer", "routing",
+    "switching", "bandwidth", "latency", "socket", "http", "dns", "firewall"
+  ],
+  "Data Structures": [
+    "array", "linked list", "stack", "queue", "tree", "binary tree", "heap",
+    "hash", "graph", "sorting", "searching", "algorithm", "time complexity",
+    "big o", "recursion"
   ]
 }

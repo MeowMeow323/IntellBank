@@ -137,7 +137,7 @@ def generate_full_paper(request) -> dict:
 
     # Step 1 — fetch up to 4 random past-year questions from Supabase
     print(f"[INFO] Fetching DB questions for subject='{subject}', topics={topics}")
-    db_questions = fetch_questions_for_topics(subject, topics, limit=4)
+    db_questions = fetch_questions_for_topics(subject, topics, limit=10)
     print(f"[INFO] Found {len(db_questions)} questions in DB")
 
     questions = []
@@ -160,8 +160,9 @@ def generate_full_paper(request) -> dict:
                 text = f"Describe the concept of {topic} in the context of {subject}."
             questions.append({"text": text, "topics": [topic]})
 
-    # Build content — cover page first, then one question per page using <!--PAGE--> markers
-    # WorkspaceContent.jsx splits on PAGE_BREAK_MARKER = '<!--PAGE-->' so each block becomes its own page
+    # Build standard markdown — Java's AiGatewayController.buildFormattedPaperHtml()
+    # replaces this with proper HTML before it reaches the frontend.
+    # The '---' separators are used as fallback when Java formatting isn't available.
     lines = []
     lines.append("[METADATA_START]")
     lines.append(f"SUBJECT: {subject}")
@@ -177,7 +178,7 @@ def generate_full_paper(request) -> dict:
     lines.append("")
 
     for i, q in enumerate(questions):
-        lines.append("<!--PAGE-->")
+        lines.append("---")
         lines.append(f"## Question {i + 1} (25 Marks)")
         lines.append("")
         lines.append(f"TOPICS: {', '.join(q['topics'])}")
