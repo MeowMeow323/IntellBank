@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PastYearPaperService, QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import QuestionContent from '../components/QuestionContent.jsx'
 import '../styles/document-upload.css'
 import '../styles/modals.css'
 
@@ -320,10 +321,8 @@ const PastYearPaperLibraryPage = () => {
                     <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {resultQuestions.map((q, i) => (
                         <div key={q.questionId} className="card">
-                          <p style={{ fontWeight: 600, margin: '0 0 0.25rem' }}>Q{i + 1} ({q.marks ?? 1} marks)</p>
-                          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                            {q.content?.length > 240 ? q.content.slice(0, 240) + '…' : q.content}
-                          </p>
+                          <p style={{ fontWeight: 600, margin: '0 0 0.5rem' }}>Q{i + 1} ({q.marks ?? 1} marks)</p>
+                          <QuestionContent content={q.content} originalFileUrl={activePaper?.fileUrl} />
                         </div>
                       ))}
                     </div>

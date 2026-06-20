@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PastYearPaperService, QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import EditableQuestionContent from '../components/EditableQuestionContent.jsx'
 import '../styles/document-upload.css'
 
 const STATUS_COLORS = {
@@ -54,6 +55,13 @@ const PastYearPaperQuestionsPage = () => {
     }
   }
 
+  const handleSaveQuestion = async (questionId, newContent, newMarks) => {
+    const res = await QuestionService.update(questionId, { content: newContent, marks: newMarks })
+    setQuestions((prev) => prev.map((q) =>
+      q.questionId === questionId ? { ...q, content: res.data.content, marks: res.data.marks } : q
+    ))
+  }
+
   return (
     <div className="page-layout">
       <Sidebar />
@@ -98,7 +106,7 @@ const PastYearPaperQuestionsPage = () => {
               <div key={q.questionId} className="card" id={`question-${q.questionId}`}>
                 <div className="flex justify-between items-center" style={{ marginBottom: '0.75rem' }}>
                   <p style={{ fontWeight: 700, fontSize: '1.05rem', margin: 0 }}>
-                    Question {i + 1} <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>({q.marks ?? 1} marks)</span>
+                    Question {i + 1}
                   </p>
                   <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                     {q.topics?.length > 0 ? (
@@ -118,9 +126,12 @@ const PastYearPaperQuestionsPage = () => {
                     )}
                   </div>
                 </div>
-                <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: '1rem' }}>
-                  {q.content}
-                </p>
+                <EditableQuestionContent
+                  content={q.content}
+                  marks={q.marks}
+                  originalFileUrl={paper?.fileUrl}
+                  onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
+                />
               </div>
             ))}
           </div>

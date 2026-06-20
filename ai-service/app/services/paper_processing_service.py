@@ -12,7 +12,7 @@ store pipeline. Shared by both the CLI seeding script
 import os
 import uuid
 
-from app.services import ocr_service, classification_service
+from app.services import ocr_service, classification_service, spellcheck_service
 
 
 # =============================================================================
@@ -243,15 +243,32 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
     print("  [3/4] Parsing question blocks...")
     cleaned_ocr = ocr_service.clean_text(raw_text)
 
-    detected = ocr_service.detect_subject_from_text(cleaned_ocr)
+    # Page 1 is cover info only (course code, subject, "Instructions to
+    # Candidates", etc.) — never real question content — so subject
+    # detection only looks there, and question parsing only looks at page 2
+    # onward. Also drop any trailing appendix (formula sheets/statistical
+    # tables) that would otherwise glue onto the last detected question.
+    page1_text, rest_text = ocr_service.split_off_cover_page(cleaned_ocr)
+    rest_text = ocr_service.strip_trailing_appendix(rest_text)
+
+    detected = ocr_service.detect_subject_from_text(page1_text)
     if detected:
         course_code, subject = detected
         print(f"  [3/4] Detected subject from header: {course_code} {subject}")
     else:
         print(f"  [3/4] No course-code header detected — falling back to default_subject='{subject}'")
 
-    preamble    = ocr_service.clean_preamble(ocr_service.extract_preamble(cleaned_ocr))
-    blocks      = ocr_service.deduplicate_blocks(ocr_service.split_blocks(cleaned_ocr))
+    preamble = ocr_service.clean_preamble(ocr_service.extract_preamble(rest_text))
+    blocks   = ocr_service.deduplicate_blocks(ocr_service.split_blocks(rest_text))
+
+    # Safety net: if assuming "questions start on page 2" finds nothing,
+    # fall back to scanning the whole document rather than failing outright
+    # — some papers may not follow that layout.
+    if not blocks and rest_text is not cleaned_ocr:
+        print("  [3/4] No blocks found from page 2 onward — retrying against the full document")
+        preamble = ocr_service.clean_preamble(ocr_service.extract_preamble(cleaned_ocr))
+        blocks   = ocr_service.deduplicate_blocks(ocr_service.split_blocks(cleaned_ocr))
+
     print(f"  [3/4] ✓ {len(blocks)} unique question block(s) found")
     if preamble:
         print(f"  [3/4] Preamble detected ({len(preamble)} chars) — will prepend to Q1")
@@ -281,6 +298,15 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
         # Prepend scenario/preamble to Q1 using a safe marker the Java formatter understands
         if block_idx == 1 and preamble:
             q_text = "[SCENARIO]\n" + preamble + "\n[/SCENARIO]\n" + q_text
+
+        # Dictionary-only correction of obvious OCR misreads (e.g. "modcl" -> "model").
+        # Runs after marks/classification use `block` (the pre-correction text) so
+        # spelling fixes can't shift mark/difficulty/topic extraction.
+        q_text = spellcheck_service.spellcheck_text(q_text)
+        # Deterministic fixups for specific, unambiguous OCR substitutions
+        # that spellcheck can't catch (it only touches dictionary words) —
+        # e.g. "M - B(10, 0.28)" -> "M ~ B(10, 0.28)".
+        q_text = ocr_service.fix_common_ocr_substitutions(q_text)
 
         marks      = ocr_service.extract_marks(block)
         difficulty = ocr_service.assign_difficulty(marks)

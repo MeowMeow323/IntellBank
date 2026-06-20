@@ -24,9 +24,13 @@ Pillow==12.2.0
 opencv-python==4.13.0.92
 numpy==2.4.6
 
+# Lightweight dictionary-based spellcheck (no model inference)
+pyspellchecker
+
 # Local ML inference (question generation, zero-shot classification, math OCR)
 # Loose pins so pip can resolve a compatible build for the active Python version.
 torch>=2.3.0
 transformers>=4.41.1
 sentencepiece
 pix2tex
+python-doctr[torch]

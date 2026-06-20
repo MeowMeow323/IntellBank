@@ -20,7 +20,7 @@ from PIL import Image
 from pdf2image import convert_from_path
 import pytesseract
 
-from app.services import math_ocr_service
+from app.services import math_ocr_service, doctr_ocr_service
 
 # Windows' default cp1252 console crashes when printing → ✓ ✗ — force UTF-8 output.
 try:
@@ -52,8 +52,19 @@ BASE_DIR    = os.path.dirname(__file__)
 DATA_DIR    = os.path.join(BASE_DIR, '..', 'data')
 CHUNK_DIR   = os.path.join(DATA_DIR, 'temp_pdf_chunks')
 CONFIG_PATH = os.path.join(BASE_DIR, '..', 'config', 'dataset_config.json')
+TESSDATA_DIR = os.path.join(BASE_DIR, '..', 'tessdata')
 
 PAGES_PER_CHUNK = 3
+OCR_DPI = 400
+
+# Use the higher-accuracy tessdata_best English model instead of whatever
+# the system Tesseract install bundles by default — checked on this machine,
+# the installer's bundled eng.traineddata is only 4.1MB (the lightweight
+# "fast" variant); tessdata_best is a real accuracy upgrade over that.
+# Pointing TESSDATA_PREFIX here instead of overwriting the system install
+# avoids touching anything outside this project.
+if os.path.exists(os.path.join(TESSDATA_DIR, 'eng.traineddata')):
+    os.environ['TESSDATA_PREFIX'] = TESSDATA_DIR
 
 
 # =============================================================================
@@ -166,27 +177,65 @@ def preprocess_image(pil_img: Image.Image) -> Image.Image:
 def detect_table_bbox(img_array: np.ndarray):
     """
     Detects the bounding box of a table on the page using horizontal/vertical
-    line morphology. Returns (x, y, w, h) of the largest detected table, or None.
+    line morphology, validated by actually finding a real row/column grid in
+    the candidate region (detect_grid_lines — the same check
+    ocr_table_to_markdown relies on) rather than a raw contour-area
+    threshold.
+
+    The area-threshold approach was fundamentally unreliable: cv2.contourArea
+    on a grid mask is dominated by the LINE pixels themselves (thin strokes),
+    not the area they enclose, so it has no real relationship to how big or
+    legitimate the table is. Verified directly against a real small 2-row
+    data table: its largest line-contour was 0.03% of the page — roughly
+    1000x below the old 3% cutoff — despite being a perfectly well-formed
+    bordered table that ocr_table_to_markdown can parse fine once it's
+    actually handed the right crop.
     """
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
+    # v_kernel was (1, 40) — requires a 40px-tall unbroken vertical run to
+    # survive opening. Verified directly against a real small 2-row table:
+    # its column-divider lines are only ~37px tall (one row's height), so
+    # they never survived at all — v_lines came back completely empty across
+    # the whole page. 15px catches short single-row dividers too while still
+    # easily matching taller multi-row tables (a real line of any height
+    # above this is unaffected — opening only removes lines *shorter* than
+    # the kernel).
     h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
-    v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
+    v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 15))
     h_lines  = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel, iterations=2)
     v_lines  = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel, iterations=2)
     grid     = cv2.add(h_lines, v_lines)
 
-    contours, _ = cv2.findContours(grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Merge line segments belonging to the same table (touching/near-touching
+    # at their intersections) into one connected component per table.
+    merge_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    merged = cv2.morphologyEx(grid, cv2.MORPH_CLOSE, merge_kernel, iterations=2)
+
+    contours, _ = cv2.findContours(merged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None
 
-    largest   = max(contours, key=cv2.contourArea)
-    page_area = img_array.shape[0] * img_array.shape[1]
-    if cv2.contourArea(largest) < page_area * 0.03:   # < 3% of page → noise, not a real table
+    candidates = []
+    for c in contours:
+        x, y, w, h = cv2.boundingRect(c)
+        if w < 100 or h < 30:
+            continue  # too small to plausibly be a table — stray line/noise
+        # N row_ys boundary positions delimit N-1 actual rows (e.g. top,
+        # middle, bottom = 2 rows) — >=2 boundaries alone just means "a single
+        # bordered rectangle", which matched a lone empty box inside a tree
+        # diagram in testing. Requiring >=3 boundaries each way (>=2 real
+        # rows AND >=2 real columns) is what actually distinguishes a table
+        # from a single box.
+        row_ys, col_xs = detect_grid_lines(img_array[y:y + h, x:x + w])
+        if len(row_ys) >= 3 and len(col_xs) >= 3:
+            candidates.append((w * h, (x, y, w, h)))
+
+    if not candidates:
         return None
 
-    return cv2.boundingRect(largest)
+    return max(candidates, key=lambda item: item[0])[1]
 
 
 def _line_positions(projection: np.ndarray, min_run: float) -> list[int]:
@@ -407,53 +456,82 @@ def ocr_table(table_img: np.ndarray) -> str:
 # Diagram detection — large non-text image regions (figures/charts)
 # =============================================================================
 
-def detect_diagram_bboxes(img_array: np.ndarray, exclude_bbox=None) -> list[tuple[int, int, int, int]]:
+def detect_diagram_bboxes(img_array: np.ndarray, exclude_bbox=None) -> list[tuple[int, int, int, int, float, float]]:
     """
-    Detects large non-text image regions (diagrams/figures) via contour
-    analysis — similar in spirit to detect_table_bbox, but looking for a
-    filled blob rather than grid-line morphology, and excluding both the
-    table region (if any) and regions that turn out to be text-dense
-    (paragraphs, not diagrams).
+    Detects diagram/figure regions as vertical bands of consecutive
+    low-confidence text lines, sandwiched between clearly-confident prose.
+    Returns (x, y, w, h, text_top, text_bottom) — the bbox is padded for a
+    visually-complete crop; text_top/text_bottom are the unpadded detected
+    bounds, used by callers to exclude exactly the diagram's own lines from
+    the regular text stream without also swallowing the next real line.
+
+    An earlier version used ink-blob contour detection (close nearby pixels,
+    keep blobs over an area threshold) — it failed on sparse diagrams (tree
+    diagrams: a few short labels and thin branch lines spread across a tall,
+    mostly-empty region). The closing kernel needed to bridge those big gaps
+    also merges in all the surrounding page text into one blob, and since
+    most of that blob really is prose, it reads as "text-dense" overall and
+    gets rejected — masking the actual diagram nested inside it. Verified
+    against a real tree-diagram page: every line inside it has at most one
+    confidently-read "word" (OCR noise on stray strokes/labels), cleanly
+    bounded above and below by lines with 10+ confident words of real prose.
     """
-    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    lines = sorted(doctr_ocr_service.extract_lines(Image.fromarray(img_array)), key=lambda l: l['top'])
+    if not lines:
+        return []
 
-    # Bigger kernel than table detection — merges scattered diagram strokes/labels into one blob.
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
-    closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
+    # Page-wide content margins (not the band's own word extent, which would
+    # be too narrow — a diagram's lines/shapes mostly have no associated
+    # "word" at all) so a crop isn't clipped to just the stray OCR noise.
+    content_left  = min(l['left'] for l in lines)
+    content_right = max(l['right'] for l in lines)
 
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    page_area = img_array.shape[0] * img_array.shape[1]
+    heights = [l['bottom'] - l['top'] for l in lines]
+    typical_height = sorted(heights)[len(heights) // 2]
+    min_band_height = typical_height * 3  # scales with DPI/font size, not a fixed pixel count
+
     boxes = []
+    run: list[dict] = []
 
-    for c in contours:
-        area = cv2.contourArea(c)
-        if area < page_area * 0.03:
-            continue
-        x, y, w, h = cv2.boundingRect(c)
+    def flush_run():
+        if not run:
+            return
+        top, bottom = run[0]['top'], run[-1]['bottom']
+        if bottom - top >= min_band_height:
+            # Generous padding on the saved CROP — empty shapes (rectangle
+            # outlines, branch lines) commonly extend past wherever the OCR
+            # found a text fragment to anchor the band on, so a tight crop
+            # clips them. The text-EXCLUSION range deliberately stays
+            # unpadded (top/bottom as detected) — padding that range too
+            # previously ate into the next real prose line right after the
+            # diagram.
+            pad = int(typical_height * 1.5)
+            x = max(0, content_left - pad)
+            y = max(0, top - pad)
+            w = min(img_array.shape[1] - x, (content_right - content_left) + 2 * pad)
+            h = min(img_array.shape[0] - y, (bottom - top) + 2 * pad)
+            # docTR's geometry is float (normalized coords * pixel size) —
+            # cast to plain int for array slicing (img_array[y:y+h, x:x+w])
+            # downstream, which raises on float indices.
+            boxes.append((int(x), int(y), int(w), int(h), top, bottom))
+        run.clear()
 
-        if exclude_bbox:
-            ex, ey, ew, eh = exclude_bbox
+    for line in lines:
+        if line['confident'] <= 1:
+            run.append(line)
+        else:
+            flush_run()
+    flush_run()
+
+    if exclude_bbox:
+        ex, ey, ew, eh = exclude_bbox
+        filtered = []
+        for x, y, w, h, text_top, text_bottom in boxes:
             overlap_x = max(0, min(x + w, ex + ew) - max(x, ex))
             overlap_y = max(0, min(y + h, ey + eh) - max(y, ey))
-            if overlap_x * overlap_y > 0.5 * w * h:
-                continue  # mostly the already-detected table region
-
-        region = img_array[y:y + h, x:x + w]
-        try:
-            words = pytesseract.image_to_data(
-                Image.fromarray(region), config='--psm 6 --oem 3',
-                output_type=pytesseract.Output.DICT,
-            )
-            word_count = sum(1 for t in words['text'] if t.strip())
-        except Exception:
-            word_count = 0
-
-        text_density = word_count / max(1, (w * h) / 10000)  # words per ~100x100px block
-        if text_density > 1.5:
-            continue  # too text-dense to be a diagram — it's a paragraph
-
-        boxes.append((x, y, w, h))
+            if overlap_x * overlap_y <= 0.5 * w * h:
+                filtered.append((x, y, w, h, text_top, text_bottom))
+        boxes = filtered
 
     return boxes
 
@@ -473,54 +551,40 @@ def save_diagram_crop(img_array: np.ndarray, bbox: tuple[int, int, int, int],
 # Line-level text OCR — selective pix2tex pass for equation-like lines
 # =============================================================================
 
-def ocr_text_region(pil_img: Image.Image, extra_markers: list[tuple[int, str]] | None = None) -> str:
+def ocr_text_region(
+    pil_img: Image.Image,
+    extra_markers: list[tuple[int, str]] | None = None,
+    exclude_y_ranges: list[tuple[float, float]] | None = None,
+) -> str:
     """
-    OCRs a text region line-by-line (via Tesseract's word-level bounding
-    boxes) so individual equation-like lines can be re-OCR'd with pix2tex
-    instead of plain Tesseract, which mangles dense math glyphs. Also splices
-    in `extra_markers` (e.g. diagram placeholders) at the page position they
-    came from. Falls back to the plain OCR'd line text when nothing is
+    OCRs a text region line-by-line (via docTR's word-level bounding boxes —
+    see doctr_ocr_service) so individual equation-like lines can be re-OCR'd
+    with pix2tex instead of plain text recognition, which mangles dense math
+    glyphs. Also splices in `extra_markers` (e.g. diagram placeholders) at
+    the page position they came from, and drops any line whose vertical
+    span falls inside `exclude_y_ranges` — a detected diagram's own short
+    text fragments (labels, numbers) would otherwise leak into the regular
+    text stream right alongside its [DIAGRAM:] marker, since a strong OCR
+    engine can read those fragments confidently even though they're not
+    actually prose. Falls back to the plain OCR'd line text when nothing is
     flagged or pix2tex fails. Reassembles with blank-line paragraph breaks so
     downstream parsing (clean_text/split_blocks) sees the same shape a plain
-    `image_to_string` pass would have produced.
+    full-page OCR pass would have produced.
     """
     img_array = np.array(pil_img.convert('RGB'))
-    pre = preprocess_image(pil_img)
-    data = pytesseract.image_to_data(
-        pre, lang='eng', config='--psm 6 --oem 3', output_type=pytesseract.Output.DICT
-    )
-
-    grouped: dict[tuple[int, int, int], dict] = {}
-    order: list[tuple[int, int, int]] = []
-    for i in range(len(data['text'])):
-        word = data['text'][i].strip()
-        if not word:
-            continue
-        key = (data['block_num'][i], data['par_num'][i], data['line_num'][i])
-        if key not in grouped:
-            grouped[key] = {
-                'words': [], 'left': data['left'][i], 'top': data['top'][i],
-                'right': data['left'][i] + data['width'][i],
-                'bottom': data['top'][i] + data['height'][i],
-            }
-            order.append(key)
-        L = grouped[key]
-        L['words'].append(word)
-        L['left']   = min(L['left'], data['left'][i])
-        L['top']    = min(L['top'], data['top'][i])
-        L['right']  = max(L['right'], data['left'][i] + data['width'][i])
-        L['bottom'] = max(L['bottom'], data['top'][i] + data['height'][i])
+    doctr_lines = doctr_ocr_service.extract_lines(pil_img)
 
     # entries: [top, bottom, text, is_equation]
     entries: list[list] = []
-    for key in order:
-        L = grouped[key]
-        raw_text = ' '.join(L['words'])
+    for L in doctr_lines:
+        if exclude_y_ranges and any(L['top'] < y2 and L['bottom'] > y1 for y1, y2 in exclude_y_ranges):
+            continue
+        raw_text = L['text']
         latex = None
         if math_ocr_service.is_equation_candidate(raw_text):
             pad = 4
-            y1, y2 = max(0, L['top'] - pad), min(img_array.shape[0], L['bottom'] + pad)
-            x1, x2 = max(0, L['left'] - pad), min(img_array.shape[1], L['right'] + pad)
+            y1, y2 = max(0, int(L['top']) - pad), min(img_array.shape[0], int(L['bottom']) + pad)
+            x1, x2 = max(0, int(L['left']) - pad), min(img_array.shape[1], int(L['right']) + pad)
             latex = math_ocr_service.ocr_equation_region(img_array[y1:y2, x1:x2]) or None
         entries.append([L['top'], L['bottom'], latex if latex else raw_text, latex is not None])
 
@@ -570,45 +634,70 @@ def ocr_page(pil_img: Image.Image, pyp_id: str = '', page_idx: int = 0) -> str:
     table_bbox     = detect_table_bbox(img_array)
     diagram_bboxes = detect_diagram_bboxes(img_array, exclude_bbox=table_bbox)
 
-    diagram_markers = []  # (absolute_y_center_on_page, marker_text)
+    # Each entry: (center_y on page, marker text, y1 on page, y2 on page).
+    # The y1/y2 range is used to exclude that diagram's own short text
+    # fragments (labels, numbers) from the regular text stream — without
+    # this, a stronger OCR engine that can confidently read those isolated
+    # fragments (unlike Tesseract, which mostly produced noise there) leaks
+    # them into the question text right alongside the [DIAGRAM:] marker.
+    diagrams = []
     for n, bbox in enumerate(diagram_bboxes, 1):
-        _, dy, _, dh = bbox
-        path = save_diagram_crop(img_array, bbox, pyp_id or 'unknown', page_idx, n)
-        diagram_markers.append((dy + dh // 2, f"[DIAGRAM: {path}]"))
+        x, y, w, h, text_top, text_bottom = bbox
+        path = save_diagram_crop(img_array, (x, y, w, h), pyp_id or 'unknown', page_idx, n)
+        diagrams.append(((text_top + text_bottom) / 2, f"[DIAGRAM: {path}]", text_top, text_bottom))
 
     if table_bbox:
         tx, ty, tw, th = table_bbox
         parts = []
 
         if ty > 40:
-            above_markers = [(y, txt) for y, txt in diagram_markers if y < ty]
-            parts.append(ocr_text_region(Image.fromarray(img_array[0:ty, 0:width]), extra_markers=above_markers))
+            above = [d for d in diagrams if d[0] < ty]
+            parts.append(ocr_text_region(
+                Image.fromarray(img_array[0:ty, 0:width]),
+                extra_markers=[(y, txt) for y, txt, _, _ in above],
+                exclude_y_ranges=[(y1, y2) for _, _, y1, y2 in above],
+            ))
 
         parts.append(ocr_table(img_array[ty:ty+th, tx:tx+tw]))
 
         if (ty + th) < (height - 40):
-            below_markers = [(y - (ty + th), txt) for y, txt in diagram_markers if y >= (ty + th)]
-            parts.append(ocr_text_region(Image.fromarray(img_array[ty+th:height, 0:width]), extra_markers=below_markers))
+            below  = [d for d in diagrams if d[0] >= ty + th]
+            offset = ty + th
+            parts.append(ocr_text_region(
+                Image.fromarray(img_array[offset:height, 0:width]),
+                extra_markers=[(y - offset, txt) for y, txt, _, _ in below],
+                exclude_y_ranges=[(y1 - offset, y2 - offset) for _, _, y1, y2 in below],
+            ))
 
         return '\n\n'.join(p.strip() for p in parts if p.strip())
 
     # No table — full-page line-level OCR with math/diagram handling
-    return ocr_text_region(pil_img, extra_markers=diagram_markers)
+    return ocr_text_region(
+        pil_img,
+        extra_markers=[(y, txt) for y, txt, _, _ in diagrams],
+        exclude_y_ranges=[(y1, y2) for _, _, y1, y2 in diagrams],
+    )
+
+
+# Inserted between every OCR'd page so callers can tell where page 1 (cover
+# info only) ends and where a trailing appendix (formula sheets, statistical
+# tables) begins — see split_off_cover_page()/strip_trailing_appendix().
+PAGE_BREAK = '[[PAGE_BREAK]]'
 
 
 def ocr_chunk(chunk_path: str, pyp_id: str = '', page_offset: int = 0) -> str:
-    """Convert each page of a PDF chunk to a 300-DPI image and OCR via Tesseract."""
+    """Convert each page of a PDF chunk to a high-DPI image and OCR via Tesseract."""
     print(f"    OCR (Tesseract) → {os.path.basename(chunk_path)}")
     images = (
-        convert_from_path(chunk_path, dpi=300, poppler_path=POPPLER_PATH)
+        convert_from_path(chunk_path, dpi=OCR_DPI, poppler_path=POPPLER_PATH)
         if POPPLER_PATH else
-        convert_from_path(chunk_path, dpi=300)
+        convert_from_path(chunk_path, dpi=OCR_DPI)
     )
     texts  = []
     for idx, img in enumerate(images, 1):
         print(f"      page {idx}/{len(images)}")
         texts.append(ocr_page(img, pyp_id=pyp_id, page_idx=page_offset + idx))
-    return '\n\n'.join(texts)
+    return f'\n\n{PAGE_BREAK}\n\n'.join(texts)
 
 
 def run_ocr(chunks: list[str], pyp_id: str = '') -> str:
@@ -618,7 +707,36 @@ def run_ocr(chunks: list[str], pyp_id: str = '') -> str:
         print(f"  OCR chunk {i}/{len(chunks)}")
         texts.append(ocr_chunk(c, pyp_id, page_offset))
         page_offset += PAGES_PER_CHUNK  # approximate — only needs to keep diagram filenames unique
-    return '\n\n'.join(texts)
+    return f'\n\n{PAGE_BREAK}\n\n'.join(texts)
+
+
+def split_off_cover_page(text: str) -> tuple[str, str]:
+    """
+    Splits OCR'd text into (page1_text, rest_text) using the PAGE_BREAK
+    markers inserted during OCR. Page 1 is cover info only (course code,
+    subject, instructions) — never real question content — so callers should
+    scan page1_text for metadata and rest_text for everything else. Falls
+    back to (text, text) if no page break was found (e.g. a single-page scan)
+    so callers degrade gracefully instead of losing content.
+    """
+    if PAGE_BREAK not in text:
+        return text, text
+    page1, _, rest = text.partition(PAGE_BREAK)
+    return page1, rest.replace(PAGE_BREAK, '\n\n')
+
+
+# Trailing reference material (formula sheets, statistical tables) printed
+# after the last real question — has no question marker after it, so it
+# would otherwise get glued onto whatever the last detected question is.
+APPENDIX_START_RE = re.compile(
+    r'(?im)^\s*(list of formulae|the normal distribution function|'
+    r'statistical tables|table of formulae|appendix)\b'
+)
+
+
+def strip_trailing_appendix(text: str) -> str:
+    m = APPENDIX_START_RE.search(text)
+    return text[:m.start()] if m else text
 
 
 # =============================================================================
@@ -643,12 +761,58 @@ SUB_Q_RE = re.compile(
 )
 
 
+# Per-question footer, e.g. "[Total: 25 marks]" — used as a secondary split
+# signal for cases where the "Question N" header itself gets OCR-garbled
+# badly enough that QUESTION_RE can't match it at all (e.g. "Question 2"
+# misread as "Yuestion Z" — different first letter, not just a digit
+# lookalike), but the marks footer right after each question is still
+# readable. Bracket chars are themselves sometimes misread (saw "(...]" in
+# real output), so both sides are matched independently and optionally.
+TOTAL_MARKS_RE = re.compile(r'[\[\(]?\s*Total[:\s]+\d+\s*marks?\s*[\]\)]?', re.IGNORECASE)
+
+
+def _resplit_on_total_marks(block: str) -> list[str]:
+    """
+    If a block contains more than one "[Total: N marks]" footer, it likely
+    swallowed a whole extra question whose own header failed to match
+    QUESTION_RE. Re-split right after each footer so each piece keeps just
+    one question's content instead of silently merging two questions.
+    """
+    matches = list(TOTAL_MARKS_RE.finditer(block))
+    if len(matches) <= 1:
+        return [block]
+
+    print(f"  [INFO] Block has {len(matches)} '[Total: marks]' footers — "
+          f"re-splitting (a 'Question N' header was likely OCR-garbled)")
+
+    pieces, start = [], 0
+    for m in matches:
+        pieces.append(block[start:m.end()].strip())
+        start = m.end()
+    trailing = block[start:].strip()
+    if trailing:
+        pieces[-1] = pieces[-1] + '\n' + trailing
+    return [p for p in pieces if len(p) > 50]
+
+
 def split_blocks(text: str) -> list[str]:
     matches = list(QUESTION_RE.finditer(text))
     if not matches:
         print("  [WARN] No question markers found in OCR text.")
         print("  [DEBUG] First 600 chars of OCR output:")
         print("  " + text[:600].replace('\n', '\n  '))
+        return []
+
+    # "Question N (continued)" — printed when a question spans a page break —
+    # matches QUESTION_RE just like a real header, but it's NOT a new question;
+    # treating it as a split boundary corrupts the original question into two
+    # separate (wrongly-titled, wrongly-marked) blocks. Drop these matches so
+    # the continuation's content stays merged with the question it belongs to.
+    matches = [
+        m for m in matches
+        if not re.match(r'\s*\(\s*continued\s*\)', text[m.end():m.end() + 25], re.IGNORECASE)
+    ]
+    if not matches:
         return []
 
     print(f"  Detected {len(matches)} question markers: "
@@ -660,7 +824,7 @@ def split_blocks(text: str) -> list[str]:
         end   = positions[i + 1] if i + 1 < len(positions) else len(text)
         block = text[start:end].strip()
         if len(block) > 50:
-            blocks.append(block)
+            blocks.extend(_resplit_on_total_marks(block))
     return blocks
 
 
@@ -721,11 +885,17 @@ def clean_preamble(preamble: str) -> str:
         if any(lc.startswith(p) for p in [
             'this question paper', 'answer all', 'duration:', 'time allowed',
             'semester ', 'academic year', 'final examination', 'mid-term',
-            'date:', 'instructions:', 'faculty of', 'bachelor of',
+            'date:', 'instructions', 'faculty of', 'bachelor of',
         ]):
             continue
         # Skip short lines with no lowercase letters (likely short headers/labels)
         if len(stripped) < 40 and not re.search(r'[a-z]', stripped):
+            continue
+        # Skip short standalone labels like "Instructions to Candidates:" —
+        # mixed-case (so the ALL-CAPS check above misses them) but still just
+        # a heading, not actual scenario prose. A real scenario sentence this
+        # short ending in ':' would be unusual.
+        if len(stripped) < 40 and stripped.endswith(':'):
             continue
 
         # Once we encounter text with actual lowercase, we're in the scenario
@@ -808,17 +978,46 @@ def assign_difficulty(marks) -> str:
     return 'Hard'
 
 
+# Statistical distribution notation: "X ~ B(n, p)" / "X ~ N(mu, sigma)" —
+# OCR consistently misreads "~" (distributed as) as a hyphen here. This
+# exact shape (single capital letter, space, hyphen, space, a known
+# distribution-name prefix, open paren) doesn't occur in ordinary prose, so
+# it's safe to correct deterministically rather than leaving it to
+# spellcheck (which only touches dictionary words, not symbols).
+DISTRIBUTION_TILDE_RE = re.compile(r'\b([A-Z])\s-\s(B|N|Po|Geo|Exp|U)\(')
+
+
+def fix_common_ocr_substitutions(text: str) -> str:
+    return DISTRIBUTION_TILDE_RE.sub(r'\1 ~ \2(', text)
+
+
 def clean_question_text(block: str) -> str:
     # Strip question marker (Question N / Q1. / 1.)
     cleaned = re.sub(r'^(?:Question\s+[\dlI|]{1,3}|Q\.?\s*\d+\.?|\d{1,2}\.\s+)\s*\n?', '', block, count=1, flags=re.IGNORECASE)
-    # Strip marks annotations and boilerplate header lines
+    # Strip any "Question N (continued)" line that's now merged into the
+    # middle of this block (split_blocks() drops it as a split boundary, but
+    # the literal text is still sitting in the original OCR output).
+    cleaned = re.sub(r'(?im)^\s*Question\s+[\dlI|]{1,3}\s*\(\s*continued\s*\)\s*$', '', cleaned)
+    # Strip the per-question [Total: N marks] footer — already captured in
+    # the `marks` DB column, so it's redundant inline.
     cleaned = re.sub(r'\[Total[:\s]+\d+\s*marks?\]', '', cleaned, flags=re.IGNORECASE)
-    # Strip course code lines generically: optional page number + code like BAIT3153, CS101, CIS4001
-    cleaned = re.sub(r'(?m)^\d*\s*[A-Z]{2,6}\d{3,4}\w*\s+.*$', '', cleaned)
+    # Strip course code lines generically: optional page number + code like
+    # BAIT3153, CS101, CIS4001 — code is sometimes immediately followed by a
+    # colon before the subject name ("FPMA1014: STATISTICS") rather than a
+    # plain space, so the separator needs to allow both.
+    cleaned = re.sub(r'(?m)^\d*\s*[A-Z]{2,6}\d{3,4}\w*[:\s]+.*$', '', cleaned)
     # Strip lone page numbers on their own line (e.g. "  5  " or "12")
     cleaned = re.sub(r'(?m)^\s*\d{1,3}\s*$', '', cleaned)
     cleaned = re.sub(r'This question paper consists of.*?\n', '', cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r'^\s*\(?\d+\s*marks?\)?\s*$', '', cleaned, flags=re.MULTILINE)
+    # NOTE: a rule used to live here stripping any standalone "(N marks)"
+    # line entirely — removed. It was deleting real per-sub-question marks
+    # annotations, not noise: when a "(2 marks)" annotation happens to wrap
+    # onto its own line (common after OCR), the rule deleted it outright.
+    # Verified against real output: almost every sub-question's marks had
+    # vanished this way; the one that survived only did because it was
+    # *also* garbled ("(2" misread as "-"), which incidentally dodged the
+    # pattern. The actual redundant marks line ([Total: N marks]) is already
+    # handled above and doesn't need this second, overly broad rule.
     return cleaned.strip()
 
 

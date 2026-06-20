@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import EditableQuestionContent from '../components/EditableQuestionContent.jsx'
 import '../styles/question-bank.css'
 
 const DIFFICULTY_BADGE = { Easy: 'badge-green', Medium: 'badge-amber', Hard: 'badge-red' }
@@ -40,6 +41,13 @@ const QuestionBankPage = () => {
       return true
     })
   }, [questions, subjectFilter, search])
+
+  const handleSaveQuestion = async (questionId, newContent, newMarks) => {
+    const res = await QuestionService.update(questionId, { content: newContent, marks: newMarks })
+    setQuestions((prev) => prev.map((q) =>
+      q.questionId === questionId ? { ...q, content: res.data.content, marks: res.data.marks } : q
+    ))
+  }
 
   return (
     <div className="page-layout">
@@ -125,8 +133,11 @@ const QuestionBankPage = () => {
                     </span>
                   )}
                 </div>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{q.content}</p>
-                <div>{q.marks} mark{q.marks !== 1 ? 's' : ''}</div>
+                <EditableQuestionContent
+                  content={q.content}
+                  marks={q.marks}
+                  onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
+                />
               </div>
             ))}
           </div>
