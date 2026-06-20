@@ -402,7 +402,11 @@ def clean_question_text(block: str) -> str:
     cleaned = re.sub(r'(?m)^\d*\s*[A-Z]{2,6}\d{3,4}\w*[:\s]+.*$', '', cleaned)
     # Strip lone page numbers on their own line (e.g. "  5  " or "12")
     cleaned = re.sub(r'(?m)^\s*\d{1,3}\s*$', '', cleaned)
-    cleaned = re.sub(r'This question paper consists of.*?\n', '', cleaned, flags=re.IGNORECASE)
+    # `\n` after `.*?` requires a line after this one — fails to match when
+    # it's literally the last line of the document (the last question has
+    # nothing trailing it), letting the footer leak into the stored content.
+    # `\n|$` covers both cases.
+    cleaned = re.sub(r'This question paper consists of.*?(?:\n|$)', '', cleaned, flags=re.IGNORECASE)
     # NOTE: a rule used to live here stripping any standalone "(N marks)"
     # line entirely — removed. It was deleting real per-sub-question marks
     # annotations, not noise: when a "(2 marks)" annotation happens to wrap

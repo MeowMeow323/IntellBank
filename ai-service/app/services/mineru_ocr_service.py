@@ -25,6 +25,7 @@ import re
 import json
 import glob
 import shutil
+import html
 import tempfile
 import subprocess
 
@@ -90,7 +91,7 @@ def _table_html_to_marker(table_body: str) -> str:
     """
     rows = []
     for tr_match in _TR_RE.finditer(table_body):
-        cells = [_TAG_RE.sub('', td).strip() for td in _TD_RE.findall(tr_match.group(1))]
+        cells = [html.unescape(_TAG_RE.sub('', td)).strip() for td in _TD_RE.findall(tr_match.group(1))]
         if any(cells):
             rows.append(' | '.join(cells))
     if not rows:
@@ -116,37 +117,71 @@ def _save_visual_block(block: dict, auto_dir: str, pyp_id: str, page_idx: int, n
     return f'diagrams/{filename}'
 
 
+# A floating sub-question marker (e.g. "d)") sitting in the left margin can
+# land at nearly the same vertical position as its own paragraph's first
+# line, but MinerU's own block-array order isn't reliably "marker, then
+# paragraph" for these — verified directly against a real paper where a
+# trailing "d)" sub-question's marker and body were swapped, leaving the
+# marker isolated right next to the page footer with its real content
+# floating above, unattached. Re-sorting by position (row-band, then
+# left-to-right within a row) fixes this without needing to special-case
+# aside_text at all — it's just "read the page like a person would".
+_ROW_BAND_PX = 20
+
+
+def _reading_order(blocks_on_page: list[dict]) -> list[dict]:
+    items = sorted(
+        ((b.get('bbox') or [0, 0, 0, 0])[1], (b.get('bbox') or [0, 0, 0, 0])[0], b)
+        for b in blocks_on_page
+    )
+    rows: list[tuple[float, list[tuple[float, dict]]]] = []
+    for top, left, b in items:
+        if rows and top - rows[-1][0] <= _ROW_BAND_PX:
+            rows[-1][1].append((left, b))
+        else:
+            rows.append((top, [(left, b)]))
+    ordered = []
+    for _, row_items in rows:
+        row_items.sort(key=lambda x: x[0])
+        ordered.extend(b for _, b in row_items)
+    return ordered
+
+
 def content_list_to_text(blocks: list[dict], auto_dir: str, pyp_id: str) -> str:
     """
-    Converts MinerU's content_list.json (one entry per layout block, in
-    reading order, each tagged with a 0-based page_idx) into the same
-    marker-laden text shape ocr_service.run_ocr() used to produce — so every
-    downstream step (clean_text, split_off_cover_page, split_blocks,
-    extract_marks, classification, ...) keeps working unchanged regardless
-    of which OCR engine produced the text.
+    Converts MinerU's content_list.json (one entry per layout block, each
+    tagged with a 0-based page_idx) into the same marker-laden text shape
+    ocr_service.run_ocr() used to produce — so every downstream step
+    (clean_text, split_off_cover_page, split_blocks, extract_marks,
+    classification, ...) keeps working unchanged regardless of which OCR
+    engine produced the text. Blocks are re-ordered per page by position
+    (see _reading_order) rather than trusting MinerU's own array order.
     """
-    pages: dict[int, list[str]] = {}
-    visual_counters: dict[int, int] = {}
-
+    by_page: dict[int, list[dict]] = {}
     for block in blocks:
-        page_idx = block.get('page_idx', 0)
-        btype = block.get('type')
-        piece = None
+        by_page.setdefault(block.get('page_idx', 0), []).append(block)
 
-        if btype in ('text', 'header', 'footer', 'page_number', 'aside_text', 'equation'):
-            piece = block.get('text', '').strip()
-        elif btype == 'table':
-            piece = _table_html_to_marker(block.get('table_body', ''))
-        elif btype in ('image', 'chart'):
-            visual_counters[page_idx] = visual_counters.get(page_idx, 0) + 1
-            path = _save_visual_block(block, auto_dir, pyp_id, page_idx, visual_counters[page_idx])
-            piece = f'[DIAGRAM: {path}]' if path else None
+    visual_counters: dict[int, int] = {}
+    page_texts = []
+    for page_idx in sorted(by_page.keys()):
+        pieces = []
+        for block in _reading_order(by_page[page_idx]):
+            btype = block.get('type')
+            piece = None
 
-        if piece:
-            pages.setdefault(page_idx, []).append(piece)
+            if btype in ('text', 'header', 'footer', 'page_number', 'aside_text', 'equation'):
+                piece = block.get('text', '').strip()
+            elif btype == 'table':
+                piece = _table_html_to_marker(block.get('table_body', ''))
+            elif btype in ('image', 'chart'):
+                visual_counters[page_idx] = visual_counters.get(page_idx, 0) + 1
+                path = _save_visual_block(block, auto_dir, pyp_id, page_idx, visual_counters[page_idx])
+                piece = f'[DIAGRAM: {path}]' if path else None
 
-    ordered_page_idxs = sorted(pages.keys())
-    page_texts = ['\n\n'.join(pages[p]) for p in ordered_page_idxs]
+            if piece:
+                pieces.append(piece)
+        page_texts.append('\n\n'.join(pieces))
+
     return f'\n\n{ocr_service.PAGE_BREAK}\n\n'.join(page_texts)
 
 
