@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from app.services import ocr_service, db_service, paper_processing_service
+from app.services import ocr_service, mineru_ocr_service, db_service, paper_processing_service
 
 router = APIRouter()
 
@@ -38,16 +38,15 @@ async def extract_text(request: ExtractRequest):
         config["supabase_project_url"], config["supabase_bucket"], request.storage_path
     )
 
-    pdf_path, chunks = None, []
+    pdf_path = None
     try:
         pdf_path = ocr_service.download_pdf(pdf_url)
-        chunks   = ocr_service.split_pdf(pdf_path, ocr_service.PAGES_PER_CHUNK)
-        text     = ocr_service.run_ocr(chunks)
+        text     = mineru_ocr_service.run_ocr_via_mineru(pdf_path, pyp_id='extract')
         return ExtractResponse(text=text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OCR extraction failed: {str(e)}")
     finally:
-        ocr_service.cleanup(pdf_path, chunks)
+        ocr_service.cleanup(pdf_path)
 
 
 @router.post("/process-paper", response_model=ProcessPaperResponse)

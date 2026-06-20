@@ -12,7 +12,7 @@ store pipeline. Shared by both the CLI seeding script
 import os
 import uuid
 
-from app.services import ocr_service, classification_service, spellcheck_service
+from app.services import ocr_service, mineru_ocr_service, classification_service, spellcheck_service
 
 
 # =============================================================================
@@ -217,23 +217,22 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
     print(f"{'='*60}")
 
     # ── Step 1: Download ─────────────────────────────────────────────────────
-    pdf_path, chunks, raw_text = None, [], ''
+    pdf_path, raw_text = None, ''
     try:
         print("  [1/4] Downloading PDF...")
         pdf_path = ocr_service.download_pdf(pdf_url)
         print("  [1/4] ✓ Downloaded")
 
-        # ── Step 2: Split → OCR ───────────────────────────────────────────────
-        print("  [2/4] Splitting and OCR-ing PDF...")
-        chunks   = ocr_service.split_pdf(pdf_path, ocr_service.PAGES_PER_CHUNK)
-        raw_text = ocr_service.run_ocr(chunks, pyp_id)
+        # ── Step 2: OCR (MinerU, whole document in one pass) ────────────────────
+        print("  [2/4] OCR-ing PDF via MinerU...")
+        raw_text = mineru_ocr_service.run_ocr_via_mineru(pdf_path, pyp_id)
         ocr_service.save_raw_ocr(raw_text, pyp_id)
         print(f"  [2/4] ✓ OCR complete — {len(raw_text)} chars extracted")
     except Exception as step_err:
         print(f"  [ERROR] OCR step failed: {step_err}")
         raise
     finally:
-        ocr_service.cleanup(pdf_path, chunks)
+        ocr_service.cleanup(pdf_path)
 
     if not raw_text.strip():
         print("  [ERROR] OCR returned empty text. Check the PDF URL and OCR API key.")

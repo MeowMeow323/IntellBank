@@ -30,11 +30,16 @@ __pycache__/
 *.pyd
 .Python
 ai-service/venv/
+ai-service/.venv-marker/
+ai-service/.venv-mineru/
+ai-service/.venv-paddle/
+ai-service/mineru_venv/
 ai-service/.env
 ai-service/app/models/question_generator/
 ai-service/app/models/topic_predictor/
 ai-service/app/data/raw/
 ai-service/app/data/processed/
+ai-service/app/data/diagrams/
 # Temporary PDF chunks created during OCR — always deleted after processing but gitignore as safety net
 ai-service/app/data/temp_pdf_chunks/*.pdf
 # Generated dataset CSV — review manually before merging into training_dataset.csv

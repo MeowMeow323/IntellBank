@@ -1,7 +1,7 @@
 # Python dependencies — install with: pip install -r requirements.txt
-# NOTE: Two system binaries must also be installed separately (see SETUP.md):
-#     - Tesseract OCR:  https://github.com/UB-Mannheim/tesseract/wiki
-#     - Poppler:        https://github.com/oschwartz10612/poppler-windows/releases
+# NOTE: OCR itself runs via MinerU, in a separate isolated venv
+# (ai-service/mineru_venv/, see mineru_ocr_service.py) — not installed from
+# this file. See SETUP.md for how to set that venv up.
 
 fastapi==0.136.3
 uvicorn==0.48.0
@@ -14,23 +14,11 @@ httpx==0.28.1
 # Database
 psycopg2-binary==2.9.12
 
-# PDF handling
-pypdf==6.12.1
-
-# OCR — Tesseract pipeline
-pytesseract==0.3.13
-pdf2image==1.17.0
-Pillow==12.2.0
-opencv-python==4.13.0.92
-numpy==2.4.6
-
 # Lightweight dictionary-based spellcheck (no model inference)
 pyspellchecker
 
-# Local ML inference (question generation, zero-shot classification, math OCR)
+# Local ML inference (question generation, zero-shot classification)
 # Loose pins so pip can resolve a compatible build for the active Python version.
 torch>=2.3.0
 transformers>=4.41.1
 sentencepiece
-pix2tex
-python-doctr[torch]
