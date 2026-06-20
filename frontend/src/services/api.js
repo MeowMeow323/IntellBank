@@ -134,11 +134,28 @@ export const AnalyticsService = {
 // ── Past Year Paper Service ───────────────────────────────────────────────────
 export const PastYearPaperService = {
   getAll: () => api.get('/api/past-year-papers'),
+  upload: (title, file, onProgress) => {
+    const fd = new FormData()
+    fd.append('title', title)
+    fd.append('file', file)
+    return api.post('/api/past-year-papers/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+        ? (e) => onProgress(e.total ? Math.round((e.loaded * 100) / e.total) : 0)
+        : undefined,
+    })
+  },
+  process: (pypId) => api.post(`/api/past-year-papers/${pypId}/process`),
 }
 
 // ── Metadata Service ──────────────────────────────────────────────────────────
 export const MetadataService = {
   getSubjectTopics: () => api.get('/api/metadata/subject-topics'),
+  getSubjects: () => api.get('/api/metadata/subjects'),
+  createSubject: (name) => api.post('/api/metadata/subjects', { name }),
+  getTopics: (subjectId) => api.get('/api/metadata/topics', { params: { subjectId } }),
+  createTopic: (subjectId, name) => api.post('/api/metadata/topics', { subjectId, name }),
+  deleteTopic: (topicId) => api.delete(`/api/metadata/topics/${topicId}`),
 }
 
 // ── AI Gateway Service ────────────────────────────────────────────────────────

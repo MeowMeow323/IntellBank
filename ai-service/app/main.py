@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from app.routes import prediction_routes, generation_routes
+from app.routes import prediction_routes, generation_routes, ocr_routes, classify_routes
 
 load_dotenv()
 
@@ -32,6 +32,8 @@ app.add_middleware(
 # ── Register Routers ─────────────────────────────────────────────────────────
 app.include_router(prediction_routes.router, prefix="/ai/predict", tags=["Prediction"])
 app.include_router(generation_routes.router, prefix="/ai/generate", tags=["Generation"])
+app.include_router(ocr_routes.router, prefix="/ai/ocr", tags=["OCR"])
+app.include_router(classify_routes.router, prefix="/ai/classify", tags=["Classification"])
 
 
 @app.get("/", tags=["Health"])

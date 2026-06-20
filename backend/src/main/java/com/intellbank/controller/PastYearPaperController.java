@@ -1,22 +1,36 @@
 package com.intellbank.controller;
 
-import com.intellbank.entity.PastYearPaper;
-import com.intellbank.repository.PastYearPaperRepository;
+import com.intellbank.dto.PastYearPaperResponse;
+import com.intellbank.service.PastYearPaperService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/past-year-papers")
 @RequiredArgsConstructor
 public class PastYearPaperController {
 
-    private final PastYearPaperRepository pastYearPaperRepository;
+    private final PastYearPaperService pastYearPaperService;
 
     @GetMapping
-    public ResponseEntity<List<PastYearPaper>> getAll() {
-        return ResponseEntity.ok(pastYearPaperRepository.findAll());
+    public ResponseEntity<List<PastYearPaperResponse>> getAll() {
+        return ResponseEntity.ok(pastYearPaperService.getAll());
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<PastYearPaperResponse> upload(
+            @RequestParam String title,
+            @RequestParam MultipartFile file) {
+        return ResponseEntity.ok(pastYearPaperService.uploadPaper(title, file));
+    }
+
+    @PostMapping("/{pypId}/process")
+    public ResponseEntity<PastYearPaperResponse> process(@PathVariable UUID pypId) {
+        return ResponseEntity.ok(pastYearPaperService.triggerProcessing(pypId));
     }
 }

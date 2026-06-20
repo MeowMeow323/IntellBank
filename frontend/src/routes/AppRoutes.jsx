@@ -12,6 +12,8 @@ import QuestionBankPage from '../pages/QuestionBankPage.jsx'
 import VerificationPage from '../pages/VerificationPage.jsx'
 import PredictiveAnalyticsPage from '../pages/PredictiveAnalyticsPage.jsx'
 import ExamSimulatorPage from '../pages/ExamSimulatorPage.jsx'
+import PastYearPaperLibraryPage from '../pages/PastYearPaperLibraryPage.jsx'
+import SubjectTopicManagementPage from '../pages/SubjectTopicManagementPage.jsx'
 
 /**
  * ProtectedRoute – redirects to /login if the user is not authenticated.
@@ -105,6 +107,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
             <VerificationPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/past-year-papers"
+        element={
+          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+            <PastYearPaperLibraryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/subjects-topics"
+        element={
+          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+            <SubjectTopicManagementPage />
           </ProtectedRoute>
         }
       />

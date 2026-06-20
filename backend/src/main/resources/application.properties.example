@@ -3,6 +3,13 @@
 # ============================================================
 # Copy this file to application.properties and fill in your values.
 # DO NOT commit application.properties — it is in .gitignore.
+#
+# NOTE: Spring Boot does NOT read .env files (that's a Python/python-dotenv
+# convention used by ai-service only). The ${VAR:default} syntax below only
+# resolves against real OS environment variables / JVM system properties.
+# Either export these as actual env vars before running the app, or just
+# replace each ${VAR:default} with the literal value directly in your local
+# application.properties (this is what the DB credentials below already do).
 # ============================================================
 
 server.port=8080
@@ -26,6 +33,13 @@ jwt.expiration=${JWT_EXPIRATION:86400000}
 
 # ── AI Service ───────────────────────────────────────────────────────────────
 ai.service.base-url=${AI_SERVICE_BASE_URL:http://localhost:8000}
+
+# ── Supabase Storage ─────────────────────────────────────────────────────────
+# Find these in: Supabase Dashboard → Settings → API
+# Used by SupabaseStorageService to upload/build public URLs for past year paper PDFs.
+supabase.url=<your-supabase-project-url>
+supabase.service-key=<your-supabase-service-role-or-secret-key>
+supabase.storage-bucket=documents
 
 # ── File Upload (for document proxying) ──────────────────────────────────────
 spring.servlet.multipart.max-file-size=50MB
