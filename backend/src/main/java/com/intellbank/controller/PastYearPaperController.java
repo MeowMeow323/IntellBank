@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -32,5 +33,10 @@ public class PastYearPaperController {
     @PostMapping("/{pypId}/process")
     public ResponseEntity<PastYearPaperResponse> process(@PathVariable UUID pypId) {
         return ResponseEntity.ok(pastYearPaperService.triggerProcessing(pypId));
+    }
+
+    @GetMapping("/{pypId}/progress")
+    public ResponseEntity<Map<String, Object>> progress(@PathVariable UUID pypId) {
+        return ResponseEntity.ok(pastYearPaperService.getProgress(pypId));
     }
 }

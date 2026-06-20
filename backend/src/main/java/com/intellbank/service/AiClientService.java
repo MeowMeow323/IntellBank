@@ -180,6 +180,23 @@ public class AiClientService {
         }
     }
 
+    /**
+     * Live status/step for a queued or running process-paper job.
+     * GET /ai/ocr/process-paper/{pypId}/progress
+     */
+    public Map<String, Object> getProcessingProgress(UUID pypId) {
+        String url = aiBaseUrl + "/ai/ocr/process-paper/" + pypId + "/progress";
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Process-paper progress service error: {}", e.getMessage());
+            throw new RuntimeException("AI OCR progress service unavailable: " + e.getMessage());
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private HttpEntity<Map<String, Object>> buildRequest(Map<String, Object> body) {

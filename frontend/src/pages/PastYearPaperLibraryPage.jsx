@@ -1,19 +1,123 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PastYearPaperService, QuestionService } from '../services/api'
+import { PastYearPaperService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
-import QuestionContent from '../components/QuestionContent.jsx'
 import '../styles/document-upload.css'
 import '../styles/modals.css'
 
 const STATUS_COLORS = {
   UPLOADED: 'badge-blue',
+  QUEUED: 'badge-amber',
   PROCESSING: 'badge-amber',
   PROCESSED: 'badge-green',
   FAILED: 'badge-red',
 }
 
-// Modal stages: idle -> uploading -> processing -> result | error
+const ACTIVE_STATUSES = new Set(['QUEUED', 'PROCESSING'])
+const POLL_INTERVAL_MS = 2000
+
+// Processing now runs on the AI service's own background job queue (see
+// job_queue_service.py) — this row polls /progress independently of
+// whatever else is happening on the page, so it keeps reflecting real
+// state even if you navigate away and come back, or refresh entirely.
+const PaperRow = ({ paper, onProcess, onSettled, navigate }) => {
+  const [progress, setProgress] = useState(null)
+  const isActive = ACTIVE_STATUSES.has(paper.status)
+
+  useEffect(() => {
+    if (!isActive) {
+      setProgress(null)
+      return
+    }
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const res = await PastYearPaperService.getProgress(paper.pypId)
+        if (cancelled) return
+        setProgress(res.data)
+        if (res.data.status === 'PROCESSED' || res.data.status === 'FAILED') {
+          onSettled()
+        }
+      } catch {
+        // transient poll failure — try again next tick
+      }
+    }
+
+    poll()
+    const id = setInterval(poll, POLL_INTERVAL_MS)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [isActive, paper.pypId])
+
+  const pct = progress?.total_steps ? Math.round((progress.step / progress.total_steps) * 100) : 0
+
+  return (
+    <div className="card flex justify-between items-center" id={`pyp-${paper.pypId}`}>
+      <div style={{ flex: 1 }}>
+        <p>{paper.title}</p>
+        <p>Uploaded {paper.uploadDate ? new Date(paper.uploadDate).toLocaleDateString() : '—'}</p>
+        {isActive && (
+          <div style={{ marginTop: '0.4rem', maxWidth: '320px' }}>
+            <div className="progress-track">
+              <div className="progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', margin: '0.25rem 0 0' }}>
+              {progress?.label || 'Queued'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className={`badge ${STATUS_COLORS[paper.status] || 'badge-blue'}`}>
+          {paper.status}
+        </span>
+
+        {paper.fileUrl && (
+          <a
+            className="btn btn-secondary"
+            href={paper.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            id={`view-original-${paper.pypId}`}
+          >
+            View Original
+          </a>
+        )}
+
+        {paper.status === 'PROCESSED' && (
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate(`/past-year-papers/${paper.pypId}/questions`)}
+            id={`view-questions-${paper.pypId}`}
+          >
+            View Questions
+          </button>
+        )}
+
+        <button
+          className="btn btn-secondary"
+          onClick={() => onProcess(paper.pypId)}
+          disabled={isActive}
+          id={`process-pyp-${paper.pypId}`}
+        >
+          {isActive
+            ? 'Processing...'
+            : paper.status === 'FAILED'
+              ? 'Retry Processing'
+              : paper.status === 'PROCESSED'
+                ? 'Reprocess'
+                : 'Process'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Modal stages: idle (picking files) -> uploading -> error
+// There's no "processing"/"result" stage anymore — processing runs
+// entirely in the background once queued, so the modal closes right after
+// upload and every paper's live progress shows in its own list row instead.
 const PastYearPaperLibraryPage = () => {
   const navigate = useNavigate()
   const fileRef = useRef(null)
@@ -21,17 +125,14 @@ const PastYearPaperLibraryPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [dragActive, setDragActive] = useState(false)
   const [title, setTitle] = useState('')
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [processingIds, setProcessingIds] = useState({})
+  const [selectedFiles, setSelectedFiles] = useState([])
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
 
   const [stage, setStage] = useState('idle')
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [activePaper, setActivePaper] = useState(null)
-  const [resultQuestions, setResultQuestions] = useState([])
   const [errorMessage, setErrorMessage] = useState('')
 
-  const busy = stage === 'uploading' || stage === 'processing'
+  const busy = stage === 'uploading'
 
   useEffect(() => {
     loadPapers()
@@ -52,11 +153,9 @@ const PastYearPaperLibraryPage = () => {
   const resetModalState = () => {
     setStage('idle')
     setUploadProgress(0)
-    setActivePaper(null)
-    setResultQuestions([])
     setErrorMessage('')
     setTitle('')
-    setSelectedFile(null)
+    setSelectedFiles([])
   }
 
   const openUploadModal = () => {
@@ -70,83 +169,56 @@ const PastYearPaperLibraryPage = () => {
     loadPapers()
   }
 
-  const pickFile = (files) => {
+  const pickFiles = (files) => {
     if (!files || files.length === 0) return
-    const file = files[0]
-    setSelectedFile(file)
-    if (!title.trim()) {
-      setTitle(file.name.replace(/\.pdf$/i, ''))
+    const list = Array.from(files).filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    )
+    if (list.length === 0) return
+    setSelectedFiles(list)
+    if (list.length === 1 && !title.trim()) {
+      setTitle(list[0].name.replace(/\.pdf$/i, ''))
     }
   }
 
   const handleDrop = (e) => {
     e.preventDefault()
     setDragActive(false)
-    pickFile(e.dataTransfer.files)
+    pickFiles(e.dataTransfer.files)
   }
 
-  const runProcessing = async (pypId) => {
-    setStage('processing')
-    setProcessingIds((prev) => ({ ...prev, [pypId]: true }))
+  // Fire-and-forget — the AI service queues the job and returns almost
+  // immediately (see job_queue_service.py); the row's own poll picks up
+  // real progress from there. Errors here are surfaced as the row settling
+  // into a FAILED status on the next poll, not a thrown error here.
+  const triggerProcessing = async (pypId) => {
     try {
-      const res = await PastYearPaperService.process(pypId)
-      setActivePaper(res.data)
-
-      if (res.data.status === 'PROCESSED') {
-        const questionsRes = await QuestionService.getByPyp(pypId)
-        setResultQuestions(questionsRes.data)
-        setStage('result')
-      } else {
-        setErrorMessage(
-          res.data.error
-            ? `Processing failed: ${res.data.error}`
-            : 'Processing finished but no questions could be extracted from this PDF — the paper may use a layout the parser doesn\'t recognize yet.'
-        )
-        setStage('error')
-      }
-    } catch (err) {
-      setErrorMessage(err.response?.data?.message || 'Processing request failed.')
-      setStage('error')
+      await PastYearPaperService.process(pypId)
     } finally {
-      setProcessingIds((prev) => {
-        const next = { ...prev }
-        delete next[pypId]
-        return next
-      })
       loadPapers()
     }
   }
 
   const handleUploadSubmit = async () => {
-    if (!selectedFile) return
-    const effectiveTitle = title.trim() || selectedFile.name.replace(/\.pdf$/i, '')
+    if (selectedFiles.length === 0) return
     setStage('uploading')
     setUploadProgress(0)
     try {
-      const res = await PastYearPaperService.upload(effectiveTitle, selectedFile, setUploadProgress)
-      setActivePaper(res.data)
-      await loadPapers()
-      await runProcessing(res.data.pypId)
+      const total = selectedFiles.length
+      for (let i = 0; i < total; i++) {
+        const file = selectedFiles[i]
+        const effectiveTitle = (total === 1 && title.trim()) || file.name.replace(/\.pdf$/i, '')
+        const res = await PastYearPaperService.upload(effectiveTitle, file, (pct) => {
+          setUploadProgress(Math.round(((i + pct / 100) / total) * 100))
+        })
+        // Queue processing immediately — don't wait for it to finish.
+        await PastYearPaperService.process(res.data.pypId)
+      }
+      setIsUploadModalOpen(false)
+      loadPapers()
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Upload failed.')
       setStage('error')
-    }
-  }
-
-  const handleListProcess = async (pypId) => {
-    setProcessingIds((prev) => ({ ...prev, [pypId]: true }))
-    setPapers((prev) => prev.map((p) => (p.pypId === pypId ? { ...p, status: 'PROCESSING' } : p)))
-    try {
-      await PastYearPaperService.process(pypId)
-    } catch {
-      // fall through — reload will show the real (FAILED) status either way
-    } finally {
-      await loadPapers()
-      setProcessingIds((prev) => {
-        const next = { ...prev }
-        delete next[pypId]
-        return next
-      })
     }
   }
 
@@ -178,57 +250,13 @@ const PastYearPaperLibraryPage = () => {
           ) : (
             <div className="flex flex-col gap-3">
               {papers.map((paper) => (
-                <div key={paper.pypId} className="card flex justify-between items-center" id={`pyp-${paper.pypId}`}>
-                  <div>
-                    <p>{paper.title}</p>
-                    <p>
-                      Uploaded {paper.uploadDate ? new Date(paper.uploadDate).toLocaleDateString() : '—'}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className={`badge ${STATUS_COLORS[paper.status] || 'badge-blue'}`}>
-                      {paper.status}
-                    </span>
-
-                    {paper.fileUrl && (
-                      <a
-                        className="btn btn-secondary"
-                        href={paper.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        id={`view-original-${paper.pypId}`}
-                      >
-                        View Original
-                      </a>
-                    )}
-
-                    {paper.status === 'PROCESSED' && (
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => navigate(`/past-year-papers/${paper.pypId}/questions`)}
-                        id={`view-questions-${paper.pypId}`}
-                      >
-                        View Questions
-                      </button>
-                    )}
-
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => handleListProcess(paper.pypId)}
-                      disabled={!!processingIds[paper.pypId]}
-                      id={`process-pyp-${paper.pypId}`}
-                    >
-                      {processingIds[paper.pypId]
-                        ? 'Processing...'
-                        : paper.status === 'FAILED'
-                          ? 'Retry Processing'
-                          : paper.status === 'PROCESSED'
-                            ? 'Reprocess'
-                            : 'Process'}
-                    </button>
-                  </div>
-                </div>
+                <PaperRow
+                  key={paper.pypId}
+                  paper={paper}
+                  onProcess={triggerProcessing}
+                  onSettled={loadPapers}
+                  navigate={navigate}
+                />
               ))}
             </div>
           )}
@@ -239,18 +267,20 @@ const PastYearPaperLibraryPage = () => {
           <div className="modal-overlay" onClick={closeUploadModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
 
-              {/* ── Stage: idle (picking file) ───────────────────────────── */}
+              {/* ── Stage: idle (picking files) ─────────────────────────── */}
               {stage === 'idle' && (
                 <>
-                  <h2>📄 Upload Past Year Paper</h2>
+                  <h2>📄 Upload Past Year Paper{selectedFiles.length > 1 ? 's' : ''}</h2>
 
-                  <input
-                    type="text"
-                    className="input form-input"
-                    placeholder="Paper title (optional — defaults to the file name)"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
+                  {selectedFiles.length <= 1 && (
+                    <input
+                      type="text"
+                      className="input form-input"
+                      placeholder="Paper title (optional — defaults to the file name)"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  )}
 
                   <div
                     id="pyp-drop-zone"
@@ -264,29 +294,32 @@ const PastYearPaperLibraryPage = () => {
                       ref={fileRef}
                       type="file"
                       accept=".pdf"
-                      onChange={(e) => pickFile(e.target.files)}
+                      multiple
+                      onChange={(e) => pickFiles(e.target.files)}
                     />
                     <div className="drop-icon">📄</div>
                     <p className="drop-text">
-                      {selectedFile ? selectedFile.name : 'Drop a past year paper PDF here, or click to browse'}
+                      {selectedFiles.length > 0
+                        ? `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} selected: ${selectedFiles.map((f) => f.name).join(', ')}`
+                        : 'Drop one or more past year paper PDFs here, or click to browse'}
                     </p>
-                    <p>Supported: PDF</p>
+                    <p>Supported: PDF — multiple files process in parallel (up to 3 at a time)</p>
                   </div>
 
                   <div className="modal-actions">
                     <button className="btn btn-secondary" onClick={closeUploadModal}>Cancel</button>
-                    <button className="btn btn-primary" onClick={handleUploadSubmit} disabled={!selectedFile}>
-                      Upload
+                    <button className="btn btn-primary" onClick={handleUploadSubmit} disabled={selectedFiles.length === 0}>
+                      {selectedFiles.length > 1 ? `Upload ${selectedFiles.length} files` : 'Upload'}
                     </button>
                   </div>
                 </>
               )}
 
-              {/* ── Stage: uploading ──────────────────────────────────────── */}
+              {/* ── Stage: uploading ────────────────────────────────────── */}
               {stage === 'uploading' && (
                 <>
                   <h2>⏳ Uploading...</h2>
-                  <p>{selectedFile?.name}</p>
+                  <p>{selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''}</p>
                   <div className="progress-track">
                     <div className="progress-fill" style={{ width: `${uploadProgress}%` }} />
                   </div>
@@ -294,78 +327,12 @@ const PastYearPaperLibraryPage = () => {
                 </>
               )}
 
-              {/* ── Stage: processing ─────────────────────────────────────── */}
-              {stage === 'processing' && (
-                <>
-                  <h2>✓ Uploaded — running OCR &amp; classification...</h2>
-                  <p>
-                    This can take a while the first time (downloading the AI models). Extracting text,
-                    tables, equations, and classifying questions for <strong>{activePaper?.title}</strong>.
-                  </p>
-                  <div className="flex justify-center">
-                    <div className="spinner" />
-                  </div>
-                </>
-              )}
-
-              {/* ── Stage: result ─────────────────────────────────────────── */}
-              {stage === 'result' && (
-                <>
-                  <h2>✅ Processed successfully</h2>
-                  <p>
-                    Extracted <strong>{resultQuestions.length}</strong> question(s) from{' '}
-                    <strong>{activePaper?.title}</strong>.
-                  </p>
-
-                  {resultQuestions.length > 0 && (
-                    <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {resultQuestions.map((q, i) => (
-                        <div key={q.questionId} className="card">
-                          <p style={{ fontWeight: 600, margin: '0 0 0.5rem' }}>Q{i + 1} ({q.marks ?? 1} marks)</p>
-                          <QuestionContent content={q.content} originalFileUrl={activePaper?.fileUrl} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="modal-actions">
-                    {activePaper?.fileUrl && (
-                      <a
-                        className="btn btn-secondary"
-                        href={activePaper.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View Original File
-                      </a>
-                    )}
-                    <button className="btn btn-primary" onClick={closeUploadModal}>Done</button>
-                  </div>
-                </>
-              )}
-
-              {/* ── Stage: error ──────────────────────────────────────────── */}
+              {/* ── Stage: error ─────────────────────────────────────────── */}
               {stage === 'error' && (
                 <>
                   <h2>⚠️ Something went wrong</h2>
                   <p>{errorMessage}</p>
-
                   <div className="modal-actions">
-                    {activePaper?.fileUrl && (
-                      <a
-                        className="btn btn-secondary"
-                        href={activePaper.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View Original File
-                      </a>
-                    )}
-                    {activePaper?.pypId && (
-                      <button className="btn btn-secondary" onClick={() => runProcessing(activePaper.pypId)}>
-                        Retry Processing
-                      </button>
-                    )}
                     <button className="btn btn-primary" onClick={closeUploadModal}>Close</button>
                   </div>
                 </>

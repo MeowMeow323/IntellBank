@@ -191,14 +191,28 @@ def update_status(conn, pyp_id: str, status: str):
 # Per-paper pipeline
 # =============================================================================
 
-def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
+TOTAL_STEPS = 5
+
+
+def process_paper(conn, paper: dict, config: dict, env: dict, on_progress=None) -> int:
     """
     Runs the full OCR → parse → classify → store pipeline for one
     past_year_papers row. Returns the number of questions inserted (0 means
     "no questions detected" — caller decides whether that's a failure).
     Raises on hard errors (download/OCR failure) — caller is responsible for
     catching and marking the paper FAILED.
+
+    on_progress(step, total_steps, label), if given, is called at each of
+    the pipeline's existing step boundaries (the same ones the [N/4] print
+    statements already mark) plus once per question during storage, so a
+    UI polling progress somewhere can show real movement on multi-question
+    papers rather than just four big jumps. Optional — defaults to a no-op
+    so existing callers (the CLI script, tests) are unaffected.
     """
+    def report(step: int, label: str):
+        if on_progress:
+            on_progress(step, TOTAL_STEPS, label)
+
     pyp_id      = paper['pyp_id']
     title       = paper['title']
     storage_url = paper['storage_url']
@@ -220,11 +234,13 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
     pdf_path, raw_text = None, ''
     try:
         print("  [1/4] Downloading PDF...")
+        report(1, "Downloading PDF")
         pdf_path = ocr_service.download_pdf(pdf_url)
         print("  [1/4] ✓ Downloaded")
 
         # ── Step 2: OCR (MinerU, whole document in one pass) ────────────────────
         print("  [2/4] OCR-ing PDF via MinerU...")
+        report(2, "Running OCR (MinerU)")
         raw_text = mineru_ocr_service.run_ocr_via_mineru(pdf_path, pyp_id)
         ocr_service.save_raw_ocr(raw_text, pyp_id)
         print(f"  [2/4] ✓ OCR complete — {len(raw_text)} chars extracted")
@@ -240,6 +256,7 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
 
     # ── Step 3: Parse question blocks ────────────────────────────────────────
     print("  [3/4] Parsing question blocks...")
+    report(3, "Parsing question blocks")
     cleaned_ocr = ocr_service.clean_text(raw_text)
 
     # Page 1 is cover info only (course code, subject, "Instructions to
@@ -278,6 +295,7 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
 
     # ── Step 4: Store in Supabase ────────────────────────────────────────────
     print("  [4/4] Storing in Supabase...")
+    report(4, "Storing questions")
 
     # Only clear the previous run's questions once we know this run actually
     # found something to replace them with — a failed reprocess attempt
@@ -319,10 +337,12 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
             link_question_topic(conn, question_id, topic_id, difficulty_id)
 
         print(f"    → Q{block_idx}: topics={all_topics} | difficulty={difficulty} | marks={marks}")
+        report(4, f"Storing question {block_idx}/{len(blocks)}")
         inserted += 1
 
     conn.commit()
     print(f"  [4/4] ✓ Committed — {inserted} questions stored in Supabase")
+    report(5, "Done")
 
     if inserted > 0 and config.get('delete_pdf_after_ocr', False):
         ocr_service.delete_pdf_from_storage(storage_url, config, env)

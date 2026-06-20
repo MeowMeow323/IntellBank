@@ -58,19 +58,27 @@ public class PastYearPaperService {
         PastYearPaper paper = pastYearPaperRepository.findById(pypId)
                 .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
 
+        // The AI service now queues the job and returns immediately (see
+        // job_queue_service.py) — this no longer blocks for the whole OCR
+        // pipeline. The real terminal status (PROCESSED/FAILED) lands later
+        // via the AI service's own direct write to past_year_papers.status;
+        // callers should poll getProgress(pypId) for live updates.
         try {
             Map<String, Object> result = aiClientService.processPastYearPaper(pypId);
             String status = String.valueOf(result.getOrDefault("status", "FAILED"));
             paper.setStatus(status);
-            log.info("Processed past year paper {} -> status={} questions_inserted={}",
-                    pypId, status, result.get("questions_inserted"));
+            log.info("Queued past year paper {} for processing -> status={}", pypId, status);
             return toResponse(pastYearPaperRepository.save(paper), result);
         } catch (Exception e) {
-            log.error("Processing failed for past year paper {}: {}", pypId, e.getMessage());
+            log.error("Failed to queue processing for past year paper {}: {}", pypId, e.getMessage());
             paper.setStatus("FAILED");
             PastYearPaper saved = pastYearPaperRepository.save(paper);
             return toResponse(saved, Map.of("error", e.getMessage() != null ? e.getMessage() : "Unknown error"));
         }
+    }
+
+    public Map<String, Object> getProgress(UUID pypId) {
+        return aiClientService.getProcessingProgress(pypId);
     }
 
     private PastYearPaperResponse toResponse(PastYearPaper paper) {
