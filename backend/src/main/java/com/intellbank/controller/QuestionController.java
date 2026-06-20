@@ -1,5 +1,6 @@
 package com.intellbank.controller;
 
+import com.intellbank.dto.QuestionResponse;
 import com.intellbank.entity.Question;
 import com.intellbank.service.QuestionService;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +19,7 @@ public class QuestionController {
     private final QuestionService questionService;
 
     @GetMapping
-    public ResponseEntity<List<Question>> getAll() {
+    public ResponseEntity<List<QuestionResponse>> getAll() {
         return ResponseEntity.ok(questionService.getAll());
     }
 
@@ -28,7 +29,7 @@ public class QuestionController {
     }
 
     @GetMapping("/by-pyp/{pypId}")
-    public ResponseEntity<List<Question>> getByPyp(@PathVariable UUID pypId) {
+    public ResponseEntity<List<QuestionResponse>> getByPyp(@PathVariable UUID pypId) {
         return ResponseEntity.ok(questionService.getByPyp(pypId));
     }
 

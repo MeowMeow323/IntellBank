@@ -47,20 +47,32 @@ public class MetadataService {
         return topicRepository.findBySubjectSubjectId(subjectId);
     }
 
+    /**
+     * Case-insensitive find-or-create — without this, typing "Mathematics"
+     * when "mathematics" already exists (or double-clicking Add) silently
+     * creates a duplicate subject with its own empty topic list, which is
+     * exactly what happened with an auto-detected "SOFTWARE MAINTENANCE"
+     * header colliding with an existing "Software Maintenance".
+     */
     public Subject createSubject(String name) {
         if (name == null || name.isBlank()) {
             throw new AppException("Subject name is required", HttpStatus.BAD_REQUEST);
         }
-        return subjectRepository.save(Subject.builder().name(name.trim()).build());
+        String trimmed = name.trim();
+        return subjectRepository.findByNameIgnoreCase(trimmed)
+                .orElseGet(() -> subjectRepository.save(Subject.builder().name(trimmed).build()));
     }
 
+    /** Case-insensitive find-or-create within the subject — same reasoning as createSubject above. */
     public Topic createTopic(UUID subjectId, String name) {
         if (name == null || name.isBlank()) {
             throw new AppException("Topic name is required", HttpStatus.BAD_REQUEST);
         }
         Subject subject = subjectRepository.findById(subjectId)
                 .orElseThrow(() -> new AppException("Subject not found", HttpStatus.NOT_FOUND));
-        return topicRepository.save(Topic.builder().subject(subject).name(name.trim()).build());
+        String trimmed = name.trim();
+        return topicRepository.findBySubjectSubjectIdAndNameIgnoreCase(subjectId, trimmed)
+                .orElseGet(() -> topicRepository.save(Topic.builder().subject(subject).name(trimmed).build()));
     }
 
     public void deleteTopic(UUID topicId) {

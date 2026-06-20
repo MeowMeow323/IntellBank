@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PastYearPaperService, QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 import '../styles/document-upload.css'
@@ -13,6 +14,7 @@ const STATUS_COLORS = {
 
 // Modal stages: idle -> uploading -> processing -> result | error
 const PastYearPaperLibraryPage = () => {
+  const navigate = useNavigate()
   const fileRef = useRef(null)
   const [papers, setPapers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -200,16 +202,30 @@ const PastYearPaperLibraryPage = () => {
                       </a>
                     )}
 
-                    {(paper.status === 'UPLOADED' || paper.status === 'FAILED') && (
+                    {paper.status === 'PROCESSED' && (
                       <button
                         className="btn btn-secondary"
-                        onClick={() => handleListProcess(paper.pypId)}
-                        disabled={!!processingIds[paper.pypId]}
-                        id={`process-pyp-${paper.pypId}`}
+                        onClick={() => navigate(`/past-year-papers/${paper.pypId}/questions`)}
+                        id={`view-questions-${paper.pypId}`}
                       >
-                        {paper.status === 'FAILED' ? 'Retry Processing' : 'Process'}
+                        View Questions
                       </button>
                     )}
+
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleListProcess(paper.pypId)}
+                      disabled={!!processingIds[paper.pypId]}
+                      id={`process-pyp-${paper.pypId}`}
+                    >
+                      {processingIds[paper.pypId]
+                        ? 'Processing...'
+                        : paper.status === 'FAILED'
+                          ? 'Retry Processing'
+                          : paper.status === 'PROCESSED'
+                            ? 'Reprocess'
+                            : 'Process'}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -358,6 +374,7 @@ const PastYearPaperLibraryPage = () => {
             </div>
           </div>
         )}
+
       </main>
     </div>
   )

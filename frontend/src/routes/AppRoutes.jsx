@@ -13,6 +13,7 @@ import VerificationPage from '../pages/VerificationPage.jsx'
 import PredictiveAnalyticsPage from '../pages/PredictiveAnalyticsPage.jsx'
 import ExamSimulatorPage from '../pages/ExamSimulatorPage.jsx'
 import PastYearPaperLibraryPage from '../pages/PastYearPaperLibraryPage.jsx'
+import PastYearPaperQuestionsPage from '../pages/PastYearPaperQuestionsPage.jsx'
 import SubjectTopicManagementPage from '../pages/SubjectTopicManagementPage.jsx'
 
 /**
@@ -115,6 +116,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
             <PastYearPaperLibraryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/past-year-papers/:pypId/questions"
+        element={
+          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+            <PastYearPaperQuestionsPage />
           </ProtectedRoute>
         }
       />

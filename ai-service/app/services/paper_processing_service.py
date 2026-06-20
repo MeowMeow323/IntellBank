@@ -55,8 +55,15 @@ def fetch_paper_by_id(conn, pyp_id: str) -> dict | None:
 
 
 def upsert_subject(conn, name: str) -> str:
+    """
+    Case-insensitive lookup — without this, an auto-detected header like
+    "SOFTWARE MAINTENANCE" creates a duplicate subject alongside an existing
+    "Software Maintenance" instead of matching it (matches the
+    case-insensitive convention already used by
+    db_service.fetch_subject_id_by_name for the same reason).
+    """
     with conn.cursor() as cur:
-        cur.execute('SELECT subject_id FROM subjects WHERE name = %s', (name,))
+        cur.execute('SELECT subject_id, name FROM subjects WHERE LOWER(name) = LOWER(%s)', (name,))
         row = cur.fetchone()
         if row:
             return str(row[0])
@@ -66,9 +73,10 @@ def upsert_subject(conn, name: str) -> str:
 
 
 def upsert_topic(conn, subject_id: str, name: str) -> str:
+    """Case-insensitive lookup — same reasoning as upsert_subject above."""
     with conn.cursor() as cur:
         cur.execute(
-            'SELECT topic_id FROM topics WHERE subject_id = %s AND name = %s',
+            'SELECT topic_id FROM topics WHERE subject_id = %s AND LOWER(name) = LOWER(%s)',
             (subject_id, name)
         )
         row = cur.fetchone()
@@ -94,6 +102,56 @@ def upsert_difficulty(conn, name: str) -> str:
             (new_id, name)
         )
         return new_id
+
+
+def delete_existing_questions(conn, pyp_id: str) -> int:
+    """
+    Removes any questions already stored for this paper before a (re)process
+    run inserts fresh ones — otherwise clicking "Reprocess" just piles
+    duplicates on top of the previous run's results instead of replacing
+    them.
+
+    schema.sql declares ON DELETE CASCADE for question_topics/
+    document_questions/solutions (and solution_history off solutions), but
+    the live database's actual FK constraints are all `NO ACTION` — verified
+    directly against information_schema.referential_constraints, the two
+    have drifted apart. So this deletes child rows explicitly, in dependency
+    order, rather than trusting a cascade that doesn't actually exist.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM solution_history
+            WHERE solution_id IN (
+                SELECT solution_id FROM solutions
+                WHERE question_id IN (SELECT question_id FROM questions WHERE pyp_id = %s)
+            )
+            """,
+            (pyp_id,)
+        )
+        cur.execute(
+            """
+            DELETE FROM solutions
+            WHERE question_id IN (SELECT question_id FROM questions WHERE pyp_id = %s)
+            """,
+            (pyp_id,)
+        )
+        cur.execute(
+            """
+            DELETE FROM document_questions
+            WHERE question_id IN (SELECT question_id FROM questions WHERE pyp_id = %s)
+            """,
+            (pyp_id,)
+        )
+        cur.execute(
+            """
+            DELETE FROM question_topics
+            WHERE question_id IN (SELECT question_id FROM questions WHERE pyp_id = %s)
+            """,
+            (pyp_id,)
+        )
+        cur.execute('DELETE FROM questions WHERE pyp_id = %s', (pyp_id,))
+        return cur.rowcount
 
 
 def insert_question(conn, pyp_id: str, content: str, marks) -> str:
@@ -204,6 +262,14 @@ def process_paper(conn, paper: dict, config: dict, env: dict) -> int:
 
     # ── Step 4: Store in Supabase ────────────────────────────────────────────
     print("  [4/4] Storing in Supabase...")
+
+    # Only clear the previous run's questions once we know this run actually
+    # found something to replace them with — a failed reprocess attempt
+    # should never wipe out a previously-successful extraction.
+    removed = delete_existing_questions(conn, pyp_id)
+    if removed:
+        print(f"  [4/4] Removed {removed} question(s) from a previous run before reprocessing")
+
     subject_id = upsert_subject(conn, subject)
 
     inserted = 0
