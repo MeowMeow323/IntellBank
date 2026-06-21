@@ -87,9 +87,16 @@ export const ExamService = {
 
 // ── Submission Service ────────────────────────────────────────────────────────
 export const SubmissionService = {
+  // Student submits an answered "AI Generated Exam" (one active submission at a time)
   submit: (documentId) => api.post('/api/submissions', { documentId }),
+  // Student withdraws their own PENDING submission (frees the slot)
+  unsubmit: (id) => api.post(`/api/submissions/${id}/unsubmit`),
+  // The logged-in student's full submission history (Submissions page)
+  getMine: () => api.get('/api/submissions/mine'),
   getByDocument: (documentId) => api.get(`/api/submissions/by-document/${documentId}`),
   getById: (id) => api.get(`/api/submissions/${id}`),
+  // The student's own reviewed answers (educator /verification routes are educator-only)
+  reviewMine: (id) => api.get(`/api/submissions/${id}/review`),
 }
 
 // ── Question Service ──────────────────────────────────────────────────────────
@@ -107,11 +114,19 @@ export const QuestionService = {
 
 // ── Verification Service ──────────────────────────────────────────────────────
 export const VerificationService = {
+  // AI-solution verification (HITL)
   getPending: () => api.get('/api/verification/pending'),
   getById: (id) => api.get(`/api/verification/${id}`),
   approve: (id) => api.put(`/api/verification/${id}/approve`),
   reject: (id, reason) => api.put(`/api/verification/${id}/reject`, { reason }),
   edit: (id, data) => api.put(`/api/verification/${id}/edit`, data),
+
+  // Student-submission grading (per-question marks → topic marks → weakness)
+  getPendingSubmissions: () => api.get('/api/verification/submissions/pending'),
+  reviewSubmission: (id) => api.get(`/api/verification/submissions/${id}`),
+  // marks: { "<questionId>": <awardedMarks>, ... }
+  gradeSubmission: (id, marks) => api.put(`/api/verification/submissions/${id}/grade`, { marks }),
+  returnSubmission: (id) => api.put(`/api/verification/submissions/${id}/return`),
 }
 
 // ── Workspace Service ─────────────────────────────────────────────────────────
@@ -125,10 +140,14 @@ export const WorkspaceService = {
 
 // ── Analytics Service ─────────────────────────────────────────────────────────
 export const AnalyticsService = {
-  getTopicFrequency: () => api.get('/api/analytics/topic-frequency'),
-  getYearlyTrends: () => api.get('/api/analytics/yearly-trends'),
-  getHighPriorityTopics: () => api.get('/api/analytics/high-priority-topics'),
-  getPredictedTopics: () => api.get('/api/analytics/predicted-topics'),
+  // Personal per-topic mastery (heatmap) + weaknesses (<50%) from StudentPerformance
+  getMyMastery: () => api.get('/api/analytics/my-mastery'),
+  getMyWeaknesses: () => api.get('/api/analytics/my-weaknesses'),
+  // All subject names in the DB — for the subject selector
+  getSubjects: () => api.get('/api/analytics/subjects'),
+  // Topics likely to appear next, from the Python K-Means predictor
+  getPredictedTopics: (subject) =>
+    api.get('/api/analytics/predicted-topics', { params: subject ? { subject } : {} }),
 }
 
 // ── Past Year Paper Service ───────────────────────────────────────────────────

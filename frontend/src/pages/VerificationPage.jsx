@@ -1,119 +1,242 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { VerificationService } from '../services/api'
+import Sidebar from '../components/layout/Sidebar.jsx'
+import '../styles/verification.css'
 
 export default function VerificationPage() {
+  const [tab, setTab] = useState('submissions') // 'submissions' | 'solutions'
+
+  return (
+    <div className="page-layout">
+      <Sidebar />
+      <main className="main-content">
+        <div className="page-header">
+          <h1 className="page-title">Verification</h1>
+          <p className="page-subtitle">Grade student submissions and verify AI-generated solutions</p>
+        </div>
+
+        <div className="vf-tabs">
+          <button className={`vf-tab ${tab === 'submissions' ? 'active' : ''}`} onClick={() => setTab('submissions')}>
+            Student Submissions
+          </button>
+          <button className={`vf-tab ${tab === 'solutions' ? 'active' : ''}`} onClick={() => setTab('solutions')}>
+            AI Solutions
+          </button>
+        </div>
+
+        {tab === 'submissions' ? <SubmissionGrading /> : <SolutionVerification />}
+      </main>
+
+    </div>
+  )
+}
+
+/* ─────────────────────────── Submission Grading ─────────────────────────── */
+function SubmissionGrading() {
+  const [queue, setQueue] = useState([])
+  const [activeId, setActiveId] = useState(null)
+  const [review, setReview] = useState(null)
+  const [marks, setMarks] = useState({})        // { questionId: number }
+  const [result, setResult] = useState(null)     // GradeResult after grading
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { loadQueue() }, [])
+
+  const loadQueue = async () => {
+    setLoading(true)
+    try {
+      const res = await VerificationService.getPendingSubmissions()
+      setQueue(res.data || [])
+    } catch { /* ignore */ } finally { setLoading(false) }
+  }
+
+  const openSubmission = async (id) => {
+    setActiveId(id); setReview(null); setResult(null); setMarks({})
+    try {
+      const res = await VerificationService.reviewSubmission(id)
+      setReview(res.data)
+      // pre-zero every question
+      const init = {}
+      ;(res.data.questions || []).forEach((q) => { init[q.questionId] = 0 })
+      setMarks(init)
+    } catch { alert('Failed to load submission.') }
+  }
+
+  const total = Object.values(marks).reduce((a, b) => a + (Number(b) || 0), 0)
+  const maxTotal = (review?.questions || []).reduce((a, q) => a + (q.marks || 0), 0)
+
+  const setMark = (qid, value, max) => {
+    let v = Number(value)
+    if (Number.isNaN(v) || v < 0) v = 0
+    if (v > max) v = max
+    setMarks((m) => ({ ...m, [qid]: v }))
+  }
+
+  const saveGrade = async () => {
+    try {
+      const res = await VerificationService.gradeSubmission(activeId, marks)
+      setResult(res.data)
+      loadQueue()
+    } catch { alert('Failed to save grade.') }
+  }
+
+  const returnToStudent = async () => {
+    try {
+      await VerificationService.returnSubmission(activeId)
+      setActiveId(null); setReview(null); setResult(null)
+      loadQueue()
+    } catch { alert('Failed to return submission.') }
+  }
+
+  return (
+    <div className="vf-layout">
+      {/* Pending queue */}
+      <div className="vf-queue">
+        {loading ? <p className="vf-empty">Loading…</p>
+          : queue.length === 0 ? <p className="vf-empty">✓ No submissions awaiting grading.</p>
+          : queue.map((s) => (
+            <button key={s.submissionId}
+              className={`vf-queue-item ${activeId === s.submissionId ? 'active' : ''}`}
+              onClick={() => openSubmission(s.submissionId)}>
+              <div className="vf-queue-title">{s.document?.title || 'Untitled paper'}</div>
+              <div className="vf-queue-sub">Status: {s.status}</div>
+            </button>
+          ))}
+      </div>
+
+      {/* Grading workspace */}
+      <div className="card">
+        {!review ? (
+          <p className="vf-empty">Select a submission from the queue to grade.</p>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+              {/* Source: the student's answered paper */}
+              <div>
+                <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Answered Paper — {review.studentName}</h3>
+                <div className="vf-source" dangerouslySetInnerHTML={{ __html: review.documentContent || '' }} />
+              </div>
+
+              {/* Marks per question */}
+              <div>
+                <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Award Marks</h3>
+                {review.questions.map((q, i) => (
+                  <div key={q.questionId} className="vf-grade-q">
+                    <div className="vf-q-head">
+                      <div className="vf-q-content"><strong>Q{i + 1}.</strong> {stripHtml(q.content).slice(0, 220)}</div>
+                      <div className="vf-mark-box">
+                        <input type="number" className="vf-mark-input" min={0} max={q.marks}
+                          value={marks[q.questionId] ?? 0}
+                          onChange={(e) => setMark(q.questionId, e.target.value, q.marks)} />
+                        <span style={{ color: 'var(--color-text-muted)' }}>/ {q.marks}</span>
+                      </div>
+                    </div>
+                    {q.topics?.length > 0 && (
+                      <div className="vf-q-topics">
+                        {q.topics.map((t) => <span key={t} className="vf-chip">{t}</span>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="vf-total">
+                  <span style={{ color: 'var(--color-text-muted)' }}>Auto-calculated total</span>
+                  <span className="vf-total-num">{total} / {maxTotal}</span>
+                </div>
+
+                <div className="vf-actions">
+                  <button className="vf-btn vf-btn-grade" onClick={saveGrade}>Save Grade</button>
+                  {review.status === 'GRADED' && (
+                    <button className="vf-btn vf-btn-return" onClick={returnToStudent}>Return to Student</button>
+                  )}
+                </div>
+
+                {/* Per-topic weakness breakdown returned by the grade endpoint */}
+                {result && (
+                  <div className="vf-breakdown">
+                    <strong>Topic mastery updated (student weakness profile):</strong>
+                    {result.topics.map((t) => (
+                      <div key={t.topicId} className="vf-bd-row">
+                        <span>{t.topicName} — {t.earned}/{t.possible}</span>
+                        <span className={`badge ${t.percentage < 50 ? 'badge-red' : t.percentage < 70 ? 'badge-amber' : 'badge-green'}`}>
+                          {t.percentage}% · {t.mastery}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="vf-actions">
+                      <button className="vf-btn vf-btn-return" onClick={returnToStudent}>Return to Student</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────── AI Solution Verification ───────────────────────── */
+function SolutionVerification() {
   const [solutions, setSolutions] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [editId, setEditId] = useState(null)
   const [editContent, setEditContent] = useState('')
   const [editExplanation, setEditExplanation] = useState('')
 
-  useEffect(() => {
-    fetchPending()
-  }, [])
+  useEffect(() => { fetchPending() }, [])
 
   const fetchPending = async () => {
+    setLoading(true)
     try {
       const res = await VerificationService.getPending()
-      setSolutions(res.data)
-    } catch {
-      setError('Failed to load pending solutions')
-    } finally {
-      setLoading(false)
-    }
+      setSolutions(res.data || [])
+    } catch { /* ignore */ } finally { setLoading(false) }
   }
 
-  const handleApprove = async (solutionId) => {
-    try {
-      await VerificationService.approve(solutionId)
-      setSolutions(s => s.filter(x => x.solutionId !== solutionId))
-    } catch {
-      console.error("Failed to approve solution")
-    }
+  const approve = async (id) => {
+    try { await VerificationService.approve(id); setSolutions((s) => s.filter((x) => x.solutionId !== id)) }
+    catch { alert('Failed to approve.') }
+  }
+  const reject = async (id) => {
+    const reason = prompt('Enter reason for rejection:') || 'Does not meet verification standards'
+    try { await VerificationService.reject(id, reason); fetchPending() } catch { alert('Failed to reject.') }
+  }
+  const startEdit = (sol) => { setEditId(sol.solutionId); setEditContent(sol.content); setEditExplanation(sol.explanation || '') }
+  const saveEdit = async (id) => {
+    try { await VerificationService.edit(id, { content: editContent, explanation: editExplanation }); setEditId(null); fetchPending() }
+    catch { alert('Failed to save edit.') }
   }
 
-  const handleReject = async (solutionId) => {
-    try {
-      const reason = prompt("Enter reason for rejection:") || "Does not meet verification standards"
-      await VerificationService.reject(solutionId, reason)
-      fetchPending()
-    } catch {
-      console.error("Failed to reject solution")
-    }
-  }
-
-  const startEdit = (solution) => {
-    setEditId(solution.solutionId)
-    setEditContent(solution.content)
-    setEditExplanation(solution.explanation || '')
-  }
-
-  const saveEdit = async (solutionId) => {
-    try {
-      await VerificationService.edit(solutionId, { content: editContent, explanation: editExplanation })
-      setEditId(null)
-      fetchPending()
-    } catch {
-      console.error("Failed to update solution changes")
-    }
-  }
-
-  if (loading) return <p style={{ padding: '2rem' }}>Loading pending solutions…</p>
-  if (error)   return <p style={{ padding: '2rem', color: 'red' }}>{error}</p>
+  if (loading) return <p className="vf-empty">Loading pending solutions…</p>
+  if (solutions.length === 0) return <p className="vf-empty">✓ No solutions pending verification.</p>
 
   return (
-    <div style={{ padding: '2rem', maxWidth: 900, margin: '0 auto' }}>
-      <h1>Verification Queue</h1>
-      <p style={{ color: '#aaa' }}>
-        Solutions where <code>isVerified = false</code>. Approve to verify, or edit before approving.
-      </p>
-
-      {solutions.length === 0 && <p>✓ No pending solutions.</p>}
-
-      {solutions.map(sol => (
-        <div key={sol.solutionId} style={{
-          border: '1px solid #333', borderRadius: 8, padding: '1rem', marginBottom: '1rem'
-        }}>
-          <h3 style={{ margin: 0, grandfather: 8, marginBottom: 8 }}>
-            Question: {sol.question?.content || sol.question?.questionId}
-          </h3>
-
+    <div className="card">
+      {solutions.map((sol) => (
+        <div key={sol.solutionId} className="vf-sol">
+          <div className="vf-queue-title" style={{ marginBottom: '0.5rem' }}>
+            Question: {stripHtml(sol.question?.content || sol.question?.questionId || '')}
+          </div>
           {editId === sol.solutionId ? (
             <>
-              <label style={{ display: 'block', marginBottom: 4, fontWeight: '500' }}>Solution Content</label>
-              <textarea rows={4} value={editContent} onChange={e => setEditContent(e.target.value)}
-                style={{ width: '100%', marginBottom: 8 }} />
-              
-              <label style={{ display: 'block', marginBottom: 4, fontWeight: '500' }}>Explanation</label>
-              <textarea rows={2} value={editExplanation} onChange={e => setEditExplanation(e.target.value)}
-                style={{ width: '100%', marginBottom: 8 }} />
-              
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={() => saveEdit(sol.solutionId)}>Save</button>
-                <button onClick={() => setEditId(null)} style={{ background: '#333', color: '#fff', border: '1px solid #444' }}>Cancel</button>
+              <textarea rows={4} className="vf-textarea" value={editContent} onChange={(e) => setEditContent(e.target.value)} />
+              <textarea rows={2} className="vf-textarea" value={editExplanation} onChange={(e) => setEditExplanation(e.target.value)} />
+              <div className="vf-actions">
+                <button className="vf-btn vf-btn-grade" onClick={() => saveEdit(sol.solutionId)}>Save</button>
+                <button className="vf-btn vf-btn-return" onClick={() => setEditId(null)}>Cancel</button>
               </div>
-              <small style={{ display: 'block', color: '#aaa', marginTop: 8 }}>
-                Saving will create a SolutionHistory audit record and reset isVerified.
-              </small>
+              <small style={{ color: 'var(--color-text-muted)' }}>Saving writes a SolutionHistory record and resets verification.</small>
             </>
           ) : (
             <>
               <p><strong>Content:</strong> {sol.content}</p>
               {sol.explanation && <p><strong>Explanation:</strong> {sol.explanation}</p>}
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={() => handleApprove(sol.solutionId)}
-                  style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: 4, cursor: 'pointer' }}>
-                  Approve
-                </button>
-                <button onClick={() => handleReject(sol.solutionId)}
-                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: 4, cursor: 'pointer' }}>
-                  Reject
-                </button>
-                <button onClick={() => startEdit(sol)}
-                  style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: 4, cursor: 'pointer' }}>
-                  Edit
-                </button>
+              <div className="vf-actions">
+                <button className="vf-btn vf-btn-approve" onClick={() => approve(sol.solutionId)}>Approve</button>
+                <button className="vf-btn vf-btn-reject" onClick={() => reject(sol.solutionId)}>Reject</button>
+                <button className="vf-btn vf-btn-edit" onClick={() => startEdit(sol)}>Edit</button>
               </div>
             </>
           )}
@@ -121,4 +244,12 @@ export default function VerificationPage() {
       ))}
     </div>
   )
+}
+
+// Strip HTML tags for compact question previews in the grading list.
+function stripHtml(html) {
+  if (!html) return ''
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim()
 }

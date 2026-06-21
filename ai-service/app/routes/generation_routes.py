@@ -71,6 +71,68 @@ async def generate_solution_endpoint(request: SolutionGenerateRequest):
         raise HTTPException(status_code=500, detail=f"Solution generation failed: {str(e)}")
 
 
+@router.get("/debug")
+async def debug_db(subject: str = "Software Project Management"):
+    """Diagnostic: returns what's in the DB AND simulates the filter logic."""
+    from app.services.db_service import get_db_connection, fetch_questions_for_topics
+    from app.services.generation_service import _is_standalone_question
+    from psycopg2.extras import DictCursor
+    try:
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("SELECT subject_id, name FROM subjects ORDER BY name")
+            all_subjects = [{"id": str(r["subject_id"]), "name": r["name"]} for r in cur.fetchall()]
+
+            cur.execute("SELECT subject_id FROM subjects WHERE LOWER(name) = LOWER(%s)", (subject,))
+            row = cur.fetchone()
+            if not row:
+                cur.execute("SELECT subject_id FROM subjects WHERE name ILIKE %s", (f'%{subject}%',))
+                row = cur.fetchone()
+            if not row:
+                return {"all_subjects": all_subjects, "matched_subject": None, "topics": [], "question_count": 0}
+
+            sid = row["subject_id"]
+            cur.execute("SELECT name FROM topics WHERE subject_id = %s ORDER BY name", (sid,))
+            topics = [r["name"] for r in cur.fetchall()]
+
+            cur.execute("""
+                SELECT COUNT(DISTINCT q.question_id) AS cnt
+                FROM questions q
+                JOIN question_topics qt ON q.question_id = qt.question_id
+                JOIN topics t ON qt.topic_id = t.topic_id
+                WHERE t.subject_id = %s
+            """, (sid,))
+            q_count = (cur.fetchone() or {}).get("cnt", 0)
+        conn.close()
+
+        # Simulate filter on ALL questions for this subject
+        all_qs = fetch_questions_for_topics(subject, [], limit=50)
+        filter_results = []
+        for q in all_qs:
+            text = q.get("text", "")
+            first_line = text.strip().split('\n')[0][:150]
+            standalone = _is_standalone_question(text)
+            filter_results.append({
+                "standalone": standalone,
+                "first_line": first_line,
+                "text_length": len(text)
+            })
+        standalone_count = sum(1 for r in filter_results if r["standalone"])
+
+        return {
+            "all_subjects": all_subjects,
+            "matched_subject": subject,
+            "topics": topics,
+            "question_count": q_count,
+            "fetched_count": len(all_qs),
+            "standalone_count": standalone_count,
+            "filter_details": filter_results
+        }
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
+
+
 @router.post("/paper", response_model=PaperGenerateResponse)
 async def generate_paper_endpoint(request: PaperGenerateRequest):
     """

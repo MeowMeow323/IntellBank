@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import useWorkspaceStore from '../../store/workspaceStore'
 import S from '../../utils/workspaceStyles'
 import { useEditorKeyboard } from '../../utils/useEditorKeyboard'
+import { SubmissionService } from '../../services/api'
+import '../../styles/workspace-editor.css'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PAGE_SIZES = {
@@ -20,11 +22,16 @@ const PageEditor = React.forwardRef(({
   headerText, footerText, editingHF,
   onDoubleClickHF, onBlurHeader, onBlurFooter,
   onInput, onKeyDown, onPaste,
+  isExam,
 }, ref) => {
   const contentH = pageH - PAD_V * 2 - HDR_H - FTR_H - 12
   return (
     <div style={{
-      width: `${pageW}px`, height: `${pageH}px`, maxHeight: `${pageH}px`,
+      width: `${pageW}px`,
+      ...(isExam
+        ? { minHeight: `${pageH}px`, height: 'auto', maxHeight: 'none' }
+        : { height: `${pageH}px`, maxHeight: `${pageH}px` }
+      ),
       background: '#fff',
       boxShadow: '0 1px 4px rgba(0,0,0,0.1), 0 6px 20px rgba(0,0,0,0.06)',
       border: '1px solid #e0e0e0',
@@ -58,7 +65,10 @@ const PageEditor = React.forwardRef(({
         onPaste={onPaste}
         data-page={pageNum}
         style={{
-          height: `${contentH}px`, maxHeight: `${contentH}px`, minHeight: `${contentH}px`,
+          ...(isExam
+            ? { minHeight: `${contentH}px`, height: 'auto', maxHeight: 'none' }
+            : { height: `${contentH}px`, maxHeight: `${contentH}px`, minHeight: `${contentH}px` }
+          ),
           overflow: 'hidden', outline: 'none', border: 'none',
           fontFamily: 'Arial, sans-serif', fontSize: '11pt', lineHeight: 1.6,
           color: '#222', background: 'transparent', wordWrap: 'break-word',
@@ -95,6 +105,27 @@ PageEditor.displayName = 'PageEditor'
 const WorkspaceContent = () => {
   const { tabs = [], activeTabId, updateTabContent } = useWorkspaceStore()
   const activeTab = tabs.find((t) => t.documentId === activeTabId)
+
+  // ── Submit-for-review (generated exams only; one active submission per student) ──
+  const isGeneratedExam = activeTab?.type === 'AI Generated Exam'
+  const [submitState, setSubmitState] = useState('idle') // idle | submitting | done | error
+  const [submitMsg, setSubmitMsg] = useState('')
+
+  const handleSubmitForReview = async () => {
+    if (!activeTab) return
+    if (!window.confirm(
+      'Submit this paper to an educator for review?\n\n' +
+      'You can hold only one active submission at a time — it must be returned before you submit another.'
+    )) return
+    setSubmitState('submitting'); setSubmitMsg('')
+    try {
+      await SubmissionService.submit(activeTab.documentId)
+      setSubmitState('done'); setSubmitMsg('Submitted ✓')
+    } catch (err) {
+      setSubmitState('error')
+      setSubmitMsg(err?.response?.data?.message || 'Submission failed')
+    }
+  }
 
   const [pages, setPages] = useState(['<p><br></p>'])
   const [saveStatus, setSaveStatus] = useState('saved')
@@ -222,8 +253,11 @@ const WorkspaceContent = () => {
   // Effect 3 only redistributes single-page AI dumps. This handles each
   // individual pre-split page (past year paper, saved AI paper) that overflows
   // after injection. Cascades one page per RAF pass until all pages are stable.
+  // AI exam papers are skipped: each page is one question with auto-height,
+  // so content must never cascade across question boundaries.
   useEffect(() => {
     if (pages.length <= 1) return  // Effect 3 handles this
+    if (isGeneratedExam) return    // exam pages grow freely — no redistribution
     const key = pages.map(p => p.length).join('-')
     if (key === lastDistKey.current) return
 
@@ -334,6 +368,7 @@ const WorkspaceContent = () => {
   // keypress during the input handler, causing cursor jumps and content flickering.
   const reflowOnType = useCallback((pageIdx) => {
     if (isInjecting.current) return
+    if (isGeneratedExam) return   // exam pages grow freely; never push to the next question
     const el = pageRefs.current[pageIdx]?.current
     if (!el) return
 
@@ -377,7 +412,7 @@ const WorkspaceContent = () => {
       recalcStats()
       triggerSave()
     }, 0)
-  }, [contentH, recalcStats, triggerSave])
+  }, [contentH, recalcStats, triggerSave, isGeneratedExam])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   const { makeOnKeyDown } = useEditorKeyboard({
@@ -502,10 +537,33 @@ const WorkspaceContent = () => {
             </div>
           ))}
         </div>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem', fontWeight: 600 }}>
           {saveStatus === 'saved' && <span style={{ color: '#146c43' }}>☁️ Saved</span>}
           {saveStatus === 'saving' && <span style={{ color: '#664d03' }}>⏳ Saving…</span>}
           {saveStatus === 'error' && <span style={{ color: '#842029' }}>⚠️ Error</span>}
+
+          {/* Submit-for-review appears only for AI-generated exam papers */}
+          {isGeneratedExam && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {submitMsg && (
+                <span style={{ color: submitState === 'error' ? '#842029' : '#146c43' }}>{submitMsg}</span>
+              )}
+              <button
+                onClick={handleSubmitForReview}
+                disabled={submitState === 'submitting' || submitState === 'done'}
+                style={{
+                  background: submitState === 'done' ? '#9aa0a6' : '#16a34a',
+                  color: '#fff', border: 'none', borderRadius: 6,
+                  padding: '0.35rem 0.9rem', fontWeight: 700, fontSize: '0.75rem',
+                  cursor: submitState === 'submitting' || submitState === 'done' ? 'default' : 'pointer',
+                }}
+              >
+                {submitState === 'submitting' ? 'Submitting…'
+                  : submitState === 'done' ? 'Submitted'
+                  : '📤 Submit for Review'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -604,6 +662,7 @@ const WorkspaceContent = () => {
                 onInput={makeOnInput(i)}
                 onKeyDown={makeOnKeyDown(i)}
                 onPaste={makeOnPaste(i)}
+                isExam={isGeneratedExam}
               />
             ))}
           </div>
@@ -645,12 +704,6 @@ const WorkspaceContent = () => {
         <span style={{ marginLeft: 'auto', color: '#9aa0a6', fontSize: '0.72rem' }}>Double-click header/footer to edit</span>
       </div>
 
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
-        * { box-sizing: border-box; }
-        [contenteditable]:focus { outline: none; }
-        [contenteditable] p { margin: 0 0 2px; }
-      `}</style>
     </div>
   )
 }

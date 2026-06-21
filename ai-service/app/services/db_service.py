@@ -41,15 +41,20 @@ def fetch_topic_names_for_subject(conn, subject_id: str) -> list[str]:
         return [row[0] for row in cur.fetchall()]
 
 
-def fetch_questions_for_topics(subject: str, topics: list, limit: int = 10) -> list:
+def fetch_questions_for_topics(subject: str, topics: list, limit: int = 10, conn=None) -> list:
     """
     Fetch up to `limit` random questions matching the subject and ANY of the given topics.
     Falls back to any question for that subject when no topic matches are found.
     Returns: [{'text': str, 'topics': [str]}]
+
+    Pass an existing `conn` to reuse one connection across several calls — Supabase's
+    session-mode pooler caps total clients (15), so opening a fresh connection per call
+    can trip "max clients reached in session mode".
     """
-    conn = None
+    own_conn = conn is None
     try:
-        conn = get_db_connection()
+        if own_conn:
+            conn = get_db_connection()
         with conn.cursor(cursor_factory=DictCursor) as cur:
             # 1. Find subject — try exact match first, then partial (ILIKE) for cross-subject use
             cur.execute("SELECT subject_id FROM subjects WHERE LOWER(name) = LOWER(%s)", (subject,))
@@ -117,10 +122,16 @@ def fetch_questions_for_topics(subject: str, topics: list, limit: int = 10) -> l
                     "text":   row['content'],
                     "topics": list(row['topic_names']),
                 })
+            print(f"[db] fetch_questions_for_topics(subject={subject!r}, topics={topics}) -> {len(results)} rows")
             return results
     except Exception as e:
-        print(f"Database error: {e}")
-        return []
+        # Do NOT swallow DB errors as an empty result — that masks connection/auth
+        # failures as a misleading "no questions found". Surface the real cause.
+        import traceback
+        print(f"[db] Database error in fetch_questions_for_topics: {e}")
+        traceback.print_exc()
+        raise RuntimeError(f"Database error: {e}") from e
     finally:
-        if conn:
+        # Only close connections we opened — a caller-supplied conn is theirs to close.
+        if own_conn and conn:
             conn.close()

@@ -28,6 +28,7 @@ public class DocumentService {
     private final PastYearPaperRepository pastYearPaperRepository;
     private final QuestionRepository questionRepository;
     private final DocumentQuestionRepository documentQuestionRepository;
+    private final SubmissionRepository submissionRepository;
 
     public List<Document> getByProject(UUID projectId) {
         return documentRepository.findByProjectProjectId(projectId);
@@ -222,6 +223,7 @@ public class DocumentService {
         log.info("Deleting document {} for user {}", documentId, email);
         documentRepository.findById(documentId)
                 .orElseThrow(() -> new AppException("Document not found", HttpStatus.NOT_FOUND));
+        submissionRepository.deleteByDocumentDocumentId(documentId);
         documentQuestionRepository.deleteByDocumentDocumentId(documentId);
         documentRepository.deleteById(documentId);
         log.info("Document deleted: {}", documentId);

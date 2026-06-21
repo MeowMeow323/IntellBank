@@ -10,6 +10,8 @@ import '../styles/modals.css'
 const DashboardPage = () => {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const isEducator = user?.role === 'EDUCATOR' || user?.role === 'ADMIN'
+
   const [projects, setProjects] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -20,7 +22,8 @@ const DashboardPage = () => {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    loadProjects()
+    if (!isEducator) loadProjects()
+    else setIsLoading(false)
   }, [])
 
   const loadProjects = async () => {
@@ -89,13 +92,15 @@ const DashboardPage = () => {
             <h1 className="page-title">Dashboard</h1>
             <p className="page-subtitle">Welcome back, {user?.fullName || user?.username} 👋</p>
           </div>
-          <button
-            id="create-project-btn"
-            className="btn btn-primary"
-            onClick={() => setShowCreate(true)}
-          >
-            + New Project
-          </button>
+          {!isEducator && (
+            <button
+              id="create-project-btn"
+              className="btn btn-primary"
+              onClick={() => setShowCreate(true)}
+            >
+              + New Project
+            </button>
+          )}
         </div>
 
         {/* Create Project Modal Layer */}
@@ -189,8 +194,33 @@ const DashboardPage = () => {
           </div>
         )}
 
-        {/* Projects Core Grid Layout */}
-        {isLoading ? (
+        {/* Educator landing — no projects API call */}
+        {isEducator && (
+          <div className="grid-3">
+            {[
+              { icon: '✅', label: 'Verification Queue', desc: 'Grade student submissions and verify AI-generated solutions.', path: '/verification' },
+              { icon: '📄', label: 'Past Year Papers', desc: 'Upload and manage past year examination papers for practice.', path: '/past-year-papers' },
+              { icon: '🏷️', label: 'Subjects & Topics', desc: 'Manage subjects and topics used across the question bank.', path: '/subjects-topics' },
+              { icon: '📋', label: 'Question Bank', desc: 'Browse and manage all questions in the system.', path: '/questions' },
+            ].map((card) => (
+              <div
+                key={card.path}
+                className="card project-card"
+                onClick={() => navigate(card.path)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="project-card-icon">{card.icon}</div>
+                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>
+                  {card.label}
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>{card.desc}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Student projects grid */}
+        {!isEducator && (isLoading ? (
           <div className="flex justify-center" style={{ padding: '4rem' }}>
             <div className="spinner" />
           </div>
@@ -265,7 +295,7 @@ const DashboardPage = () => {
               </div>
             ))}
           </div>
-        )}
+        ))}
       </main>
     </div>
   )

@@ -117,12 +117,19 @@ const WorkspacePage = () => {
         ...paperConfig,
         topics: paperConfig.topics.length > 0 ? paperConfig.topics : (subjectTopicsMap[paperConfig.subject] || [])
       }
-      await generateTabWithAI(payload)
+      const result = await generateTabWithAI(payload)
+      if (!result) {
+        // generateTabWithAI returns null on failure and records the reason in the store.
+        const msg = useWorkspaceStore.getState().error || 'Paper generation failed. Please try again.'
+        alert(msg)
+        return
+      }
       setIsModalOpen(false)
       const subjects = Object.keys(subjectTopicsMap)
       setPaperConfig({ subject: subjects.length > 0 ? subjects[0] : '', topics: [], totalMarks: 100 })
     } catch (error) {
       console.error("Error generating paper:", error)
+      alert('Paper generation failed. Please try again.')
     } finally {
       setIsGenerating(false)
     }

@@ -19,4 +19,8 @@ public interface QuestionTopicRepository extends JpaRepository<QuestionTopic, Qu
     List<QuestionTopic> findByQuestionIds(@Param("questionIds") List<UUID> questionIds);
 
     void deleteByQuestionQuestionIdIn(List<UUID> questionIds);
+
+    /** All topic links for a single question — used by the submission-grading flow
+     *  to spread that question's awarded marks across its topics. */
+    List<QuestionTopic> findByQuestionQuestionId(UUID questionId);
 }

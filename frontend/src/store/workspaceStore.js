@@ -200,15 +200,19 @@ const useWorkspaceStore = create((set, get) => ({
       })
 
       if (aiRes.data.error) {
-        set({ error: `Paper generation failed: ${aiRes.data.error}` })
-        return newDoc.documentId
+        await get()._discardGeneratedDoc(newDoc.documentId, `Paper generation failed: ${aiRes.data.error}`)
+        return null
       }
 
       markdownContent = aiRes.data.markdown_content
     } catch (err) {
       console.error('❌ Step 2 FAILED:', err)
-      set({ error: 'AI paper generation failed' })
-      return newDoc.documentId
+      // The AI service rejects the request (HTTP 400) when the chosen subject has no
+      // questions in the DB — surface that exact reason instead of a generic message.
+      const data = err?.response?.data || {}
+      const serverMsg = data.error || data.message || data.detail
+      await get()._discardGeneratedDoc(newDoc.documentId, serverMsg || 'AI paper generation failed. Please try again.')
+      return null
     }
 
     console.log('⏳ Step 3 - Formatting HTML...')
@@ -245,6 +249,26 @@ const useWorkspaceStore = create((set, get) => ({
     })))
 
     return newDoc.documentId
+  },
+
+  // Roll back the empty placeholder doc created before a failed AI generation,
+  // so the workspace isn't littered with blank "Exam Paper" tabs, and record why.
+  _discardGeneratedDoc: async (documentId, errorMsg) => {
+    set((state) => {
+      const remaining = state.tabs.filter((t) => t.documentId !== documentId)
+      return {
+        tabs: remaining,
+        activeTabId: state.activeTabId === documentId
+          ? (remaining[remaining.length - 1]?.documentId || null)
+          : state.activeTabId,
+        error: errorMsg,
+      }
+    })
+    try {
+      const rawUser = localStorage.getItem('intellbank_user')
+      const email = rawUser ? JSON.parse(rawUser)?.email : null
+      if (email) await DocumentService.delete(documentId, email)
+    } catch { /* best-effort cleanup — leaving an empty doc is non-fatal */ }
   },
 
   openPastYearPaperTab: async (pypId) => {

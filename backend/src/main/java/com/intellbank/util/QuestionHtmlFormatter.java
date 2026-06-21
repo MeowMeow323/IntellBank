@@ -81,6 +81,10 @@ public class QuestionHtmlFormatter {
     private static final String TH_STYLE  = "border:1px solid #475569;padding:7px 10px;text-align:left;";
     private static final String TD_STYLE  = "border:1px solid #e2e8f0;padding:6px 10px;";
 
+    // A scenario/context block is the stem text before the first sub-question.
+    // We treat it as a scenario when it is longer than this threshold (chars).
+    private static final int SCENARIO_THRESHOLD = 150;
+
     // Marks annotation at end of sub-question: "(7 marks)", "(3 + 4 marks)", "[6 marks]"
     private static final Pattern MARKS_ANNOTATION = Pattern.compile(
         "[\\[(]\\s*(\\d+(?:\\s*[+]\\s*\\d+)*)\\s*marks?\\s*[\\])]\\s*$",
@@ -502,7 +506,13 @@ public class QuestionHtmlFormatter {
             // Stem text before this marker
             String segment = text.substring(pos, bounds.get(i)[0]).trim();
             if (!segment.isEmpty()) {
-                html.append(paragraphs(highlightLabel(segment)));
+                // First stem only: if it's long enough to be a case-study scenario,
+                // render it in the styled "Context / Scenario" box instead of plain paragraphs.
+                if (i == 0 && segment.length() > SCENARIO_THRESHOLD) {
+                    html.append(scenarioBox(segment));
+                } else {
+                    html.append(paragraphs(highlightLabel(segment)));
+                }
             }
 
             int    contentStart = bounds.get(i)[1];
@@ -551,6 +561,29 @@ public class QuestionHtmlFormatter {
         }
 
         return html.toString();
+    }
+
+    /**
+     * Renders the scenario/context paragraph(s) in a visually distinct box,
+     * matching the styled "Context / Scenario" block shown in past-year paper views.
+     */
+    private static String scenarioBox(String text) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div style=\"background:#f8fafc;border:1px solid #cbd5e1;")
+          .append("border-left:4px solid #334155;border-radius:0 4px 4px 0;")
+          .append("padding:1rem 1.25rem;margin-bottom:1.5rem;\">")
+          .append("<p style=\"font-weight:700;font-size:0.78rem;letter-spacing:0.08em;")
+          .append("text-transform:uppercase;color:#475569;margin:0 0 0.75rem 0;\">")
+          .append("Context / Scenario</p>");
+        for (String chunk : text.split("\\n{2,}")) {
+            String t = chunk.trim().replace("\n", " ");
+            if (!t.isEmpty()) {
+                sb.append("<p style=\"").append(P_STYLE).append("margin-bottom:0.6rem;\">")
+                  .append(t).append("</p>");
+            }
+        }
+        sb.append("</div>");
+        return sb.toString();
     }
 
     /** Wraps multi-paragraph plain text in individual <p> tags. */

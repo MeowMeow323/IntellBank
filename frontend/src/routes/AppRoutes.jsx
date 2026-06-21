@@ -11,10 +11,10 @@ import DocumentUploadPage from '../pages/DocumentUploadPage.jsx'
 import QuestionBankPage from '../pages/QuestionBankPage.jsx'
 import VerificationPage from '../pages/VerificationPage.jsx'
 import PredictiveAnalyticsPage from '../pages/PredictiveAnalyticsPage.jsx'
-import ExamSimulatorPage from '../pages/ExamSimulatorPage.jsx'
 import PastYearPaperLibraryPage from '../pages/PastYearPaperLibraryPage.jsx'
 import PastYearPaperQuestionsPage from '../pages/PastYearPaperQuestionsPage.jsx'
 import SubjectTopicManagementPage from '../pages/SubjectTopicManagementPage.jsx'
+import SubmissionsPage from '../pages/SubmissionsPage.jsx'
 
 /**
  * ProtectedRoute – redirects to /login if the user is not authenticated.
@@ -94,10 +94,10 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/exam"
+        path="/submissions"
         element={
           <ProtectedRoute>
-            <ExamSimulatorPage />
+            <SubmissionsPage />
           </ProtectedRoute>
         }
       />

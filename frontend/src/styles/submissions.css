@@ -1,0 +1,44 @@
+.sub-banner {
+  background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.4);
+  color: #f59e0b; padding: 0.75rem 1rem; border-radius: var(--radius-md);
+  font-size: 0.88rem; margin-bottom: 1.25rem;
+}
+.sub-table { width: 100%; border-collapse: collapse; }
+.sub-table th {
+  text-align: left; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-text-muted); padding: 0 0.75rem 0.75rem; border-bottom: 1px solid var(--color-border);
+}
+.sub-table td { padding: 0.9rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+.sub-doc-title { font-weight: 600; font-size: 0.95rem; }
+.sub-doc-sub { font-size: 0.78rem; color: var(--color-text-muted); margin-top: 0.15rem; }
+.badge-amber { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.badge-gray  { background: rgba(148,163,184,0.15); color: #94a3b8; }
+.sub-btn {
+  border: none; border-radius: var(--radius-sm); padding: 0.4rem 0.9rem;
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+}
+.sub-btn-view { background: var(--gradient-primary); color: #fff; }
+.sub-btn-undo { background: rgba(239,68,68,0.15); color: #ef4444; }
+.sub-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 2rem;
+}
+.sub-modal {
+  background: var(--color-bg-primary); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: 1.5rem; width: min(820px, 100%);
+  max-height: 86vh; overflow-y: auto;
+}
+.sub-modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+.sub-modal-score { font-size: 1.6rem; font-weight: 700; color: #10b981; }
+.sub-modal-score span { font-size: 0.9rem; color: var(--color-text-muted); font-weight: 500; }
+.sub-topics { margin-bottom: 1rem; }
+.sub-topics-label { font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: 0.4rem; }
+.sub-topics-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.sub-chip {
+  background: var(--color-bg-secondary); border: 1px solid var(--color-border);
+  border-radius: 999px; padding: 0.2rem 0.7rem; font-size: 0.78rem;
+}
+.sub-answers {
+  background: #fff; color: #1e293b; border-radius: var(--radius-md);
+  padding: 1.5rem; line-height: 1.6; max-height: 50vh; overflow-y: auto;
+}

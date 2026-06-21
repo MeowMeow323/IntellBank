@@ -3,11 +3,14 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import '../../styles/sidebar.css'
 
-const NAV_ITEMS = [
+const SHARED_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: '🏠' },
   { path: '/questions', label: 'Question Bank', icon: '📋' },
+]
+
+const STUDENT_ONLY_ITEMS = [
   { path: '/analytics', label: 'Analytics', icon: '📊' },
-  { path: '/exam', label: 'Exam Simulator', icon: '📝' },
+  { path: '/submissions', label: 'Submissions', icon: '📤' },
 ]
 
 const EDUCATOR_ITEMS = [
@@ -55,14 +58,24 @@ const Sidebar = () => {
       {/* Navigation */}
       <nav className="sidebar-nav">
         <div className="sidebar-nav-section">MAIN</div>
-        {NAV_ITEMS.map((item) => (
+        {SHARED_ITEMS.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             id={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
-            className={({ isActive }) =>
-              `sidebar-nav-item ${isActive ? 'active' : ''}`
-            }
+            className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+          >
+            <span className="sidebar-nav-icon">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+
+        {!isEducatorOrAdmin() && STUDENT_ONLY_ITEMS.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            id={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
+            className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
           >
             <span className="sidebar-nav-icon">{item.icon}</span>
             {item.label}
@@ -77,9 +90,7 @@ const Sidebar = () => {
                 key={item.path}
                 to={item.path}
                 id={`nav-${item.label.toLowerCase()}`}
-                className={({ isActive }) =>
-                  `sidebar-nav-item ${isActive ? 'active' : ''}`
-                }
+                className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
               >
                 <span className="sidebar-nav-icon">{item.icon}</span>
                 {item.label}

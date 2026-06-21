@@ -373,16 +373,27 @@ def assign_difficulty(marks) -> str:
 
 
 # Statistical distribution notation: "X ~ B(n, p)" / "X ~ N(mu, sigma)" —
-# OCR consistently misreads "~" (distributed as) as a hyphen here. This
-# exact shape (single capital letter, space, hyphen, space, a known
-# distribution-name prefix, open paren) doesn't occur in ordinary prose, so
-# it's safe to correct deterministically rather than leaving it to
-# spellcheck (which only touches dictionary words, not symbols).
+# OCR consistently misreads "~" (distributed as) as a hyphen here.
 DISTRIBUTION_TILDE_RE = re.compile(r'\b([A-Z])\s-\s(B|N|Po|Geo|Exp|U)\(')
+
+# MinerU hallucinates CJK characters when it encounters shaded table cells
+# (e.g. filled Gantt chart bars). These never legitimately appear in English
+# exam papers, so stripping them is unconditionally safe.
+_CJK_RE = re.compile(
+    '['
+    '一-鿿'      # CJK Unified Ideographs
+    '㐀-䶿'      # CJK Extension A
+    '　-〿'      # CJK Symbols and Punctuation
+    '＀-￯'      # Fullwidth / halfwidth forms
+    ']+',
+    re.UNICODE
+)
 
 
 def fix_common_ocr_substitutions(text: str) -> str:
-    return DISTRIBUTION_TILDE_RE.sub(r'\1 ~ \2(', text)
+    text = DISTRIBUTION_TILDE_RE.sub(r'\1 ~ \2(', text)
+    text = _CJK_RE.sub('', text)
+    return text
 
 
 def clean_question_text(block: str) -> str:

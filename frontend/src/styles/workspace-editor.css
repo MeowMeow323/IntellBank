@@ -1,0 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+
+* { box-sizing: border-box; }
+[contenteditable]:focus { outline: none; }
+[contenteditable] p { margin: 0 0 2px; }

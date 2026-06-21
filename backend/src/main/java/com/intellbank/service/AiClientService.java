@@ -154,9 +154,15 @@ public class AiClientService {
                     restTemplate.exchange(url, HttpMethod.POST, buildRequest(body), MAP_TYPE);
             Map<String, Object> responseBody = response.getBody();
             return responseBody != null ? responseBody : Map.of();
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            // The AI service returned a 4xx/5xx — surface its actual error body
+            // (e.g. the Python traceback detail) instead of a generic message.
+            String detail = e.getResponseBodyAsString();
+            log.error("Paper generation service error {}: {}", e.getStatusCode(), detail);
+            return Map.of("error", "AI service error (" + e.getStatusCode() + "): " + detail);
         } catch (Exception e) {
             log.error("Paper generation service error: {}", e.getMessage());
-            throw new RuntimeException("AI Paper generation service unavailable: " + e.getMessage());
+            return Map.of("error", "AI Paper generation service unavailable: " + e.getMessage());
         }
     }
 

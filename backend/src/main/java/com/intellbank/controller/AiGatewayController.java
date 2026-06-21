@@ -75,6 +75,13 @@ public class AiGatewayController {
         // Copy into a mutable map — Jackson may return an unmodifiable view
         Map<String, Object> result = new LinkedHashMap<>(aiClientService.generatePaper(subject, totalMarks, topics));
 
+        // Propagate errors from the AI service as 400 responses.
+        // Python always serialises Optional[str]=None as "error":null, so we must
+        // check the VALUE is non-null, not just that the key is present.
+        if (result.get("error") != null) {
+            return ResponseEntity.badRequest().body(result);
+        }
+
         // Replace raw markdown_content with properly formatted HTML
         System.out.println("[AiGateway] result keys: " + result.keySet());
         if (result.containsKey("questions")) {
@@ -104,6 +111,8 @@ public class AiGatewayController {
 
     private String buildFormattedPaperHtml(String subject, List<Map<String, Object>> questions) {
         final String PB = "<!--PAGE-->";
+        int numQ      = questions.size();
+        int totalMks  = numQ * 25;
         StringBuilder html = new StringBuilder();
 
         // Cover page — professional centered exam header
@@ -115,13 +124,15 @@ public class AiGatewayController {
             .append("<p style=\"font-size:0.95rem;color:#475569;margin:0 0 1rem;\">EXAMINATION PAPER</p>")
             .append("<hr style=\"border:none;border-top:2px solid #334155;margin:0.75rem auto;width:60%;\">")
             .append("<table style=\"width:100%;margin:0.75rem 0;font-size:0.9rem;\"><tr>")
-            .append("<td style=\"text-align:left;\"><strong>Total Marks:</strong> 100</td>")
-            .append("<td style=\"text-align:center;\"><strong>Questions:</strong> 4</td>")
+            .append("<td style=\"text-align:left;\"><strong>Total Marks:</strong> ").append(totalMks).append("</td>")
+            .append("<td style=\"text-align:center;\"><strong>Questions:</strong> ").append(numQ).append("</td>")
             .append("<td style=\"text-align:right;\"><strong>Duration:</strong> 2½ Hours</td>")
             .append("</tr></table>")
             .append("<hr style=\"border:none;border-top:1px solid #cbd5e1;margin:0.5rem 0;\">")
             .append("<p style=\"font-size:0.85rem;color:#64748b;margin:0.5rem 0 0;\">")
-            .append("Answer <strong>ALL</strong> 4 questions. Each question carries <strong>25 marks</strong>.</p>")
+            .append("Answer <strong>ALL</strong> ").append(numQ)
+            .append(" question").append(numQ == 1 ? "" : "s")
+            .append(". Each question carries <strong>25 marks</strong>.</p>")
             .append("</div>");
 
         // Questions — one per page, topic hidden as data attribute (not visible)

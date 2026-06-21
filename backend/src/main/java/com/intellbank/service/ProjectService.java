@@ -24,11 +24,21 @@ public class ProjectService {
 
     public List<Project> getProjectsForStudent(String email) {
         log.info("Getting projects for student with email: {}", email);
-        Student student = getStudent(email);
-        log.info("Found student: {}", student.getStudentId());
-        List<Project> projects = projectRepository.findByStudentStudentId(student.getStudentId());
-        log.info("Found {} projects", projects.size());
-        return projects;
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new AppException("User not found", HttpStatus.NOT_FOUND));
+
+        // Educators / admins have no Student profile — they simply have no projects,
+        // so return an empty list instead of 404ing the shared dashboard fetch.
+        return studentRepository.findByUserUserId(user.getUserId())
+                .map(student -> {
+                    List<Project> projects = projectRepository.findByStudentStudentId(student.getStudentId());
+                    log.info("Found {} projects for student {}", projects.size(), student.getStudentId());
+                    return projects;
+                })
+                .orElseGet(() -> {
+                    log.info("No student profile for {} — returning no projects", email);
+                    return List.of();
+                });
     }
 
     @Transactional
