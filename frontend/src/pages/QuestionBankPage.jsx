@@ -112,17 +112,21 @@ const QuestionBankPage = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                     {q.topics?.length > 0 ? (
-                      q.topics.map((t, i) => (
-                        <React.Fragment key={i}>
-                          <span className="badge badge-blue">{t.subject}</span>
-                          <span className="badge badge-purple">{t.topic}</span>
-                          {t.difficulty && (
-                            <span className={`badge ${DIFFICULTY_BADGE[t.difficulty] || 'badge-blue'}`}>
-                              {t.difficulty}
-                            </span>
-                          )}
-                        </React.Fragment>
-                      ))
+                      // subject and difficulty are the same across every entry in
+                      // q.topics (one classification call per question, shared
+                      // subject_id/difficulty for all its topic matches) — show
+                      // each once for the question, not once per topic.
+                      <>
+                        <span className="badge badge-blue">{q.topics[0].subject}</span>
+                        {q.topics.map((t, i) => (
+                          <span key={i} className="badge badge-purple">{t.topic}</span>
+                        ))}
+                        {q.topics[0].difficulty && (
+                          <span className={`badge ${DIFFICULTY_BADGE[q.topics[0].difficulty] || 'badge-blue'}`}>
+                            {q.topics[0].difficulty}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <span className="badge badge-blue">Unclassified</span>
                     )}
