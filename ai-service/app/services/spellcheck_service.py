@@ -18,8 +18,10 @@ failure, not preemptively.
 """
 
 import re
+import threading
 
 _checker = None
+_checker_lock = threading.Lock()
 
 # Tables/diagrams/math aren't prose — never spellcheck inside them.
 SKIP_SPAN_RE = re.compile(
@@ -103,12 +105,17 @@ def _looks_like_code(paragraph: str) -> bool:
 
 
 def _get_checker():
+    # Same thread-safety concern as classification_service's lazy singleton
+    # — multiple papers now process concurrently (job_queue_service.py).
     global _checker
-    if _checker is None:
-        from spellchecker import SpellChecker
-        _checker = SpellChecker()
-        _checker.word_frequency.load_words(_KNOWN_EXTRA_WORDS)
-    return _checker
+    if _checker is not None:
+        return _checker
+    with _checker_lock:
+        if _checker is None:
+            from spellchecker import SpellChecker
+            _checker = SpellChecker()
+            _checker.word_frequency.load_words(_KNOWN_EXTRA_WORDS)
+        return _checker
 
 
 def _correct_word(word: str) -> str:
