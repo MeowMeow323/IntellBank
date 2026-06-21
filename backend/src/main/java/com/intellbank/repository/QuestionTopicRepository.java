@@ -17,4 +17,6 @@ public interface QuestionTopicRepository extends JpaRepository<QuestionTopic, Qu
            "LEFT JOIN FETCH qt.difficulty " +
            "WHERE qt.question.questionId IN :questionIds")
     List<QuestionTopic> findByQuestionIds(@Param("questionIds") List<UUID> questionIds);
+
+    void deleteByQuestionQuestionIdIn(List<UUID> questionIds);
 }

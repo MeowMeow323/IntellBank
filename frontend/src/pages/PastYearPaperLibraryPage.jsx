@@ -20,7 +20,7 @@ const POLL_INTERVAL_MS = 2000
 // job_queue_service.py) — this row polls /progress independently of
 // whatever else is happening on the page, so it keeps reflecting real
 // state even if you navigate away and come back, or refresh entirely.
-const PaperRow = ({ paper, onProcess, onSettled, navigate }) => {
+const PaperRow = ({ paper, onProcess, onSettled, onDeleteRequest, navigate }) => {
   const [progress, setProgress] = useState(null)
   const isActive = ACTIVE_STATUSES.has(paper.status)
 
@@ -109,6 +109,16 @@ const PaperRow = ({ paper, onProcess, onSettled, navigate }) => {
                 ? 'Reprocess'
                 : 'Process'}
         </button>
+
+        <button
+          className="btn btn-secondary"
+          onClick={() => onDeleteRequest(paper)}
+          disabled={isActive}
+          id={`delete-pyp-${paper.pypId}`}
+          title="Delete this paper, its extracted questions, and the original PDF"
+        >
+          Delete
+        </button>
       </div>
     </div>
   )
@@ -131,6 +141,10 @@ const PastYearPaperLibraryPage = () => {
   const [stage, setStage] = useState('idle')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
+
+  const [deleteTarget, setDeleteTarget] = useState(null) // { pypId, title } | null
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const busy = stage === 'uploading'
 
@@ -199,6 +213,27 @@ const PastYearPaperLibraryPage = () => {
     }
   }
 
+  const requestDelete = (paper) => {
+    setDeleteError('')
+    setDeleteTarget({ pypId: paper.pypId, title: paper.title })
+  }
+  const cancelDelete = () => { if (!isDeleting) setDeleteTarget(null) }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    setDeleteError('')
+    try {
+      await PastYearPaperService.delete(deleteTarget.pypId)
+      setDeleteTarget(null)
+      loadPapers()
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Failed to delete paper.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const handleUploadSubmit = async () => {
     if (selectedFiles.length === 0) return
     setStage('uploading')
@@ -255,6 +290,7 @@ const PastYearPaperLibraryPage = () => {
                   paper={paper}
                   onProcess={triggerProcessing}
                   onSettled={loadPapers}
+                  onDeleteRequest={requestDelete}
                   navigate={navigate}
                 />
               ))}
@@ -337,6 +373,28 @@ const PastYearPaperLibraryPage = () => {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteTarget && (
+          <div className="modal-overlay" onClick={cancelDelete}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2>🗑️ Delete "{deleteTarget.title}"?</h2>
+              <p>
+                This will permanently delete the paper, its extracted questions, and the
+                original PDF from storage. This cannot be undone.
+              </p>
+              {deleteError && <p style={{ color: 'var(--color-danger, #d32f2f)' }}>{deleteError}</p>}
+              <div className="modal-actions">
+                <button className="btn btn-secondary" onClick={cancelDelete} disabled={isDeleting}>
+                  Cancel
+                </button>
+                <button className="btn btn-danger" onClick={confirmDelete} disabled={isDeleting} id="confirm-delete-pyp">
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
         )}

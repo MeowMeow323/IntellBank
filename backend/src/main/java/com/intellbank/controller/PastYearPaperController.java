@@ -39,4 +39,10 @@ public class PastYearPaperController {
     public ResponseEntity<Map<String, Object>> progress(@PathVariable UUID pypId) {
         return ResponseEntity.ok(pastYearPaperService.getProgress(pypId));
     }
+
+    @DeleteMapping("/{pypId}")
+    public ResponseEntity<Void> delete(@PathVariable UUID pypId) {
+        pastYearPaperService.deletePaper(pypId);
+        return ResponseEntity.noContent().build();
+    }
 }

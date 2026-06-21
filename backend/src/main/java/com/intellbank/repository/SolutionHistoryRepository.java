@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface SolutionHistoryRepository extends JpaRepository<SolutionHistory, UUID> {
     List<SolutionHistory> findBySolutionSolutionIdOrderByChangedTimestampDesc(UUID solutionId);
+
+    void deleteBySolutionSolutionIdIn(List<UUID> solutionIds);
 }

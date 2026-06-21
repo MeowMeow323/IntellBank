@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface DocumentQuestionRepository extends JpaRepository<DocumentQuestion, DocumentQuestionId> {
     List<DocumentQuestion> findByDocumentDocumentId(UUID documentId);
     void deleteByDocumentDocumentId(UUID documentId);
+    void deleteByQuestionQuestionIdIn(List<UUID> questionIds);
 }

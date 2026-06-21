@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
     List<Question> findByPastYearPaperPypId(UUID pypId);
+
+    void deleteByPastYearPaperPypId(UUID pypId);
 }

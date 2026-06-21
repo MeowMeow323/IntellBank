@@ -72,6 +72,33 @@ public class SupabaseStorageService {
     }
 
     /**
+     * Deletes a previously-uploaded file from Supabase Storage. Mirrors the
+     * Python pipeline's delete_pdf_from_storage() auth header shape. Skips
+     * silently (no throw) if storagePath is empty/external — a missing
+     * original file shouldn't block deleting the paper's DB rows.
+     */
+    public void deletePdf(String storagePath) {
+        if (storagePath == null || storagePath.isBlank() || storagePath.startsWith("http")) {
+            return;
+        }
+        if (supabaseUrl == null || supabaseUrl.isBlank() || serviceKey == null || serviceKey.isBlank()) {
+            log.warn("Skipping Storage delete for {} — Supabase Storage not configured", storagePath);
+            return;
+        }
+
+        String url = supabaseUrl.replaceAll("/$", "") + "/storage/v1/object/" + bucket + "/" + storagePath;
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + serviceKey);
+        headers.set("apikey", serviceKey);
+
+        try {
+            restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headers), String.class);
+        } catch (Exception e) {
+            log.warn("Supabase Storage delete failed for {}: {}", storagePath, e.getMessage());
+        }
+    }
+
+    /**
      * Builds a public, directly viewable URL for a path previously returned
      * by uploadPdf() — matches the exact convention the AI service's
      * ocr_service.build_url() already uses to read these files back.

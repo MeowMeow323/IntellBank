@@ -147,6 +147,7 @@ export const PastYearPaperService = {
   },
   process: (pypId) => api.post(`/api/past-year-papers/${pypId}/process`),
   getProgress: (pypId) => api.get(`/api/past-year-papers/${pypId}/progress`),
+  delete: (pypId) => api.delete(`/api/past-year-papers/${pypId}`),
 }
 
 // ── Metadata Service ──────────────────────────────────────────────────────────
