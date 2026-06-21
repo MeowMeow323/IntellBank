@@ -25,6 +25,22 @@ def get_db_connection():
         password=password
     )
 
+def fetch_subject_id_by_name(conn, subject: str) -> str | None:
+    """Looks up a subject_id by name (exact match, case-insensitive)."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT subject_id FROM subjects WHERE LOWER(name) = LOWER(%s)", (subject,))
+        row = cur.fetchone()
+        return str(row[0]) if row else None
+
+
+def fetch_topic_names_for_subject(conn, subject_id: str) -> list[str]:
+    """Returns all topic names already defined for a subject — these are the
+    candidate labels handed to the zero-shot classifier (see classification_service)."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT name FROM topics WHERE subject_id = %s ORDER BY name", (subject_id,))
+        return [row[0] for row in cur.fetchall()]
+
+
 def fetch_questions_for_topics(subject: str, topics: list, limit: int = 10) -> list:
     """
     Fetch up to `limit` random questions matching the subject and ANY of the given topics.

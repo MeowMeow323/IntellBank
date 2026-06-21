@@ -10,6 +10,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * AiClientService – the ONLY class in Spring Boot that communicates with the Python FastAPI AI service.
@@ -156,6 +157,43 @@ public class AiClientService {
         } catch (Exception e) {
             log.error("Paper generation service error: {}", e.getMessage());
             throw new RuntimeException("AI Paper generation service unavailable: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Runs the full OCR -> parse -> classify -> store pipeline for a past
+     * year paper that's already been uploaded to Storage + recorded in
+     * past_year_papers (see PastYearPaperService.uploadPaper).
+     * POST /ai/ocr/process-paper
+     */
+    public Map<String, Object> processPastYearPaper(UUID pypId) {
+        String url = aiBaseUrl + "/ai/ocr/process-paper";
+        Map<String, Object> body = Map.of("pyp_id", pypId.toString());
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.POST, buildRequest(body), MAP_TYPE);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Process-paper service error: {}", e.getMessage());
+            throw new RuntimeException("AI OCR processing service unavailable: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Live status/step for a queued or running process-paper job.
+     * GET /ai/ocr/process-paper/{pypId}/progress
+     */
+    public Map<String, Object> getProcessingProgress(UUID pypId) {
+        String url = aiBaseUrl + "/ai/ocr/process-paper/" + pypId + "/progress";
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Process-paper progress service error: {}", e.getMessage());
+            throw new RuntimeException("AI OCR progress service unavailable: " + e.getMessage());
         }
     }
 

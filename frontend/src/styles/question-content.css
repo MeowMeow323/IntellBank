@@ -1,0 +1,108 @@
+/* Rendered question content — scenario boxes, tables, code blocks */
+
+.question-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.question-paragraph {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.question-scenario {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem;
+}
+
+.question-scenario-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.question-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.question-table th,
+.question-table td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.question-table thead th {
+  background: var(--color-bg-secondary);
+  font-weight: 700;
+}
+
+.question-table tbody tr:nth-child(even) {
+  background: var(--color-bg-secondary);
+}
+
+.question-code {
+  background: #0d1117;
+  color: #e6edf3;
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1.1rem;
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.question-diagram-placeholder {
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+.question-diagram-placeholder a {
+  color: var(--color-accent-blue);
+}
+
+/* Shown when pix2tex produced LaTeX KaTeX can't parse — falls back to the
+   raw $...$ source instead of crashing the page. */
+.question-math-error {
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  color: var(--color-accent-rose, #f43f5e);
+  font-size: 0.85em;
+}
+
+.question-edit-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.question-edit-textarea {
+  width: 100%;
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.question-edit-error {
+  color: var(--color-accent-rose, #f43f5e);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}

@@ -11,4 +11,8 @@ public interface SolutionRepository extends JpaRepository<Solution, UUID> {
 
     /** Pending verification = isVerified is false. */
     List<Solution> findByIsVerifiedFalse();
+
+    List<Solution> findByQuestionQuestionIdIn(List<UUID> questionIds);
+
+    void deleteByQuestionQuestionIdIn(List<UUID> questionIds);
 }

@@ -1,23 +1,25 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import EditableQuestionContent from '../components/EditableQuestionContent.jsx'
 import '../styles/question-bank.css'
 
-const DIFFICULTY_BADGE = { EASY: 'badge-green', MEDIUM: 'badge-amber', HARD: 'badge-red' }
+const DIFFICULTY_BADGE = { Easy: 'badge-green', Medium: 'badge-amber', Hard: 'badge-red' }
 
 const QuestionBankPage = () => {
   const [questions, setQuestions] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const [filters, setFilters] = useState({ subject: '', topic: '' })
+  const [subjectFilter, setSubjectFilter] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     loadQuestions()
   }, [])
 
-  const loadQuestions = async (params = {}) => {
+  const loadQuestions = async () => {
     setIsLoading(true)
     try {
-      const res = await QuestionService.getAll(params)
+      const res = await QuestionService.getAll()
       setQuestions(res.data)
     } catch {
       // TODO: handle error
@@ -26,12 +28,25 @@ const QuestionBankPage = () => {
     }
   }
 
-  const handleFilter = (e) => {
-    e.preventDefault()
-    const params = {}
-    if (filters.subject) params.subject = filters.subject
-    if (filters.topic) params.topic = filters.topic
-    loadQuestions(params)
+  const subjects = useMemo(() => {
+    const set = new Set()
+    questions.forEach((q) => q.topics?.forEach((t) => set.add(t.subject)))
+    return Array.from(set).sort()
+  }, [questions])
+
+  const filtered = useMemo(() => {
+    return questions.filter((q) => {
+      if (subjectFilter && !q.topics?.some((t) => t.subject === subjectFilter)) return false
+      if (search && !q.content?.toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+  }, [questions, subjectFilter, search])
+
+  const handleSaveQuestion = async (questionId, newContent, newMarks) => {
+    const res = await QuestionService.update(questionId, { content: newContent, marks: newMarks })
+    setQuestions((prev) => prev.map((q) =>
+      q.questionId === questionId ? { ...q, content: res.data.content, marks: res.data.marks } : q
+    ))
   }
 
   return (
@@ -40,67 +55,89 @@ const QuestionBankPage = () => {
       <main className="main-content">
         <div className="page-header">
           <h1 className="page-title">Question Bank</h1>
-          <p className="page-subtitle">Browse and manage all questions in the system</p>
+          <p className="page-subtitle">Browse all extracted &amp; created questions in the system</p>
         </div>
 
         {/* Filters */}
-        <form className="filter-bar" onSubmit={handleFilter} id="question-filters">
-          <input
+        <div className="filter-bar" id="question-filters">
+          <select
             id="filter-subject"
             className="form-input"
-            placeholder="Filter by subject..."
-            value={filters.subject}
-            onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
-          />
+            value={subjectFilter}
+            onChange={(e) => setSubjectFilter(e.target.value)}
+          >
+            <option value="">All subjects</option>
+            {subjects.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <input
-            id="filter-topic"
+            id="filter-search"
             className="form-input"
-            placeholder="Filter by topic..."
-            value={filters.topic}
-            onChange={(e) => setFilters({ ...filters, topic: e.target.value })}
+            placeholder="Search question text..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
-          <button type="submit" className="btn btn-secondary">Apply Filters</button>
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => { setFilters({ subject: '', topic: '' }); loadQuestions() }}
+            onClick={() => { setSubjectFilter(''); setSearch('') }}
           >
             Clear
           </button>
-        </form>
+        </div>
+
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: '0 0 1rem' }}>
+          {filtered.length} of {questions.length} question(s)
+        </p>
 
         {/* Questions List */}
         {isLoading ? (
           <div className="flex justify-center">
             <div className="spinner" />
           </div>
-        ) : questions.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="empty-state">
             <div>❓</div>
-            <p>No questions found. Upload documents or create questions manually.</p>
+            <p>
+              {questions.length === 0
+                ? 'No questions found yet. Upload and process a past year paper to extract some.'
+                : 'No questions match the current filter.'}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-3" id="questions-list">
-            {questions.map((q) => (
-              <div key={q.id} className="card question-card" id={`question-${q.id}`}>
+            {filtered.map((q) => (
+              <div key={q.questionId} className="card question-card" id={`question-${q.questionId}`}>
                 <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    {q.subject && <span className="badge badge-blue">{q.subject}</span>}
-                    {q.topic && <span className="badge badge-purple">{q.topic}</span>}
-                    {q.difficulty && (
-                      <span className={`badge ${DIFFICULTY_BADGE[q.difficulty] || 'badge-blue'}`}>
-                        {q.difficulty}
-                      </span>
+                  <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                    {q.topics?.length > 0 ? (
+                      q.topics.map((t, i) => (
+                        <React.Fragment key={i}>
+                          <span className="badge badge-blue">{t.subject}</span>
+                          <span className="badge badge-purple">{t.topic}</span>
+                          {t.difficulty && (
+                            <span className={`badge ${DIFFICULTY_BADGE[t.difficulty] || 'badge-blue'}`}>
+                              {t.difficulty}
+                            </span>
+                          )}
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <span className="badge badge-blue">Unclassified</span>
                     )}
                   </div>
-                  <span className={`badge ${q.verificationStatus === 'VERIFIED' ? 'badge-green' : q.verificationStatus === 'REJECTED' ? 'badge-red' : 'badge-amber'}`}>
-                    {q.verificationStatus}
-                  </span>
+                  {q.pypTitle && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                      from {q.pypTitle}
+                    </span>
+                  )}
                 </div>
-                <p>{q.questionText}</p>
-                <div>
-                  {q.marks} mark{q.marks !== 1 ? 's' : ''} · {q.sourceType?.replace(/_/g, ' ')}
-                </div>
+                <EditableQuestionContent
+                  content={q.content}
+                  marks={q.marks}
+                  onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
+                />
               </div>
             ))}
           </div>

@@ -12,6 +12,8 @@ const NAV_ITEMS = [
 
 const EDUCATOR_ITEMS = [
   { path: '/verification', label: 'Verification', icon: '✅' },
+  { path: '/past-year-papers', label: 'Past Year Papers', icon: '📄' },
+  { path: '/subjects-topics', label: 'Subjects & Topics', icon: '🏷️' },
 ]
 
 const Sidebar = () => {
