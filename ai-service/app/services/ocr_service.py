@@ -149,10 +149,17 @@ QUESTION_RE = re.compile(
     re.MULTILINE | re.IGNORECASE
 )
 
-# Matches sub-question markers: a), b), (i), (ii), a., b. etc. at line start
-SUB_Q_RE = re.compile(
-    r'(?m)^[ \t]*(\(?[a-z]{1,3}[).)]|\(?[ivx]{1,5}[).)])\s+',
-)
+# Sub-question markers, split into two distinct levels (letter: a) b) c),
+# roman: (i) (ii) (iii)) rather than one flat list. A bare "i"/"ii" matches
+# both `[a-z]{1,3}` and `[ivx]{1,5}`, so without a structural distinction
+# (i)/(ii) under a lettered part get misread as new top-level letter
+# matches — verified against real papers, roman numerals are always fully
+# parenthesized and letters never are, so requiring that disambiguates
+# cleanly. `\s*` (not `\s+`) tolerates OCR output with no space after the
+# marker at all (seen as "a)Explain..." in real output) — `\s+` silently
+# swallowed that whole sub-part into the previous stem instead of matching it.
+LETTER_SUB_Q_RE = re.compile(r'(?m)^[ \t]*([a-z]{1,3}[).)])\s*')
+ROMAN_SUB_Q_RE  = re.compile(r'(?m)^[ \t]*(\([ivx]{1,5}\))\s*')
 
 
 # Per-question footer, e.g. "[Total: 25 marks]" — used as a secondary split
@@ -163,6 +170,13 @@ SUB_Q_RE = re.compile(
 # readable. Bracket chars are themselves sometimes misread (saw "(...]" in
 # real output), so both sides are matched independently and optionally.
 TOTAL_MARKS_RE = re.compile(r'[\[\(]?\s*Total[:\s]+\d+\s*marks?\s*[\]\)]?', re.IGNORECASE)
+
+# Some papers print the question-level total with no brackets and no
+# "Total" keyword at all — just "25 marks" alone on its own line. Checked
+# separately (not merged into TOTAL_MARKS_RE) so a real per-part "(N marks)"
+# annotation — which is never alone on a line without parens — can't get
+# caught by this looser pattern.
+BARE_TOTAL_RE = re.compile(r'(?m)^\s*\d+\s*marks?\s*$', re.IGNORECASE)
 
 
 def _resplit_on_total_marks(block: str) -> list[str]:
@@ -302,28 +316,109 @@ def clean_preamble(preamble: str) -> str:
     return '\n'.join(result).strip()
 
 
-def split_subquestions(block: str) -> list[tuple[str, str]]:
-    """
-    Splits a main question block into individual sub-questions.
-    The question stem (text before the first sub-question marker) is prepended to
-    each sub-question so it retains context when stored and retrieved independently.
-    Returns [(full_content, marker), ...].
-    If no sub-question markers are found, returns [(block, '')] so the whole block
-    is stored as one record — works for any paper format.
-    """
-    matches = list(SUB_Q_RE.finditer(block))
-    if not matches:
-        return [(block, '')]
+# A real scenario/stem is worth prepending; a bare "Question 3" header (or a
+# bare "c)" with nothing before its own roman numerals) isn't — this
+# threshold is what tells the two apart. Same value `split_subquestions`
+# used before it was replaced.
+_MIN_STEM_LEN = 20
 
-    stem = block[:matches[0].start()].strip()
-    result = []
-    for i, m in enumerate(matches):
-        start = m.start()
-        end   = matches[i + 1].start() if i + 1 < len(matches) else len(block)
-        subq  = block[start:end].strip()
-        full  = (stem + '\n\n' + subq) if (stem and len(stem) > 20) else subq
-        result.append((full, m.group(1)))
-    return result
+
+def split_subquestions_deep(block: str) -> tuple[list[tuple[str, str]], int | None]:
+    """
+    Splits a main "Question N" block down to its deepest available
+    sub-question level: roman numerals (i)/(ii)/(iii) where a lettered part
+    has them, otherwise the letter level a)/b)/c)/d). Any scenario text
+    above a)/b)/c) (applies to the whole question) and any scenario text
+    inside one lettered part above its own (i)/(ii) (applies to just that
+    part) both get copied into every deepest piece that needs them, so each
+    stored row reads standalone.
+
+    Returns (pieces, overall_total) — pieces is [(content, label), ...]
+    (label like "a", "c-i", for logging only, not stored), overall_total is
+    the question's [Total: N marks] (or bare "N marks") value if present,
+    for process_paper() to fall back on when a piece has no marks
+    annotation of its own.
+
+    If no lettered markers are found at all, returns ([(block, '')], total)
+    so the whole block is stored as one record — works for any paper format.
+    """
+    overall_total = None
+    m = TOTAL_MARKS_RE.search(block)
+    if not m:
+        m = BARE_TOTAL_RE.search(block)
+    if m:
+        digits = re.search(r'\d+', m.group())
+        overall_total = int(digits.group()) if digits else None
+        block = block[:m.start()]
+
+    letters = list(LETTER_SUB_Q_RE.finditer(block))
+    if not letters:
+        return [(block.strip(), '')], overall_total
+
+    outer_stem = block[:letters[0].start()].strip()
+    keep_outer = len(outer_stem) > _MIN_STEM_LEN
+
+    pieces = []
+    for i, lm in enumerate(letters):
+        l_start = lm.start()
+        l_end   = letters[i + 1].start() if i + 1 < len(letters) else len(block)
+        letter_text  = block[l_start:l_end].strip()
+        letter_label = lm.group(1).strip('().')
+
+        romans = list(ROMAN_SUB_Q_RE.finditer(letter_text))
+        if not romans:
+            content = (outer_stem + '\n\n' + letter_text) if keep_outer else letter_text
+            pieces.append((content, letter_label))
+            continue
+
+        # A single lettered part can contain *multiple independent*
+        # (i)/(ii) pairs, each introduced by its own fresh scenario, each
+        # restarting its own roman count from "i" — verified against a real
+        # Statistics paper (Question 4's "a)" has three separate (i)/(ii)
+        # pairs about three unrelated scenarios). A bare single inner_stem
+        # (text before the *first* roman match, reused for every piece) is
+        # wrong here on two counts: every later group loses its own real
+        # scenario, and naively spanning "this roman to the next roman"
+        # makes the last piece of one group swallow the next group's
+        # scenario text (it has nowhere else to go otherwise).
+        #
+        # Fix: bound each roman piece by its *own* marks annotation if it
+        # has one, rather than by the next roman match. That leaves
+        # whatever sits between one piece's real end and the next roman
+        # match available as that next piece's stem — which is exactly the
+        # in-between scenario text. Falls back to "next roman match" (the
+        # old behavior) when a piece has no marks annotation of its own.
+        tight_ends = []
+        for j, rm in enumerate(romans):
+            window_end = romans[j + 1].start() if j + 1 < len(romans) else len(letter_text)
+            mm = re.search(r'\(\s*\d+(?:\s*\+\s*\d+)*\s*marks?\s*\)', letter_text[rm.start():window_end], re.IGNORECASE)
+            tight_ends.append(rm.start() + mm.end() if mm else window_end)
+
+        run_starts = [0]
+        for ri in range(1, len(romans)):
+            if romans[ri].group(1).strip('()').lower() == 'i':
+                run_starts.append(ri)
+
+        for run_idx, start_idx in enumerate(run_starts):
+            end_idx = run_starts[run_idx + 1] if run_idx + 1 < len(run_starts) else len(romans)
+            stem_search_start = tight_ends[start_idx - 1] if start_idx > 0 else 0
+            run_stem = letter_text[stem_search_start:romans[start_idx].start()].strip()
+            keep_run_stem = len(run_stem) > _MIN_STEM_LEN
+            group_prefix = f'{run_idx + 1}-' if len(run_starts) > 1 else ''
+
+            for ri in range(start_idx, end_idx):
+                rm = romans[ri]
+                roman_text  = letter_text[rm.start():tight_ends[ri]].strip()
+                roman_label = rm.group(1).strip('()')
+
+                content = roman_text
+                if keep_run_stem:
+                    content = run_stem + '\n\n' + content
+                if keep_outer:
+                    content = outer_stem + '\n\n' + content
+                pieces.append((content, f'{letter_label}-{group_prefix}{roman_label}'))
+
+    return pieces, overall_total
 
 
 def deduplicate_blocks(blocks: list[str]) -> list[str]:
@@ -427,6 +522,16 @@ def clean_question_text(block: str) -> str:
     # *also* garbled ("(2" misread as "-"), which incidentally dodged the
     # pattern. The actual redundant marks line ([Total: N marks]) is already
     # handled above and doesn't need this second, overly broad rule.
+    #
+    # This one IS safe, unlike the rule above: split_subquestions_deep()
+    # now structurally guarantees each stored piece's own "(N marks)" (or
+    # "(N + M marks)") annotation sits right at the end of its content (its
+    # tight_end cuts right after that annotation) — so anchoring this strip
+    # to end-of-string specifically (not "any line, anywhere") can't repeat
+    # the old bug of eating an annotation that happens to be mid-content.
+    # Added because the marks value is now also shown in its own UI card —
+    # leaving it duplicated inline as well as in the card read as cluttered.
+    cleaned = re.sub(r'\(\s*\d+(?:\s*\+\s*\d+)*\s*marks?\s*\)\.?\s*$', '', cleaned, flags=re.IGNORECASE)
     return cleaned.strip()
 
 
