@@ -82,7 +82,10 @@ const EditableQuestionContent = ({ content, marks, originalFileUrl, onSave }) =>
     <>
       <QuestionContent content={content} originalFileUrl={originalFileUrl} />
       <div className="flex justify-between items-center" style={{ marginTop: '0.5rem' }}>
-        <span>{marks ?? 1} mark{marks !== 1 ? 's' : ''}</span>
+        <div className="question-marks-card">
+          <span className="question-marks-card-value">{marks ?? 1}</span>
+          <span className="question-marks-card-label">mark{marks !== 1 ? 's' : ''}</span>
+        </div>
         <button className="btn btn-secondary" onClick={startEdit}>Edit</button>
       </div>
     </>

@@ -308,37 +308,69 @@ def process_paper(conn, paper: dict, config: dict, env: dict, on_progress=None) 
 
     inserted = 0
     for block_idx, block in enumerate(blocks, 1):
-        q_text = ocr_service.clean_question_text(block)
-        if not q_text or len(q_text) < 10:
-            continue
-
-        # Prepend scenario/preamble to Q1 using a safe marker the Java formatter understands
-        if block_idx == 1 and preamble:
-            q_text = "[SCENARIO]\n" + preamble + "\n[/SCENARIO]\n" + q_text
-
-        # Dictionary-only correction of obvious OCR misreads (e.g. "modcl" -> "model").
-        # Runs after marks/classification use `block` (the pre-correction text) so
-        # spelling fixes can't shift mark/difficulty/topic extraction.
-        q_text = spellcheck_service.spellcheck_text(q_text)
-        # Deterministic fixups for specific, unambiguous OCR substitutions
-        # that spellcheck can't catch (it only touches dictionary words) —
-        # e.g. "M - B(10, 0.28)" -> "M ~ B(10, 0.28)".
-        q_text = ocr_service.fix_common_ocr_substitutions(q_text)
-
-        marks      = ocr_service.extract_marks(block)
-        difficulty = ocr_service.assign_difficulty(marks)
+        # Classification runs ONCE per main question, on the full original
+        # block text — keeps richer context/keywords for the model, and is
+        # shared across every sub-part stored below rather than re-run on
+        # each (a tiny fragment like "(ii) Discuss TWO characteristics..."
+        # often lacks enough of its own keywords to classify well alone).
         all_topics = classification_service.classify_topics_for_block(conn, subject_id, block)
 
-        question_id = insert_question(conn, pyp_id, q_text, marks)
+        sub_items, overall_total = ocr_service.split_subquestions_deep(block)
 
-        for topic_name in all_topics:
-            topic_id      = upsert_topic(conn, subject_id, topic_name)
-            difficulty_id = upsert_difficulty(conn, difficulty)
-            link_question_topic(conn, question_id, topic_id, difficulty_id)
+        for sub_idx, (sub_block, label) in enumerate(sub_items, 1):
+            q_text = ocr_service.clean_question_text(sub_block)
+            if not q_text or len(q_text) < 10:
+                continue
 
-        print(f"    → Q{block_idx}: topics={all_topics} | difficulty={difficulty} | marks={marks}")
+            # Prepend scenario/preamble to the very first stored row of Q1
+            # using a safe marker the Java formatter understands.
+            if block_idx == 1 and sub_idx == 1 and preamble:
+                q_text = "[SCENARIO]\n" + preamble + "\n[/SCENARIO]\n" + q_text
+
+            # Encode which original "Question N" this row came from, and
+            # which sub-part (e.g. "c-ii"), so the frontend can group rows
+            # back under their original question number instead of just
+            # numbering every stored row 1..N sequentially. No DB column for
+            # this (same "don't touch schema.sql" boundary as the rest of
+            # this pipeline) — it rides along as a stripped-before-display
+            # prefix marker, same mechanism as [SCENARIO]/[TABLE]/[DIAGRAM].
+            q_text = f"[QPART:{block_idx}:{label}]\n" + q_text
+
+            # Dictionary-only correction of obvious OCR misreads (e.g. "modcl" -> "model").
+            # Runs after marks/classification use `sub_block` (the pre-correction text) so
+            # spelling fixes can't shift mark/difficulty extraction.
+            q_text = spellcheck_service.spellcheck_text(q_text)
+            # Deterministic fixups for specific, unambiguous OCR substitutions
+            # that spellcheck can't catch (it only touches dictionary words) —
+            # e.g. "M - B(10, 0.28)" -> "M ~ B(10, 0.28)".
+            q_text = ocr_service.fix_common_ocr_substitutions(q_text)
+
+            # extract_marks() now finds this sub-part's own "(N marks)"
+            # annotation, not the whole question's [Total: N marks] —
+            # that footer was already stripped off in split_subquestions_deep.
+            # Fall back to the question's overall total only if this part
+            # genuinely has no marks annotation of its own (graceful
+            # degradation, not a regression — matches the old behavior for
+            # papers that never show per-part marks at all).
+            marks = ocr_service.extract_marks(sub_block)
+            if marks is None:
+                marks = overall_total
+            difficulty = ocr_service.assign_difficulty(marks)
+
+            question_id = insert_question(conn, pyp_id, q_text, marks)
+
+            # Same topics for every sub-part of this question — see the
+            # classify-once comment above.
+            for topic_name in all_topics:
+                topic_id      = upsert_topic(conn, subject_id, topic_name)
+                difficulty_id = upsert_difficulty(conn, difficulty)
+                link_question_topic(conn, question_id, topic_id, difficulty_id)
+
+            label_suffix = f'.{label}' if label else ''
+            print(f"    → Q{block_idx}{label_suffix}: topics={all_topics} | difficulty={difficulty} | marks={marks}")
+            inserted += 1
+
         report(4, f"Storing question {block_idx}/{len(blocks)}")
-        inserted += 1
 
     conn.commit()
     print(f"  [4/4] ✓ Committed — {inserted} questions stored in Supabase")
