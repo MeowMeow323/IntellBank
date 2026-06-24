@@ -17,6 +17,7 @@ kept so the pipeline never hard-fails for an unconfigured subject.
 
 import os
 import json
+import threading
 
 from app.services import db_service
 
@@ -28,18 +29,31 @@ _ZERO_SHOT_MODEL = "facebook/bart-large-mnli"
 
 # === Lazy singletons ==========================================================
 _classifier = None
+_classifier_lock = threading.Lock()
 _keywords_cache: dict | None = None
 
 
 def _load_zero_shot_classifier():
+    # Past-year-paper processing now runs on a bounded thread pool (see
+    # job_queue_service.py) — multiple papers' first classification call can
+    # land here at the same instant. Without this lock, two threads racing
+    # into `pipeline(...)` both partially construct the same shared model
+    # object, which surfaced as "Cannot copy out of meta tensor; no data!"
+    # (accelerate's low-memory load leaves tensors on a placeholder "meta"
+    # device until fully materialized — one thread can grab the model mid
+    # materialization). The check-lock-check pattern means only the first
+    # thread actually loads it; everyone else just waits and reuses it.
     global _classifier
     if _classifier is not None:
         return _classifier
 
-    from transformers import pipeline
-    print(f"Loading zero-shot classification model ({_ZERO_SHOT_MODEL})...")
-    _classifier = pipeline("zero-shot-classification", model=_ZERO_SHOT_MODEL)
-    return _classifier
+    with _classifier_lock:
+        if _classifier is not None:
+            return _classifier
+        from transformers import pipeline
+        print(f"Loading zero-shot classification model ({_ZERO_SHOT_MODEL})...")
+        _classifier = pipeline("zero-shot-classification", model=_ZERO_SHOT_MODEL)
+        return _classifier
 
 
 # =============================================================================

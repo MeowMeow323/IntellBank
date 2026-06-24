@@ -88,6 +88,33 @@
   font-size: 0.85em;
 }
 
+/* Small standalone card for the marks value — distinct from the topic/
+   difficulty badges (those describe the question, this is a scored value)
+   so it gets its own visual weight instead of blending in as plain text. */
+.question-marks-card {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: var(--radius-md);
+  padding: 0.3rem 0.75rem;
+}
+
+.question-marks-card-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-accent-blue);
+  line-height: 1;
+}
+
+.question-marks-card-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .question-edit-form {
   display: flex;
   flex-direction: column;

@@ -6,6 +6,18 @@ import '../styles/question-bank.css'
 
 const DIFFICULTY_BADGE = { Easy: 'badge-green', Medium: 'badge-amber', Hard: 'badge-red' }
 
+// See PastYearPaperQuestionsPage.jsx for the full explanation — this page
+// spans multiple papers, so grouping by original question number doesn't
+// make sense here, but the marker still needs to be stripped before display
+// (and re-attached on save) so it doesn't show up as literal text.
+const QPART_RE = /^\[QPART:(\d+):([^\]]*)\]\n?/
+
+const parseQPart = (content) => {
+  const m = content?.match(QPART_RE)
+  if (!m) return { groupNum: null, label: '', stripped: content || '' }
+  return { groupNum: parseInt(m[1], 10), label: m[2], stripped: content.slice(m[0].length) }
+}
+
 const QuestionBankPage = () => {
   const [questions, setQuestions] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -43,7 +55,13 @@ const QuestionBankPage = () => {
   }, [questions, subjectFilter, search])
 
   const handleSaveQuestion = async (questionId, newContent, newMarks) => {
-    const res = await QuestionService.update(questionId, { content: newContent, marks: newMarks })
+    // Re-attach this row's [QPART:...] marker (if it had one) before saving
+    // — see PastYearPaperQuestionsPage.jsx for why.
+    const original = questions.find((q) => q.questionId === questionId)
+    const { groupNum, label } = parseQPart(original?.content)
+    const contentToSave = groupNum !== null ? `[QPART:${groupNum}:${label}]\n${newContent}` : newContent
+
+    const res = await QuestionService.update(questionId, { content: contentToSave, marks: newMarks })
     setQuestions((prev) => prev.map((q) =>
       q.questionId === questionId ? { ...q, content: res.data.content, marks: res.data.marks } : q
     ))
@@ -107,39 +125,51 @@ const QuestionBankPage = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-3" id="questions-list">
-            {filtered.map((q) => (
-              <div key={q.questionId} className="card question-card" id={`question-${q.questionId}`}>
-                <div className="flex justify-between items-center">
-                  <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-                    {q.topics?.length > 0 ? (
-                      q.topics.map((t, i) => (
-                        <React.Fragment key={i}>
-                          <span className="badge badge-blue">{t.subject}</span>
-                          <span className="badge badge-purple">{t.topic}</span>
-                          {t.difficulty && (
-                            <span className={`badge ${DIFFICULTY_BADGE[t.difficulty] || 'badge-blue'}`}>
-                              {t.difficulty}
+            {filtered.map((q) => {
+              const { groupNum, label, stripped } = parseQPart(q.content)
+              return (
+                <div key={q.questionId} className="card question-card" id={`question-${q.questionId}`}>
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                      {groupNum !== null && (
+                        <span className="badge badge-blue" title="Original question / sub-part">
+                          Q{groupNum}{label && ` (${label})`}
+                        </span>
+                      )}
+                      {q.topics?.length > 0 ? (
+                        // subject and difficulty are the same across every entry in
+                        // q.topics (one classification call per question, shared
+                        // subject_id/difficulty for all its topic matches) — show
+                        // each once for the question, not once per topic.
+                        <>
+                          <span className="badge badge-blue">{q.topics[0].subject}</span>
+                          {q.topics.map((t, i) => (
+                            <span key={i} className="badge badge-purple">{t.topic}</span>
+                          ))}
+                          {q.topics[0].difficulty && (
+                            <span className={`badge ${DIFFICULTY_BADGE[q.topics[0].difficulty] || 'badge-blue'}`}>
+                              {q.topics[0].difficulty}
                             </span>
                           )}
-                        </React.Fragment>
-                      ))
-                    ) : (
-                      <span className="badge badge-blue">Unclassified</span>
+                        </>
+                      ) : (
+                        <span className="badge badge-blue">Unclassified</span>
+                      )}
+                    </div>
+                    {q.pypTitle && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                        from {q.pypTitle}
+                      </span>
                     )}
                   </div>
-                  {q.pypTitle && (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
-                      from {q.pypTitle}
-                    </span>
-                  )}
+                  <EditableQuestionContent
+                    content={stripped}
+                    marks={q.marks}
+                    onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
+                  />
                 </div>
-                <EditableQuestionContent
-                  content={q.content}
-                  marks={q.marks}
-                  onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
-                />
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </main>
