@@ -161,9 +161,15 @@ const useWorkspaceStore = create((set, get) => ({
 
     let newDoc
     try {
+      // Unique title per generation — the backend's upload reuses a document when
+      // the title matches, so a fixed title would make each new paper overwrite the
+      // previous one. A timestamp keeps every generated paper as its own document.
+      const stamp = new Date().toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit'
+      })
       const res = await DocumentService.upload(
         projectId,
-        `${paperConfig.subject} Exam Paper`,
+        `${paperConfig.subject} Exam Paper — ${stamp}`,
         'AI Generated Exam',
         null
       )

@@ -96,10 +96,8 @@ const LoginPage = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: var(--color-bg-primary);
-          background-image:
-            radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 60%),
-            radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.08) 0%, transparent 60%);
+          background: var(--desk);
+          background-image: radial-gradient(ellipse at 50% -10%, var(--highlight-soft) 0%, transparent 55%);
           padding: 1rem;
         }
         .auth-container {
@@ -126,12 +124,11 @@ const LoginPage = () => {
           box-shadow: var(--shadow-glow);
         }
         .auth-title {
-          font-size: 1.75rem;
-          font-weight: 700;
-          background: var(--gradient-primary);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+          font-family: var(--font-heading);
+          font-size: 1.85rem;
+          font-weight: 600;
+          color: var(--ink);
+          letter-spacing: -0.01em;
         }
         .auth-subtitle {
           color: var(--color-text-secondary);

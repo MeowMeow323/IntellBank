@@ -11,6 +11,19 @@ from typing import List, Dict, Any
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "topic_predictor", "topic_predictions.json")
 
+def available_subjects() -> List[str]:
+    """Subjects that have trained prediction data (the keys of the predictions JSON)."""
+    if not os.path.exists(MODEL_PATH):
+        return []
+    try:
+        with open(MODEL_PATH, "r", encoding="utf-8") as f:
+            predictions_db = json.load(f)
+        return sorted(predictions_db.keys())
+    except Exception as e:
+        print(f"[WARN] Failed to read prediction subjects: {str(e)}")
+        return []
+
+
 def predict_topics(subject: str, year: int = 2025) -> List[Dict[str, Any]]:
     """
     Predict topics likely to appear in the next exam for a given subject.

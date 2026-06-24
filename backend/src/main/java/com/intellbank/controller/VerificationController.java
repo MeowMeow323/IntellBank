@@ -99,7 +99,15 @@ public class VerificationController {
         Map<UUID, Integer> questionMarks = raw.entrySet().stream().collect(Collectors.toMap(
                 e -> UUID.fromString(e.getKey()),
                 e -> e.getValue() == null ? 0 : ((Number) e.getValue()).intValue()));
-        return ResponseEntity.ok(verificationService.gradeSubmission(submissionId, questionMarks, emailOf(auth)));
+
+        // Per-topic educator comments, keyed by topic NAME (the grading UI works in names).
+        Map<String, Object> rawComments = (Map<String, Object>) body.getOrDefault("comments", Map.of());
+        Map<String, String> topicComments = rawComments.entrySet().stream().collect(Collectors.toMap(
+                Map.Entry::getKey,
+                e -> e.getValue() == null ? "" : e.getValue().toString()));
+
+        return ResponseEntity.ok(
+                verificationService.gradeSubmission(submissionId, questionMarks, topicComments, emailOf(auth)));
     }
 
     /** Return a graded submission to the student (frees their submission slot). */

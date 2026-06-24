@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  Plus, Folder, Trash2, FolderKanban, ClipboardList, Send, BarChart3,
+  CheckSquare, FileText, Tags, AlertTriangle,
+} from 'lucide-react'
 import useAuthStore from '../store/authStore'
-import { ProjectService } from '../services/api'
+import { ProjectService, QuestionService, SubmissionService, AnalyticsService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
 import '../styles/global.css'
@@ -20,11 +24,32 @@ const DashboardPage = () => {
   const [errorMessage, setErrorMessage] = useState('')
   const [newProject, setNewProject] = useState({ projectName: '', description: '', subject: '' })
   const [creating, setCreating] = useState(false)
+  const [stats, setStats] = useState({ questions: '—', submissions: '—', mastery: '—' })
 
   useEffect(() => {
-    if (!isEducator) loadProjects()
+    if (!isEducator) { loadProjects(); loadStats() }
     else setIsLoading(false)
   }, [])
+
+  // Read-only summary metrics — resilient: any failing fetch just stays "—".
+  const loadStats = async () => {
+    const [qRes, sRes, mRes] = await Promise.allSettled([
+      QuestionService.getAll(),
+      SubmissionService.getMine(),
+      AnalyticsService.getMyMastery(),
+    ])
+    const next = { questions: '—', submissions: '—', mastery: '—' }
+    if (qRes.status === 'fulfilled') next.questions = (qRes.value.data || []).length
+    if (sRes.status === 'fulfilled') next.submissions = (sRes.value.data || []).length
+    if (mRes.status === 'fulfilled') {
+      const rows = mRes.value.data || []
+      if (rows.length) {
+        const avg = Math.round(rows.reduce((a, r) => a + (r.score || 0), 0) / rows.length)
+        next.mastery = `${avg}%`
+      }
+    }
+    setStats(next)
+  }
 
   const loadProjects = async () => {
     setIsLoading(true)
@@ -76,10 +101,12 @@ const DashboardPage = () => {
     }
   }
 
+  // Returns "MMM D, YYYY" or null (so the caller can omit the line entirely).
   const formatProjectDate = (dateString) => {
-    if (!dateString) return 'Unknown date'
+    if (!dateString) return null
     const parsedDate = new Date(dateString)
-    return isNaN(parsedDate.getTime()) ? 'Recent' : parsedDate.toLocaleDateString()
+    if (isNaN(parsedDate.getTime())) return null
+    return parsedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
   return (
@@ -90,7 +117,7 @@ const DashboardPage = () => {
         <div className="page-header flex justify-between items-center">
           <div>
             <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">Welcome back, {user?.fullName || user?.username} 👋</p>
+            <p className="page-subtitle">Welcome back, {user?.fullName || user?.username}</p>
           </div>
           {!isEducator && (
             <button
@@ -98,10 +125,30 @@ const DashboardPage = () => {
               className="btn btn-primary"
               onClick={() => setShowCreate(true)}
             >
-              + New Project
+              <Plus size={18} /> New Project
             </button>
           )}
         </div>
+
+        {/* Stats summary row (students) */}
+        {!isEducator && (
+          <div className="stats-row">
+            {[
+              { label: 'Total projects', value: projects.length, Icon: FolderKanban },
+              { label: 'Questions in bank', value: stats.questions, Icon: ClipboardList },
+              { label: 'Submissions', value: stats.submissions, Icon: Send },
+              { label: 'Avg mastery', value: stats.mastery, Icon: BarChart3 },
+            ].map((s) => (
+              <div className="stat-card" key={s.label}>
+                <div className="stat-icon"><s.Icon size={20} /></div>
+                <div>
+                  <div className="stat-label">{s.label}</div>
+                  <div className="stat-value">{s.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Create Project Modal Layer */}
         {showCreate && (
@@ -158,15 +205,15 @@ const DashboardPage = () => {
         {projectToDelete && (
           <div className="modal-overlay" onClick={() => { setProjectToDelete(null); setErrorMessage(''); }}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-              <h3 style={{ marginBottom: '0.75rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                ⚠️ Delete Project?
+              <h3 style={{ marginBottom: '0.75rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={18} /> Delete Project?
               </h3>
-              <p style={{ color: '#cbd5e1', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '1rem' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '1rem' }}>
                 Are you sure you want to delete <strong>{projectToDelete.projectName}</strong>? This will permanently erase this project along with all containing generated exam questions and raw documents. This cannot be undone.
               </p>
 
               {errorMessage && (
-                <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', padding: '0.75rem', borderRadius: '6px', color: '#fca5a5', fontSize: '0.85rem', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+                <div style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger)', padding: '0.75rem', borderRadius: '6px', color: '#991B1B', fontSize: '0.85rem', marginBottom: '1.25rem', lineHeight: '1.4' }}>
                   {errorMessage}
                 </div>
               )}
@@ -196,24 +243,21 @@ const DashboardPage = () => {
 
         {/* Educator landing — no projects API call */}
         {isEducator && (
-          <div className="grid-3">
+          <div className="project-grid">
             {[
-              { icon: '✅', label: 'Verification Queue', desc: 'Grade student submissions and verify AI-generated solutions.', path: '/verification' },
-              { icon: '📄', label: 'Past Year Papers', desc: 'Upload and manage past year examination papers for practice.', path: '/past-year-papers' },
-              { icon: '🏷️', label: 'Subjects & Topics', desc: 'Manage subjects and topics used across the question bank.', path: '/subjects-topics' },
-              { icon: '📋', label: 'Question Bank', desc: 'Browse and manage all questions in the system.', path: '/questions' },
+              { Icon: CheckSquare, label: 'Verification Queue', desc: 'Grade student submissions and verify AI-generated solutions.', path: '/verification' },
+              { Icon: FileText, label: 'Past Year Papers', desc: 'Upload and manage past year examination papers for practice.', path: '/past-year-papers' },
+              { Icon: Tags, label: 'Subjects & Topics', desc: 'Manage subjects and topics used across the question bank.', path: '/subjects-topics' },
+              { Icon: ClipboardList, label: 'Question Bank', desc: 'Browse and manage all questions in the system.', path: '/questions' },
             ].map((card) => (
               <div
                 key={card.path}
                 className="card project-card"
                 onClick={() => navigate(card.path)}
-                style={{ cursor: 'pointer' }}
               >
-                <div className="project-card-icon">{card.icon}</div>
-                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>
-                  {card.label}
-                </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>{card.desc}</p>
+                <div className="project-card-icon"><card.Icon size={20} /></div>
+                <h3 className="project-card-title">{card.label}</h3>
+                <p className="project-card-desc">{card.desc}</p>
               </div>
             ))}
           </div>
@@ -225,75 +269,62 @@ const DashboardPage = () => {
             <div className="spinner" />
           </div>
         ) : projects.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📚</div>
+          <div className="dash-empty">
+            <div className="dash-empty-icon"><Folder size={28} /></div>
             <h3>No projects yet</h3>
-            <p>Create your first project to get started</p>
+            <p>Create your first project to start building practice papers.</p>
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+              <Plus size={18} /> New Project
+            </button>
           </div>
         ) : (
-          <div className="grid-3" id="projects-grid">
-            {projects.map((project) => (
-              <div
-                key={project.projectId}
-                className="card project-card"
-                id={`project-${project.projectId}`}
-                onClick={() => navigate(`/workspace/${project.projectId}`)}
-                style={{ cursor: 'pointer', position: 'relative' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div className="project-card-icon" style={{ marginBottom: 0 }}>
-                    {project.subject?.[0] || project.projectName?.[0] || 'P'}
+          <div className="project-grid" id="projects-grid">
+            {projects.map((project) => {
+              const created = formatProjectDate(project.createdAt)
+              return (
+                <div
+                  key={project.projectId}
+                  className="card project-card"
+                  id={`project-${project.projectId}`}
+                  onClick={() => navigate(`/workspace/${project.projectId}`)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <div className="project-card-icon" style={{ marginBottom: 0 }}>
+                      <Folder size={20} />
+                    </div>
+                    <button
+                      type="button"
+                      className="card-delete"
+                      title="Delete Project"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setProjectToDelete(project);
+                      }}
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
-                  
-                  <button
-                    type="button"
-                    title="Delete Project"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setProjectToDelete(project);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#64748b',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'color 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                    onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                  </button>
-                </div>
 
-                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>
-                  {project.projectName}
-                </h3>
-                
-                {project.subject && (
-                  <div className="flex">
-                    <span className="badge badge-blue" style={{ marginBottom: '0.75rem' }}>
-                      {project.subject}
-                    </span>
-                  </div>
-                )}
-                
-                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', flex: 1 }}>
-                  {project.description || 'No description'}
-                </p>
-                
-                <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  Created {formatProjectDate(project.createdAt)}
+                  <h3 className="project-card-title">{project.projectName}</h3>
+
+                  {project.subject && (
+                    <div className="flex">
+                      <span className="badge badge-blue" style={{ marginBottom: '0.75rem' }}>
+                        {project.subject}
+                      </span>
+                    </div>
+                  )}
+
+                  {project.description && (
+                    <p className="project-card-desc">{project.description}</p>
+                  )}
+
+                  {created && (
+                    <div className="project-card-meta">Created {created}</div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ))}
       </main>

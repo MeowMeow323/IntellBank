@@ -124,8 +124,9 @@ export const VerificationService = {
   // Student-submission grading (per-question marks → topic marks → weakness)
   getPendingSubmissions: () => api.get('/api/verification/submissions/pending'),
   reviewSubmission: (id) => api.get(`/api/verification/submissions/${id}`),
-  // marks: { "<questionId>": <awardedMarks>, ... }
-  gradeSubmission: (id, marks) => api.put(`/api/verification/submissions/${id}/grade`, { marks }),
+  // marks: { "<questionId>": <awardedMarks>, ... }; comments: { "<topicName>": "<feedback>", ... }
+  gradeSubmission: (id, marks, comments = {}) =>
+    api.put(`/api/verification/submissions/${id}/grade`, { marks, comments }),
   returnSubmission: (id) => api.put(`/api/verification/submissions/${id}/return`),
 }
 
@@ -145,9 +146,17 @@ export const AnalyticsService = {
   getMyWeaknesses: () => api.get('/api/analytics/my-weaknesses'),
   // All subject names in the DB — for the subject selector
   getSubjects: () => api.get('/api/analytics/subjects'),
+  // Subjects that actually have trained topic-prediction data
+  getPredictionSubjects: () => api.get('/api/analytics/prediction-subjects'),
   // Topics likely to appear next, from the Python K-Means predictor
   getPredictedTopics: (subject) =>
     api.get('/api/analytics/predicted-topics', { params: subject ? { subject } : {} }),
+  // Cohort "Class Weakness" analysis (our own trained model) for a subject
+  getClassWeaknesses: (subject) =>
+    api.get('/api/analytics/class-weaknesses', { params: { subject } }),
+  // Topics × Students mastery matrix for the educator class heat map
+  getClassMatrix: (subject) =>
+    api.get('/api/analytics/class-matrix', { params: { subject } }),
 }
 
 // ── Past Year Paper Service ───────────────────────────────────────────────────

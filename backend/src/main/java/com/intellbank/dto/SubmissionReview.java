@@ -15,7 +15,8 @@ public record SubmissionReview(
         String studentName,
         String status,
         Integer marks,
-        List<QuestionView> questions
+        List<QuestionView> questions,
+        List<TopicFeedback> topicFeedback
 ) {
     /** A single question in the submitted paper, with its max marks and topic tags. */
     public record QuestionView(
@@ -23,5 +24,13 @@ public record SubmissionReview(
             String content,
             int marks,
             List<String> topics
+    ) {}
+
+    /** Per-topic mastery + the educator's comment, for the reviewed-answers screen. */
+    public record TopicFeedback(
+            UUID topicId,
+            String topicName,
+            String masteryLevel,
+            String comment
     ) {}
 }

@@ -97,7 +97,7 @@ public class AiGatewayController {
                 // Save questions to DB non-fatally
                 if (documentIdStr != null && !documentIdStr.isBlank()) {
                     try {
-                        documentService.saveAiGeneratedQuestions(UUID.fromString(documentIdStr), questions);
+                        documentService.saveAiGeneratedQuestions(UUID.fromString(documentIdStr), subject, questions);
                     } catch (Exception ignored) {}
                 }
             } catch (Exception e) {
@@ -125,8 +125,7 @@ public class AiGatewayController {
             .append("<hr style=\"border:none;border-top:2px solid #334155;margin:0.75rem auto;width:60%;\">")
             .append("<table style=\"width:100%;margin:0.75rem 0;font-size:0.9rem;\"><tr>")
             .append("<td style=\"text-align:left;\"><strong>Total Marks:</strong> ").append(totalMks).append("</td>")
-            .append("<td style=\"text-align:center;\"><strong>Questions:</strong> ").append(numQ).append("</td>")
-            .append("<td style=\"text-align:right;\"><strong>Duration:</strong> 2½ Hours</td>")
+            .append("<td style=\"text-align:right;\"><strong>Questions:</strong> ").append(numQ).append("</td>")
             .append("</tr></table>")
             .append("<hr style=\"border:none;border-top:1px solid #cbd5e1;margin:0.5rem 0;\">")
             .append("<p style=\"font-size:0.85rem;color:#64748b;margin:0.5rem 0 0;\">")

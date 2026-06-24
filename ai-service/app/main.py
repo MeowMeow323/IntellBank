@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from app.routes import prediction_routes, generation_routes, ocr_routes, classify_routes
+from app.routes import prediction_routes, generation_routes, ocr_routes, classify_routes, analysis_routes
 
 load_dotenv()
 
@@ -34,6 +34,7 @@ app.include_router(prediction_routes.router, prefix="/ai/predict", tags=["Predic
 app.include_router(generation_routes.router, prefix="/ai/generate", tags=["Generation"])
 app.include_router(ocr_routes.router, prefix="/ai/ocr", tags=["OCR"])
 app.include_router(classify_routes.router, prefix="/ai/classify", tags=["Classification"])
+app.include_router(analysis_routes.router, prefix="/ai/analyze", tags=["Analysis"])
 
 
 @app.get("/", tags=["Health"])

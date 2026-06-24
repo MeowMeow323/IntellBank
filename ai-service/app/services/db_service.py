@@ -135,3 +135,57 @@ def fetch_questions_for_topics(subject: str, topics: list, limit: int = 10, conn
         # Only close connections we opened — a caller-supplied conn is theirs to close.
         if own_conn and conn:
             conn.close()
+
+
+def fetch_subject_questions(subject: str, conn=None) -> list:
+    """
+    Return EVERY question row for a subject with its pyp_id, marks, content and topics.
+
+    Questions are stored as individual sub-part fragments (content prefixed with a
+    "[QPART:<question-no>:<part>]" marker), so the generator needs the pyp_id and the
+    marker to regroup fragments back into full multi-part exam questions.
+    Returns: [{'question_id', 'pyp_id', 'marks', 'content', 'topics': [str]}]
+    """
+    own_conn = conn is None
+    try:
+        if own_conn:
+            conn = get_db_connection()
+        with conn.cursor(cursor_factory=DictCursor) as cur:
+            cur.execute("SELECT subject_id FROM subjects WHERE LOWER(name) = LOWER(%s)", (subject,))
+            row = cur.fetchone()
+            if not row:
+                cur.execute("SELECT subject_id FROM subjects WHERE name ILIKE %s", (f'%{subject}%',))
+                row = cur.fetchone()
+            if not row:
+                return []
+            subject_id = row['subject_id']
+
+            cur.execute(
+                """
+                SELECT q.question_id, q.pyp_id, q.marks, q.content,
+                       array_agg(DISTINCT t.name) AS topic_names
+                FROM questions q
+                JOIN question_topics qt ON q.question_id = qt.question_id
+                JOIN topics t ON qt.topic_id = t.topic_id
+                WHERE t.subject_id = %s
+                GROUP BY q.question_id, q.pyp_id, q.marks, q.content
+                """,
+                (subject_id,),
+            )
+            results = [{
+                "question_id": str(r['question_id']),
+                "pyp_id":      str(r['pyp_id']) if r['pyp_id'] else None,
+                "marks":       r['marks'] or 0,
+                "content":     r['content'] or "",
+                "topics":      list(r['topic_names']),
+            } for r in cur.fetchall()]
+            print(f"[db] fetch_subject_questions(subject={subject!r}) -> {len(results)} rows")
+            return results
+    except Exception as e:
+        import traceback
+        print(f"[db] Database error in fetch_subject_questions: {e}")
+        traceback.print_exc()
+        raise RuntimeError(f"Database error: {e}") from e
+    finally:
+        if own_conn and conn:
+            conn.close()

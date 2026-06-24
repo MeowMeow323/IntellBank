@@ -29,6 +29,9 @@ public class DocumentService {
     private final QuestionRepository questionRepository;
     private final DocumentQuestionRepository documentQuestionRepository;
     private final SubmissionRepository submissionRepository;
+    private final SubjectRepository subjectRepository;
+    private final TopicRepository topicRepository;
+    private final QuestionTopicRepository questionTopicRepository;
 
     public List<Document> getByProject(UUID projectId) {
         return documentRepository.findByProjectProjectId(projectId);
@@ -193,16 +196,39 @@ public class DocumentService {
 
     /**
      * Saves AI-generated questions to the questions table and links them to a document.
+     *
+     * <p>Crucially each question is also linked to its topic (a {@code question_topics} row).
+     * Without this link, grading the submitted paper can't spread the awarded marks across
+     * any topic, so no {@link com.intellbank.entity.StudentPerformance} is ever produced.
+     *
+     * @param subject the paper's subject — used to resolve each question's topic (the topic
+     *                is created under this subject if it doesn't exist yet).
      */
     @Transactional
-    public void saveAiGeneratedQuestions(UUID documentId, List<Map<String, Object>> questionData) {
+    public void saveAiGeneratedQuestions(UUID documentId, String subject, List<Map<String, Object>> questionData) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new AppException("Document not found", HttpStatus.NOT_FOUND));
+
+        Subject subjectEntity = (subject != null && !subject.isBlank())
+                ? subjectRepository.findByNameIgnoreCase(subject).orElse(null)
+                : null;
 
         for (Map<String, Object> qMap : questionData) {
             String text  = (String) qMap.getOrDefault("text", "");
             int marks    = qMap.get("marks") instanceof Number ? ((Number) qMap.get("marks")).intValue() : 25;
             if (text.isBlank()) continue;
+
+            // A reconstructed question can span several topics — collect them all.
+            List<String> topicNames = new java.util.ArrayList<>();
+            Object topicsObj = qMap.get("topics");
+            if (topicsObj instanceof List<?> list) {
+                for (Object o : list) {
+                    if (o != null && !o.toString().isBlank()) topicNames.add(o.toString().trim());
+                }
+            } else {
+                String single = String.valueOf(qMap.getOrDefault("topic", "")).trim();
+                if (!single.isEmpty()) topicNames.add(single);
+            }
 
             Question q = questionRepository.save(Question.builder()
                     .content(text)
@@ -214,8 +240,29 @@ public class DocumentService {
                     .question(q)
                     .document(doc)
                     .build());
+
+            // Link the question to every topic it covers so the weakness/mastery
+            // pipeline can spread the awarded marks across them.
+            if (subjectEntity != null) {
+                for (String topicName : topicNames) {
+                    if (topicName.isEmpty() || "General".equalsIgnoreCase(topicName)) continue;
+                    Topic topic = topicRepository
+                            .findBySubjectSubjectIdAndNameIgnoreCase(subjectEntity.getSubjectId(), topicName)
+                            .orElseGet(() -> topicRepository.save(Topic.builder()
+                                    .subject(subjectEntity)
+                                    .name(topicName)
+                                    .build()));
+
+                    questionTopicRepository.save(QuestionTopic.builder()
+                            .id(new QuestionTopicId(q.getQuestionId(), topic.getTopicId()))
+                            .question(q)
+                            .topic(topic)
+                            .build());
+                }
+            }
         }
-        log.info("Saved {} AI-generated questions for document {}", questionData.size(), documentId);
+        log.info("Saved {} AI-generated questions (subject='{}') for document {}",
+                questionData.size(), subject, documentId);
     }
 
     @Transactional

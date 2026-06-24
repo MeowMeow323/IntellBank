@@ -168,6 +168,28 @@ const SubmissionsPage = () => {
                   </div>
                 )}
 
+                {/* Per-topic mastery + educator feedback */}
+                {review.topicFeedback?.length > 0 && (
+                  <div className="sub-feedback">
+                    <div className="sub-topics-label">Educator feedback by topic</div>
+                    {review.topicFeedback.map((tf) => (
+                      <div key={tf.topicId} className="sub-feedback-row">
+                        <div className="sub-feedback-head">
+                          <span className="sub-feedback-topic">{tf.topicName}</span>
+                          <span className={`badge ${
+                            tf.masteryLevel === 'Beginner' ? 'badge-red'
+                              : tf.masteryLevel === 'Intermediate' ? 'badge-amber' : 'badge-green'}`}>
+                            {tf.masteryLevel}
+                          </span>
+                        </div>
+                        {tf.comment
+                          ? <p className="sub-feedback-comment">“{tf.comment}”</p>
+                          : <p className="sub-feedback-comment sub-feedback-empty">No comment.</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* The answered paper, rendered read-only */}
                 <div className="sub-answers" dangerouslySetInnerHTML={{ __html: review.documentContent || '' }} />
 

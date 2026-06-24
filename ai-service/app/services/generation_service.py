@@ -158,92 +158,157 @@ def _dedup(questions: list) -> list:
     return out
 
 
+# How many questions a generated paper may contain. The target is derived from the
+# requested total marks (25 marks/question) but always clamped to this range, so a
+# paper is never trivially short (few topics chosen) nor unreasonably long.
+MIN_QUESTIONS = 3
+MAX_QUESTIONS = 6
+MARKS_PER_QUESTION = 25
+
+
+# =============================================================================
+# Composite question reconstruction
+#
+# Questions are stored as individual leaf sub-parts whose content begins with a
+# "[QPART:<question-no>:<part>]" marker (e.g. "[QPART:4:b-ii]"). Sibling sub-parts
+# repeat their shared stem. To present a real 25-mark exam question we regroup all
+# fragments of one original question (same paper + question number) and merge them,
+# de-duplicating the repeated stems.
+# =============================================================================
+
+_QPART_RE       = _re.compile(r'^\s*\[QPART:([^:\]]+):([^\]]+)\]\s*', _re.IGNORECASE)
+_SCENARIO_OPEN  = _re.compile(r'\[SCENARIO\]\s*', _re.IGNORECASE)
+_SCENARIO_CLOSE = _re.compile(r'\s*\[/SCENARIO\]', _re.IGNORECASE)
+_ROMAN = {'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7, 'viii': 8}
+
+
+def _part_sort_key(part: str):
+    """Order parts a, b, c then a-i, a-ii … so the question reads top-to-bottom."""
+    part = (part or '').lower().strip()
+    bits = part.split('-')
+    letter = bits[0] if bits else ''
+    sub = bits[1] if len(bits) > 1 else ''
+    return (letter, _ROMAN.get(sub, 0))
+
+
+def _strip_markers(text: str) -> str:
+    """Drop the [QPART:…] prefix and unwrap [SCENARIO]…[/SCENARIO]; keep [TABLE] (Java renders it)."""
+    text = _QPART_RE.sub('', text)
+    text = _SCENARIO_OPEN.sub('', text)
+    text = _SCENARIO_CLOSE.sub('', text)
+    return text.strip()
+
+
+def _assemble_fragments(frags: list) -> str:
+    """
+    Concatenate a question's sub-part fragments into one body, de-duplicating repeated
+    paragraph blocks (siblings such as (i)/(ii) repeat the shared "b) …" stem).
+    """
+    seen: set = set()
+    blocks: list = []
+    for f in frags:
+        body = _strip_markers(f['content'])
+        for block in _re.split(r'\n{2,}', body):
+            b = block.strip()
+            if not b:
+                continue
+            key = _re.sub(r'\s+', ' ', b).lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            blocks.append(b)
+    return '\n\n'.join(blocks)
+
+
+def _build_composite_questions(rows: list) -> list:
+    """Regroup stored sub-part fragments into full questions: [{'text','topics','marks'}]."""
+    groups: dict = {}
+    order: list = []
+    for r in rows:
+        content = r.get('content', '') or ''
+        m = _QPART_RE.match(content)
+        if m:
+            key = (r.get('pyp_id'), m.group(1))          # same paper + question number
+            part = m.group(2)
+        else:
+            key = ('solo', r.get('question_id'))          # already a whole question
+            part = ''
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append({
+            'part': part,
+            'content': content,
+            'marks': r.get('marks', 0) or 0,
+            'topics': r.get('topics', []) or [],
+        })
+
+    composites = []
+    for key in order:
+        frags = sorted(groups[key], key=lambda f: _part_sort_key(f['part']))
+        text = _assemble_fragments(frags)
+        if len(text.strip()) < 30:
+            continue
+        topics = []
+        for f in frags:
+            for t in f['topics']:
+                if t and t not in topics:
+                    topics.append(t)
+        composites.append({'text': text, 'topics': topics, 'marks': MARKS_PER_QUESTION})
+    return composites
+
+
 def generate_full_paper(request) -> dict:
     """
     Build an exam paper from past-year questions stored in the database.
 
-    Strategy:
-      1. Fetch up to 20 questions matching the requested subject + topics.
-      2. Filter out cross-reference-only questions (no standalone context).
-      3. Deduplicate near-identical content.
-      4. If fewer than 4 found, broaden the search to all questions for the
-         subject (no topic restriction) to fill remaining slots.
-      5. Use up to 4 questions (25 marks each).  If fewer than 4 exist in the
-         DB the paper will have however many are available — no hardcoded text
-         is ever inserted.
+    Stored questions are individual sub-part fragments, so the strategy is:
+      1. Fetch every question row for the subject (with pyp_id + [QPART] markers).
+      2. Regroup the fragments into full multi-part questions (parts a/b/c …).
+      3. Drop cross-reference-only questions and near-duplicates.
+      4. Prefer questions covering the chosen topics, then top up with the rest,
+         up to `target` questions (total_marks/25, clamped to [MIN, MAX]).
 
     Returns {"markdown_content": str, "questions": [...]} or {"error": str}.
     """
-    from app.services.db_service import fetch_questions_for_topics, get_db_connection
+    from app.services.db_service import fetch_subject_questions, get_db_connection
 
     subject = request.subject
     topics  = request.topics if request.topics else []
+    total_marks = getattr(request, "total_marks", None) or (MAX_QUESTIONS * MARKS_PER_QUESTION)
 
     if not subject:
         return {"error": "INVALID_INPUT"}
 
-    # Reuse ONE connection for every query below — Supabase's session-mode pooler
-    # caps total clients (15), so opening a fresh connection per fetch can trip
-    # "max clients reached in session mode".
+    target = max(MIN_QUESTIONS, min(MAX_QUESTIONS, total_marks // MARKS_PER_QUESTION))
+
+    # Reuse ONE connection — Supabase's session-mode pooler caps total clients (15).
     conn = get_db_connection()
     try:
-        return _generate_full_paper_with_conn(subject, topics, conn,
-                                              fetch_questions_for_topics)
+        return _generate_full_paper_with_conn(subject, topics, target, conn,
+                                              fetch_subject_questions)
     finally:
         conn.close()
 
 
-def _generate_full_paper_with_conn(subject, topics, conn, fetch_questions_for_topics) -> dict:
-    # ── Step 1: topic-filtered search ─────────────────────────────────────────
-    print(f"[INFO] Fetching DB questions for subject='{subject}', topics={topics}")
-    diag = {"subject": subject, "topics": topics}
-    raw = fetch_questions_for_topics(subject, topics, limit=20, conn=conn)
-    diag["step1_raw"] = len(raw)
-    print(f"[DEBUG] Raw questions fetched: {len(raw)}")
-    for _i, _q in enumerate(raw):
-        _first = _q.get("text", "").strip().split('\n')[0][:120]
-        _ok = _is_standalone_question(_q.get("text", ""))
-        print(f"[DEBUG]  Q{_i+1} standalone={_ok} | {_first!r}")
-    standalone = [q for q in raw if _is_standalone_question(q.get("text", ""))]
-    db_questions = _dedup(standalone)
-    print(f"[INFO] Topic search → {len(raw)} raw, {len(standalone)} standalone, {len(db_questions)} unique")
+def _generate_full_paper_with_conn(subject, topics, target, conn, fetch_subject_questions) -> dict:
+    print(f"[INFO] Building paper for subject='{subject}', topics={topics}, target={target}")
+    diag = {"subject": subject, "topics": topics, "target": target}
 
-    # ── Step 2: broaden to subject-wide if still short ─────────────────────────
-    if len(db_questions) < 4:
-        print(f"[INFO] Only {len(db_questions)} questions after topic filter — broadening to subject-wide")
-        seen_keys = {q.get("text", "")[:120].strip().lower() for q in db_questions}
-        all_raw = fetch_questions_for_topics(subject, [], limit=40, conn=conn)
-        print(f"[DEBUG] Subject-wide fetch returned {len(all_raw)} questions")
-        for _i2, _q2 in enumerate(all_raw):
-            _first2 = _q2.get("text", "").strip().split('\n')[0][:120]
-            _ok2 = _is_standalone_question(_q2.get("text", ""))
-            print(f"[DEBUG]  Broad Q{_i2+1} standalone={_ok2} | {_first2!r}")
-        for q in all_raw:
-            if not _is_standalone_question(q.get("text", "")):
-                continue
-            key = q.get("text", "")[:120].strip().lower()
-            if key not in seen_keys:
-                seen_keys.add(key)
-                db_questions.append(q)
-            if len(db_questions) >= 4:
-                break
-        print(f"[INFO] After broadening: {len(db_questions)} questions available")
+    # ── Step 1: fetch every fragment, regroup into full questions ──────────────
+    rows = fetch_subject_questions(subject, conn=conn)
+    diag["rows"] = len(rows)
+    composites = _build_composite_questions(rows)
+    diag["composites"] = len(composites)
 
-    diag["after_broaden"] = len(db_questions)
+    # ── Step 2: keep standalone, drop near-duplicates ──────────────────────────
+    composites = [c for c in composites if _is_standalone_question(c["text"])]
+    composites = _dedup(composites)
+    diag["standalone"] = len(composites)
+    print(f"[INFO] {len(rows)} fragments → {diag['composites']} questions → {len(composites)} standalone/unique")
 
-    # ── Step 3: last-resort fallback — use ANY questions from the DB ───────────
-    # If the cross-ref filter was too aggressive and rejected everything, still
-    # generate a paper rather than returning an error.
-    if not db_questions:
-        print(f"[WARN] Cross-ref filter removed all candidates — falling back to unfiltered questions")
-        all_fallback = fetch_questions_for_topics(subject, [], limit=40, conn=conn)
-        diag["fallback_raw"] = len(all_fallback)
-        db_questions = _dedup(all_fallback)
-        print(f"[INFO] Unfiltered fallback: {len(db_questions)} questions available")
-
-    diag["final"] = len(db_questions)
-    if not db_questions:
-        print(f"[ERROR] No questions after all steps. Diagnostics: {diag}")
+    if not composites:
+        print(f"[ERROR] No questions after grouping. Diagnostics: {diag}")
         return {
             "error": (
                 "No exam questions found in the database for this subject. "
@@ -252,16 +317,33 @@ def _generate_full_paper_with_conn(subject, topics, conn, fetch_questions_for_to
             )
         }
 
-    # ── Step 3: build questions list (up to 4) ─────────────────────────────────
-    selected = db_questions[:4]
-    questions = []
-    for i, q in enumerate(selected):
-        fallback_topic = topics[i % len(topics)] if topics else "General"
-        topic = q.get("topics", [fallback_topic])[0]
-        questions.append({"text": q["text"], "topics": [topic]})
+    # ── Step 3: prefer questions covering the chosen topics, then top up ───────
+    chosen = {t.strip().lower() for t in topics} if topics else set()
+
+    def matches(c):
+        return bool(chosen) and any((t or "").strip().lower() in chosen for t in c["topics"])
+
+    matched = [c for c in composites if matches(c)]
+    others  = [c for c in composites if not matches(c)]
+    import random as _random
+    _random.shuffle(matched)
+    _random.shuffle(others)
+
+    selected = matched[:target]
+    for c in others:
+        if len(selected) >= target:
+            break
+        selected.append(c)
+    diag["selected"] = len(selected)
+    print(f"[INFO] Selected {len(selected)} questions ({len(matched)} topic-matched, target {target})")
 
     # ── Step 4: build markdown (Java replaces this with formatted HTML) ────────
-    total_marks = len(questions) * 25
+    questions = []
+    for c in selected:
+        qtopics = c["topics"] if c["topics"] else (topics[:1] if topics else ["General"])
+        questions.append({"text": c["text"], "topics": qtopics})
+
+    total_marks = len(questions) * MARKS_PER_QUESTION
     lines = [
         "[METADATA_START]",
         f"SUBJECT: {subject}",
@@ -289,7 +371,7 @@ def _generate_full_paper_with_conn(subject, topics, conn, fetch_questions_for_to
     return {
         "markdown_content": "\n".join(lines),
         "questions": [
-            {"text": q["text"], "topic": q["topics"][0], "marks": 25}
+            {"text": q["text"], "topic": q["topics"][0], "topics": q["topics"], "marks": MARKS_PER_QUESTION}
             for q in questions
         ],
     }

@@ -12,5 +12,6 @@ public record TopicMastery(
         String topicName,
         String subjectName,
         String masteryLevel,
-        int score
+        int score,
+        String comment
 ) {}

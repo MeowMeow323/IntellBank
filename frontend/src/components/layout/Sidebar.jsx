@@ -1,22 +1,29 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  LayoutDashboard, ClipboardList, BarChart3, Send, LogOut,
+  CheckSquare, FileText, Tags, Users,
+} from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import '../../styles/sidebar.css'
 
+const ICON_SIZE = 18
+
 const SHARED_ITEMS = [
-  { path: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { path: '/questions', label: 'Question Bank', icon: '📋' },
+  { path: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/questions', label: 'Question Bank', Icon: ClipboardList },
 ]
 
 const STUDENT_ONLY_ITEMS = [
-  { path: '/analytics', label: 'Analytics', icon: '📊' },
-  { path: '/submissions', label: 'Submissions', icon: '📤' },
+  { path: '/analytics', label: 'Analytics', Icon: BarChart3 },
+  { path: '/submissions', label: 'Submissions', Icon: Send },
 ]
 
 const EDUCATOR_ITEMS = [
-  { path: '/verification', label: 'Verification', icon: '✅' },
-  { path: '/past-year-papers', label: 'Past Year Papers', icon: '📄' },
-  { path: '/subjects-topics', label: 'Subjects & Topics', icon: '🏷️' },
+  { path: '/verification', label: 'Verification', Icon: CheckSquare },
+  { path: '/class-analysis', label: 'Class Analysis', Icon: Users },
+  { path: '/past-year-papers', label: 'Past Year Papers', Icon: FileText },
+  { path: '/subjects-topics', label: 'Subjects & Topics', Icon: Tags },
 ]
 
 const Sidebar = () => {
@@ -65,7 +72,7 @@ const Sidebar = () => {
             id={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
             className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
           >
-            <span className="sidebar-nav-icon">{item.icon}</span>
+            <span className="sidebar-nav-icon"><item.Icon size={ICON_SIZE} /></span>
             {item.label}
           </NavLink>
         ))}
@@ -77,7 +84,7 @@ const Sidebar = () => {
             id={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
             className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
           >
-            <span className="sidebar-nav-icon">{item.icon}</span>
+            <span className="sidebar-nav-icon"><item.Icon size={ICON_SIZE} /></span>
             {item.label}
           </NavLink>
         ))}
@@ -92,7 +99,7 @@ const Sidebar = () => {
                 id={`nav-${item.label.toLowerCase()}`}
                 className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
               >
-                <span className="sidebar-nav-icon">{item.icon}</span>
+                <span className="sidebar-nav-icon"><item.Icon size={ICON_SIZE} /></span>
                 {item.label}
               </NavLink>
             ))}
@@ -106,7 +113,7 @@ const Sidebar = () => {
         className="sidebar-logout"
         onClick={handleLogout}
       >
-        <span>🚪</span> Logout
+        <span className="sidebar-nav-icon"><LogOut size={ICON_SIZE} /></span> Logout
       </button>
     </aside>
   )

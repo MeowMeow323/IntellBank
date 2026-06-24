@@ -1,5 +1,6 @@
 package com.intellbank.controller;
 
+import com.intellbank.dto.ClassMatrix;
 import com.intellbank.dto.TopicMastery;
 import com.intellbank.entity.User;
 import com.intellbank.service.AnalyticsService;
@@ -45,10 +46,31 @@ public class AnalyticsController {
         return ResponseEntity.ok(analyticsService.getSubjects());
     }
 
+    /** GET /api/analytics/prediction-subjects – subjects that have trained prediction data. */
+    @GetMapping("/prediction-subjects")
+    public ResponseEntity<List<String>> predictionSubjects() {
+        return ResponseEntity.ok(analyticsService.getPredictionSubjects());
+    }
+
     /** GET /api/analytics/predicted-topics?subject=... – K-Means likely-to-appear topics. */
     @GetMapping("/predicted-topics")
     public ResponseEntity<Map<String, Object>> predictedTopics(
             @RequestParam(defaultValue = "Software Project Management") String subject) {
         return ResponseEntity.ok(analyticsService.getPredictedTopics(subject));
+    }
+
+    /**
+     * GET /api/analytics/class-weaknesses?subject=... – cohort weakness analysis from the
+     * project's own trained model. Available to students and educators.
+     */
+    @GetMapping("/class-weaknesses")
+    public ResponseEntity<Map<String, Object>> classWeaknesses(@RequestParam String subject) {
+        return ResponseEntity.ok(analyticsService.getClassWeaknesses(subject));
+    }
+
+    /** GET /api/analytics/class-matrix?subject=... – Topics × Students mastery heat-map matrix. */
+    @GetMapping("/class-matrix")
+    public ResponseEntity<ClassMatrix> classMatrix(@RequestParam String subject) {
+        return ResponseEntity.ok(analyticsService.getClassMatrix(subject));
     }
 }

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List
-from app.services.prediction_service import predict_topics
+from typing import List, Optional
+from app.services.prediction_service import predict_topics, available_subjects
 
 router = APIRouter()
 
@@ -15,11 +15,23 @@ class TopicPrediction(BaseModel):
     topic: str
     confidence: float
     predicted_next_year: bool = True
+    frequency: Optional[int] = None
+    tier: Optional[str] = None
 
 
 class PredictResponse(BaseModel):
     subject: str
     predictions: List[TopicPrediction]
+
+
+class PredictionSubjectsResponse(BaseModel):
+    subjects: List[str]
+
+
+@router.get("/subjects", response_model=PredictionSubjectsResponse)
+async def prediction_subjects():
+    """Subjects that actually have trained topic-prediction data."""
+    return PredictionSubjectsResponse(subjects=available_subjects())
 
 
 @router.post("/topics", response_model=PredictResponse)

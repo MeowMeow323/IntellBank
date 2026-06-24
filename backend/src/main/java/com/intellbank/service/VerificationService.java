@@ -118,11 +118,15 @@ public class VerificationService {
         Document document = submission.getDocument();
 
         List<SubmissionReview.QuestionView> questionViews = new ArrayList<>();
+        Map<UUID, Topic> uniqueTopics = new LinkedHashMap<>();
         for (DocumentQuestion dq : documentQuestionRepository.findByDocumentDocumentId(document.getDocumentId())) {
             Question q = dq.getQuestion();
-            List<String> topicNames = questionTopicRepository.findByQuestionQuestionId(q.getQuestionId()).stream()
-                    .map(qt -> qt.getTopic().getName())
-                    .toList();
+            List<String> topicNames = new ArrayList<>();
+            for (QuestionTopic qt : questionTopicRepository.findByQuestionQuestionId(q.getQuestionId())) {
+                Topic t = qt.getTopic();
+                topicNames.add(t.getName());
+                uniqueTopics.putIfAbsent(t.getTopicId(), t);
+            }
             questionViews.add(new SubmissionReview.QuestionView(
                     q.getQuestionId(),
                     q.getContent(),
@@ -130,10 +134,23 @@ public class VerificationService {
                     topicNames));
         }
 
+        Student student = null;
         String studentName = "";
         try {
-            studentName = document.getProject().getStudent().getUser().getFullName();
+            student = document.getProject().getStudent();
+            studentName = student.getUser().getFullName();
         } catch (Exception ignored) { /* defensive: lazy chain may be absent */ }
+
+        // Per-topic mastery + educator comment, pulled from the student's saved profile.
+        List<SubmissionReview.TopicFeedback> topicFeedback = new ArrayList<>();
+        if (student != null) {
+            UUID studentId = student.getStudentId();
+            for (Topic t : uniqueTopics.values()) {
+                performanceRepository.findByStudentStudentIdAndTopicTopicId(studentId, t.getTopicId())
+                        .ifPresent(p -> topicFeedback.add(new SubmissionReview.TopicFeedback(
+                                t.getTopicId(), t.getName(), p.getMasteryLevel(), p.getComment())));
+            }
+        }
 
         return new SubmissionReview(
                 submission.getSubmissionId(),
@@ -143,7 +160,8 @@ public class VerificationService {
                 studentName,
                 submission.getStatus(),
                 submission.getMarks(),
-                questionViews);
+                questionViews,
+                topicFeedback);
     }
 
     /**
@@ -153,14 +171,18 @@ public class VerificationService {
      * updates the student's per-topic {@link StudentPerformance} (weakness profile).
      */
     @Transactional
-    public GradeResult gradeSubmission(UUID submissionId, Map<UUID, Integer> questionMarks, String educatorEmail) {
+    public GradeResult gradeSubmission(UUID submissionId, Map<UUID, Integer> questionMarks,
+                                       Map<String, String> topicComments, String educatorEmail) {
         Submission submission = getSubmission(submissionId);
         Educator educator = resolveEducator(educatorEmail);
         Student student = submission.getDocument().getProject().getStudent();
+        if (topicComments == null) topicComments = Map.of();
 
         int total = 0;
-        // topicId -> [earned, possible]; LinkedHashMap keeps a stable display order.
-        Map<UUID, int[]> topicTotals = new LinkedHashMap<>();
+        int maxTotal = 0;
+        // topicId -> [earned, possible]; a question's marks are split EVENLY across its
+        // topics, so the running totals are fractional. LinkedHashMap keeps display order.
+        Map<UUID, double[]> topicTotals = new LinkedHashMap<>();
         Map<UUID, Topic> topicRefs = new HashMap<>();
 
         for (DocumentQuestion dq : documentQuestionRepository.findByDocumentDocumentId(
@@ -169,13 +191,18 @@ public class VerificationService {
             int max = q.getMarks() != null ? q.getMarks() : 0;
             int awarded = clampAwarded(questionMarks.get(q.getQuestionId()), max);
             total += awarded;
+            maxTotal += max;
 
-            for (QuestionTopic qt : questionTopicRepository.findByQuestionQuestionId(q.getQuestionId())) {
+            List<QuestionTopic> qts = questionTopicRepository.findByQuestionQuestionId(q.getQuestionId());
+            if (qts.isEmpty()) continue;
+            double earnedShare   = (double) awarded / qts.size();
+            double possibleShare = (double) max / qts.size();
+            for (QuestionTopic qt : qts) {
                 Topic topic = qt.getTopic();
                 topicRefs.putIfAbsent(topic.getTopicId(), topic);
-                int[] acc = topicTotals.computeIfAbsent(topic.getTopicId(), k -> new int[2]);
-                acc[0] += awarded; // earned
-                acc[1] += max;     // possible
+                double[] acc = topicTotals.computeIfAbsent(topic.getTopicId(), k -> new double[2]);
+                acc[0] += earnedShare;   // earned
+                acc[1] += possibleShare; // possible
             }
         }
 
@@ -185,24 +212,29 @@ public class VerificationService {
         submission.setEducator(educator);
         submissionRepository.save(submission);
 
-        // Persist per-topic mastery (weakness profile) and build the response breakdown.
+        // Persist per-topic mastery + comment (weakness profile) and build the response breakdown.
         List<GradeResult.TopicScore> topicScores = new ArrayList<>();
-        int maxTotal = 0;
-        for (Map.Entry<UUID, int[]> e : topicTotals.entrySet()) {
-            int earned = e.getValue()[0];
-            int possible = e.getValue()[1];
-            maxTotal += possible;
-            int pct = possible > 0 ? Math.round((earned * 100f) / possible) : 0;
+        for (Map.Entry<UUID, double[]> e : topicTotals.entrySet()) {
+            double earned = e.getValue()[0];
+            double possible = e.getValue()[1];
+            int pct = possible > 0 ? (int) Math.round((earned * 100.0) / possible) : 0;
             String mastery = masteryBand(pct);
 
             Topic topic = topicRefs.get(e.getKey());
-            upsertPerformance(student, topic, mastery);
+            String comment = topicComments.get(topic.getName());
+            upsertPerformance(student, topic, mastery, comment);
 
             topicScores.add(new GradeResult.TopicScore(
-                    topic.getTopicId(), topic.getName(), earned, possible, pct, mastery));
+                    topic.getTopicId(), topic.getName(),
+                    round1(earned), round1(possible), pct, mastery, comment));
         }
 
         return new GradeResult(submission.getSubmissionId(), total, maxTotal, STATUS_GRADED, topicScores);
+    }
+
+    /** Round to one decimal place for display (even-split marks can be fractional). */
+    private double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
     }
 
     /** Educator returns a graded submission to the student, freeing the student's submission slot. */
@@ -228,11 +260,17 @@ public class VerificationService {
         return Math.min(awarded, max);
     }
 
-    private void upsertPerformance(Student student, Topic topic, String mastery) {
+    private void upsertPerformance(Student student, Topic topic, String mastery, String comment) {
         StudentPerformance perf = performanceRepository
                 .findByStudentStudentIdAndTopicTopicId(student.getStudentId(), topic.getTopicId())
                 .orElseGet(() -> StudentPerformance.builder().student(student).topic(topic).build());
         perf.setMasteryLevel(mastery);
+        // Only touch the comment when the educator supplied one for this topic (key present);
+        // a blank value clears it, an absent key keeps the previous comment.
+        if (comment != null) {
+            String c = comment.trim();
+            perf.setComment(c.isEmpty() ? null : c);
+        }
         performanceRepository.save(perf);
     }
 

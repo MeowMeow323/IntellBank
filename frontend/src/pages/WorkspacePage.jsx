@@ -8,6 +8,12 @@ import '../styles/global.css'
 import '../styles/modals.css'
 import '../styles/workspace-page.css'
 
+// A 100-mark paper is 4 questions (25 each). Some topics have very few questions,
+// so the user must pick a safe spread of topics to reliably fill the paper — at
+// least MIN_TOPICS and at most MAX_TOPICS (bounded by what the subject actually has).
+const MIN_TOPICS = 4
+const MAX_TOPICS = 8
+
 const WorkspacePage = () => {
   const { projectId } = useParams()
   const navigate = useNavigate()
@@ -110,6 +116,12 @@ const WorkspacePage = () => {
 
   const handleGenerate = async () => {
     if (!paperConfig.subject) return
+    const available = subjectTopicsMap[paperConfig.subject] || []
+    const minNeeded = Math.min(MIN_TOPICS, available.length)
+    if (paperConfig.topics.length < minNeeded) {
+      alert(`Please select at least ${minNeeded} topic${minNeeded === 1 ? '' : 's'} so there are enough questions to fill the paper.`)
+      return
+    }
     setIsGenerating(true)
     try {
       // Ensure we send topics as an array (fallback to all subject topics if none selected)
@@ -159,9 +171,17 @@ const WorkspacePage = () => {
     }
   }
 
+  // ── Topic-count guard rails for the generate modal ──────────────────────────
+  const availableTopics = subjectTopicsMap[paperConfig.subject] || []
+  const effectiveMinTopics = Math.min(MIN_TOPICS, availableTopics.length)
+  const effectiveMaxTopics = Math.min(MAX_TOPICS, availableTopics.length)
+  const selectedCount = paperConfig.topics.length
+  const tooFewTopics = selectedCount < effectiveMinTopics
+  const atMaxTopics = selectedCount >= effectiveMaxTopics
+
   return (
     <div className="workspace-layout-grid">
-      
+
       {/* 1. LEFT SIDEBAR: DIRECTORY FILE TREE FOR THE ACTIVE PROJECT */}
       <div className="workspace-sidebar">
         <div className="sidebar-project-header">
@@ -307,8 +327,8 @@ const WorkspacePage = () => {
                 <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>
                   Topics
                 </label>
-                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                  {paperConfig.topics.length} selected
+                <span style={{ fontSize: '0.72rem', color: tooFewTopics ? '#f59e0b' : '#64748b' }}>
+                  {selectedCount} / {effectiveMinTopics}–{effectiveMaxTopics} selected
                 </span>
               </div>
 
@@ -321,7 +341,8 @@ const WorkspacePage = () => {
               }}>
                 {(subjectTopicsMap[paperConfig.subject] || []).map(topic => {
                   const checked = paperConfig.topics.includes(topic)
-                  const disabled = false
+                  // Block selecting more than the max (already-checked stay toggleable).
+                  const disabled = !checked && atMaxTopics
                   return (
                     <label key={topic} style={{
                       display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -353,6 +374,17 @@ const WorkspacePage = () => {
                   </span>
                 )}
               </div>
+
+              {/* Guidance on how many topics to pick */}
+              {availableTopics.length > 0 && (
+                <p style={{ fontSize: '0.74rem', margin: '0.5rem 0 0', color: tooFewTopics ? '#f59e0b' : '#64748b' }}>
+                  {tooFewTopics
+                    ? `Select at least ${effectiveMinTopics} topics — some topics have few questions, so a wider spread is needed to fill the 100-mark paper.`
+                    : atMaxTopics
+                      ? `Maximum ${effectiveMaxTopics} topics selected.`
+                      : `Pick between ${effectiveMinTopics} and ${effectiveMaxTopics} topics for a well-filled paper.`}
+                </p>
+              )}
 
               {/* Selected topic chips */}
               {paperConfig.topics.length > 0 && (
@@ -386,7 +418,7 @@ const WorkspacePage = () => {
             <div className="modal-actions" style={{ marginTop: '0.25rem' }}>
               <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleGenerate}
-                disabled={isGenerating || !paperConfig.subject}>
+                disabled={isGenerating || !paperConfig.subject || tooFewTopics}>
                 {isGenerating ? '⏳ Generating…' : '✨ Generate Paper'}
               </button>
             </div>

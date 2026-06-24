@@ -36,6 +36,10 @@ public class StudentPerformance {
     @Column(name = "mastery_level", nullable = false, length = 50)
     private String masteryLevel = "Beginner";
 
+    /** Educator's free-text feedback for this topic, entered while grading. Shown to the student. */
+    @Column(name = "comment", columnDefinition = "TEXT")
+    private String comment;
+
     @UpdateTimestamp
     @Column(name = "last_calculated")
     private OffsetDateTime lastCalculated;

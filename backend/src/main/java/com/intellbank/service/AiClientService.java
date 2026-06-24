@@ -91,6 +91,45 @@ public class AiClientService {
     }
 
     /**
+     * Subjects that actually have trained topic-prediction data.
+     * GET /ai/predict/subjects
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> predictionSubjects() {
+        String url = aiBaseUrl + "/ai/predict/subjects";
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE);
+            Map<String, Object> responseBody = response.getBody();
+            Object subjects = responseBody != null ? responseBody.get("subjects") : null;
+            return subjects instanceof List ? (List<String>) subjects : List.of();
+        } catch (Exception e) {
+            log.error("Prediction subjects service error: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Cohort "Class Weakness" analysis for a subject — the project's own trained model.
+     * GET /ai/analyze/weaknesses?subject=...
+     */
+    public Map<String, Object> classWeaknesses(String subject) {
+        String url = aiBaseUrl + "/ai/analyze/weaknesses?subject={subject}";
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE, subject);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Class-weakness service error: {}", e.getMessage());
+            return Map.of(
+                    "eligible", false,
+                    "reason", "Weakness analysis service unavailable: " + e.getMessage(),
+                    "topics", List.of());
+        }
+    }
+
+    /**
      * Generate questions using the fine-tuned FLAN-T5-small model.
      * POST /ai/generate/question
      */

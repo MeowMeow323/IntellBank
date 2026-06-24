@@ -30,6 +30,10 @@ public class SubmissionService {
     private static final String STATUS_PENDING  = "PENDING";
     private static final String STATUS_RETURNED = "RETURNED";
 
+    /** A student may have at most this many submissions in flight (not yet returned),
+     *  so the educator's queue isn't flooded. */
+    private static final int MAX_ACTIVE_SUBMISSIONS = 3;
+
     private final SubmissionRepository submissionRepository;
     private final DocumentRepository documentRepository;
 
@@ -58,12 +62,14 @@ public class SubmissionService {
                 HttpStatus.CONFLICT);
         }
 
-        // One-active-submission rule: block if any prior submission is still un-returned.
+        // Active-submission cap: a student may hold up to MAX_ACTIVE_SUBMISSIONS papers
+        // that are not yet returned. Returned papers don't count, so they can keep practising.
         List<Submission> active =
                 submissionRepository.findByDocumentProjectStudentUserEmailIgnoreCaseAndStatusNot(email, STATUS_RETURNED);
-        if (!active.isEmpty()) {
+        if (active.size() >= MAX_ACTIVE_SUBMISSIONS) {
             throw new AppException(
-                "You already have a submission awaiting review. It must be returned before you can submit another paper.",
+                "You already have " + MAX_ACTIVE_SUBMISSIONS + " submissions awaiting review. "
+                + "Wait for one to be returned (or withdraw it) before submitting another.",
                 HttpStatus.CONFLICT);
         }
 

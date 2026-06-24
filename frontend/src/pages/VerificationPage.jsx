@@ -37,10 +37,14 @@ function SubmissionGrading() {
   const [activeId, setActiveId] = useState(null)
   const [review, setReview] = useState(null)
   const [marks, setMarks] = useState({})        // { questionId: number }
+  const [comments, setComments] = useState({})  // { topicName: feedback }
   const [result, setResult] = useState(null)     // GradeResult after grading
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadQueue() }, [])
+
+  // Distinct topics across the paper — the educator writes one comment per topic.
+  const reviewTopics = [...new Set((review?.questions || []).flatMap((q) => q.topics || []))]
 
   const loadQueue = async () => {
     setLoading(true)
@@ -51,7 +55,7 @@ function SubmissionGrading() {
   }
 
   const openSubmission = async (id) => {
-    setActiveId(id); setReview(null); setResult(null); setMarks({})
+    setActiveId(id); setReview(null); setResult(null); setMarks({}); setComments({})
     try {
       const res = await VerificationService.reviewSubmission(id)
       setReview(res.data)
@@ -59,8 +63,17 @@ function SubmissionGrading() {
       const init = {}
       ;(res.data.questions || []).forEach((q) => { init[q.questionId] = 0 })
       setMarks(init)
+      // pre-fill any existing per-topic comments
+      const initComments = {}
+      ;(res.data.topicFeedback || []).forEach((tf) => {
+        if (tf.comment) initComments[tf.topicName] = tf.comment
+      })
+      setComments(initComments)
     } catch { alert('Failed to load submission.') }
   }
+
+  const setComment = (topicName, value) =>
+    setComments((c) => ({ ...c, [topicName]: value }))
 
   const total = Object.values(marks).reduce((a, b) => a + (Number(b) || 0), 0)
   const maxTotal = (review?.questions || []).reduce((a, q) => a + (q.marks || 0), 0)
@@ -74,7 +87,7 @@ function SubmissionGrading() {
 
   const saveGrade = async () => {
     try {
-      const res = await VerificationService.gradeSubmission(activeId, marks)
+      const res = await VerificationService.gradeSubmission(activeId, marks, comments)
       setResult(res.data)
       loadQueue()
     } catch { alert('Failed to save grade.') }
@@ -139,6 +152,28 @@ function SubmissionGrading() {
                   </div>
                 ))}
 
+                {/* Per-topic feedback — one comment box per topic, shown to the student */}
+                {reviewTopics.length > 0 && (
+                  <div className="vf-topic-comments">
+                    <h4 className="vf-comments-title">Topic Feedback</h4>
+                    <p className="vf-comments-hint">
+                      A question's marks are split evenly across its topics. Add a comment per topic — the student sees it on their reviewed paper.
+                    </p>
+                    {reviewTopics.map((t) => (
+                      <div key={t} className="vf-topic-comment">
+                        <label className="vf-chip vf-chip-topic">{t}</label>
+                        <textarea
+                          rows={2}
+                          className="vf-textarea"
+                          placeholder={`Feedback on "${t}"…`}
+                          value={comments[t] ?? ''}
+                          onChange={(e) => setComment(t, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="vf-total">
                   <span style={{ color: 'var(--color-text-muted)' }}>Auto-calculated total</span>
                   <span className="vf-total-num">{total} / {maxTotal}</span>
@@ -157,7 +192,10 @@ function SubmissionGrading() {
                     <strong>Topic mastery updated (student weakness profile):</strong>
                     {result.topics.map((t) => (
                       <div key={t.topicId} className="vf-bd-row">
-                        <span>{t.topicName} — {t.earned}/{t.possible}</span>
+                        <div style={{ flex: 1 }}>
+                          <span>{t.topicName} — {t.earned}/{t.possible}</span>
+                          {t.comment && <div className="vf-bd-comment">“{t.comment}”</div>}
+                        </div>
                         <span className={`badge ${t.percentage < 50 ? 'badge-red' : t.percentage < 70 ? 'badge-amber' : 'badge-green'}`}>
                           {t.percentage}% · {t.mastery}
                         </span>
