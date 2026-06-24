@@ -3,6 +3,7 @@ package com.intellbank.service;
 import com.intellbank.dto.PastYearPaperResponse;
 import com.intellbank.entity.PastYearPaper;
 import com.intellbank.entity.Question;
+import com.intellbank.entity.QuestionTopic;
 import com.intellbank.entity.Solution;
 import com.intellbank.exception.AppException;
 import com.intellbank.repository.DocumentQuestionRepository;
@@ -18,8 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -91,6 +95,173 @@ public class PastYearPaperService {
 
     public Map<String, Object> getProgress(UUID pypId) {
         return aiClientService.getProcessingProgress(pypId);
+    }
+
+    /**
+     * Generate (or regenerate) a solution for a single question.
+     * Replaces any existing solution so the educator gets a fresh attempt.
+     */
+    @Transactional
+    public Map<String, Object> generateSingleSolution(UUID questionId) {
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new AppException("Question not found", HttpStatus.NOT_FOUND));
+
+        List<QuestionTopic> topics = questionTopicRepository.findByQuestionQuestionId(questionId);
+        String subject = topics.isEmpty() ? "General" : topics.get(0).getTopic().getSubject().getName();
+        String topic   = topics.isEmpty() ? "General" : topics.get(0).getTopic().getName();
+        String text    = question.getContent() != null
+                ? question.getContent().replaceAll("(?i)^\\[QPART:[^\\]]+\\]\\n?", "").strip()
+                : "";
+
+        if (text.isBlank()) {
+            throw new AppException("Question has no content to generate a solution for", HttpStatus.BAD_REQUEST);
+        }
+
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("question_id", questionId.toString());
+        entry.put("text",    text);
+        entry.put("subject", subject);
+        entry.put("topic",   topic);
+        entry.put("marks",   question.getMarks() != null ? question.getMarks() : 5);
+
+        Map<String, Object> aiResult = aiClientService.generatePypSolutions(List.of(entry));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sols = (List<Map<String, Object>>) aiResult.getOrDefault("solutions", List.of());
+
+        if (sols.isEmpty() || sols.get(0).get("error") != null) {
+            String err = sols.isEmpty() ? "No response from AI" : (String) sols.get(0).get("error");
+            throw new AppException("Solution generation failed: " + err, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        Map<String, Object> sol = sols.get(0);
+        String explanation = sol.get("explanation") instanceof String s ? s : "";
+
+        // Replace existing solution if one already exists
+        Solution solution = solutionRepository.findByQuestionQuestionId(questionId)
+                .orElse(Solution.builder().question(question).build());
+        solution.setContent((String) sol.get("content"));
+        solution.setExplanation(explanation);
+        solution.setIsVerified(false);
+        Solution saved = solutionRepository.save(solution);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("questionId",  saved.getQuestion().getQuestionId());
+        result.put("content",     saved.getContent());
+        result.put("explanation", saved.getExplanation());
+        result.put("isVerified",  saved.getIsVerified());
+        return result;
+    }
+
+    /**
+     * Generate model solutions for all questions in a past-year paper via Gemini 2.0 Flash.
+     * Questions that already have a solution are skipped. Results are saved to the
+     * solutions table with is_verified=false, ready for educator review.
+     */
+    @Transactional
+    public Map<String, Object> generateSolutions(UUID pypId) {
+        PastYearPaper paper = pastYearPaperRepository.findById(pypId)
+                .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+
+        if (!"PROCESSED".equals(paper.getStatus())) {
+            throw new AppException("Paper must be PROCESSED before generating solutions", HttpStatus.BAD_REQUEST);
+        }
+
+        List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
+        if (questions.isEmpty()) {
+            return Map.of("generated", 0, "failed", 0, "skipped", 0);
+        }
+
+        List<UUID> questionIds = questions.stream().map(Question::getQuestionId).collect(Collectors.toList());
+
+        // Skip questions that already have a solution
+        Set<UUID> alreadySolved = solutionRepository.findByQuestionQuestionIdIn(questionIds)
+                .stream().map(s -> s.getQuestion().getQuestionId()).collect(Collectors.toSet());
+
+        // Load topic/subject for each question (JOIN FETCH avoids N+1)
+        List<QuestionTopic> allTopics = questionTopicRepository.findByQuestionIds(questionIds);
+        Map<UUID, QuestionTopic> firstTopicMap = new LinkedHashMap<>();
+        for (QuestionTopic qt : allTopics) {
+            firstTopicMap.putIfAbsent(qt.getQuestion().getQuestionId(), qt);
+        }
+
+        // Build payload — strip [QPART:N:label] markers so the LLM sees clean question text
+        List<Map<String, Object>> payload = new ArrayList<>();
+        int skipped = 0;
+        for (Question q : questions) {
+            if (alreadySolved.contains(q.getQuestionId())) { skipped++; continue; }
+            QuestionTopic qt = firstTopicMap.get(q.getQuestionId());
+            String subject = qt != null ? qt.getTopic().getSubject().getName() : "General";
+            String topic   = qt != null ? qt.getTopic().getName() : "General";
+            String text    = q.getContent() != null
+                    ? q.getContent().replaceAll("(?i)^\\[QPART:[^\\]]+\\]\\n?", "").strip()
+                    : "";
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("question_id", q.getQuestionId().toString());
+            entry.put("text",    text);
+            entry.put("subject", subject);
+            entry.put("topic",   topic);
+            entry.put("marks",   q.getMarks() != null ? q.getMarks() : 5);
+            payload.add(entry);
+        }
+
+        if (payload.isEmpty()) {
+            return Map.of("generated", 0, "failed", 0, "skipped", skipped);
+        }
+
+        Map<String, Object> aiResult = aiClientService.generatePypSolutions(payload);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sols = (List<Map<String, Object>>) aiResult.getOrDefault("solutions", List.of());
+
+        Map<UUID, Question> questionMap = questions.stream()
+                .collect(Collectors.toMap(Question::getQuestionId, q -> q));
+
+        int generated = 0, failed = 0;
+        for (Map<String, Object> sol : sols) {
+            if (sol.get("error") != null) { failed++; continue; }
+            UUID qid = UUID.fromString((String) sol.get("question_id"));
+            Question q = questionMap.get(qid);
+            if (q == null) continue;
+            String explanation = sol.get("explanation") instanceof String s ? s : "";
+            solutionRepository.save(Solution.builder()
+                    .question(q)
+                    .content((String) sol.get("content"))
+                    .explanation(explanation)
+                    .isVerified(false)
+                    .build());
+            generated++;
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("generated", generated);
+        result.put("failed",    failed);
+        result.put("skipped",   skipped);
+        return result;
+    }
+
+    /**
+     * Return all generated solutions for every question in a past-year paper,
+     * keyed by question_id. Used by the frontend to display solutions inline
+     * on the PastYearPaperQuestionsPage.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<Map<String, Object>> getSolutions(UUID pypId) {
+        List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
+        if (questions.isEmpty()) return List.of();
+
+        List<UUID> questionIds = questions.stream().map(Question::getQuestionId).collect(Collectors.toList());
+        return solutionRepository.findByQuestionQuestionIdIn(questionIds).stream()
+                .map(s -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("questionId",  s.getQuestion().getQuestionId());
+                    m.put("content",     s.getContent());
+                    m.put("explanation", s.getExplanation());
+                    m.put("isVerified",  s.getIsVerified());
+                    return m;
+                })
+                .collect(Collectors.toList());
     }
 
     /**

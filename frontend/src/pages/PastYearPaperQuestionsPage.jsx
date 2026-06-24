@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PastYearPaperService, QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 import EditableQuestionContent from '../components/EditableQuestionContent.jsx'
+import QuestionContent from '../components/QuestionContent.jsx'
+import SolutionContent from '../components/SolutionContent.jsx'
+import useSolutionGenerationStore from '../store/solutionGenerationStore.js'
 import '../styles/document-upload.css'
 
 const STATUS_COLORS = {
@@ -14,13 +17,6 @@ const STATUS_COLORS = {
 
 const DIFFICULTY_BADGE = { Easy: 'badge-green', Medium: 'badge-amber', Hard: 'badge-red' }
 
-// Encodes which original "Question N" a stored row came from and which
-// sub-part (e.g. "c-ii") — see paper_processing_service.py's
-// `q_text = f"[QPART:{block_idx}:{label}]\n" + q_text`. Stripped before
-// display; re-attached on save so editing a row doesn't silently drop it
-// from its group on the next load. Content without this prefix (legacy
-// rows from before this marker existed) falls back to being its own
-// standalone group, numbered sequentially — no crash, just ungrouped.
 const QPART_RE = /^\[QPART:(\d+):([^\]]*)\]\n?/
 
 const parseQPart = (content) => {
@@ -29,14 +25,69 @@ const parseQPart = (content) => {
   return { groupNum: parseInt(m[1], 10), label: m[2], stripped: content.slice(m[0].length) }
 }
 
+// Collapsible solution panel shown beneath each sub-question
+const SolutionPanel = ({ solution }) => {
+  const [open, setOpen] = useState(false)
+  if (!solution) return null
+
+  return (
+    <div style={{ marginTop: '0.75rem', borderTop: '1px dashed var(--color-border, #e2e8f0)', paddingTop: '0.6rem' }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+          display: 'flex', alignItems: 'center', gap: '0.4rem',
+          fontSize: '0.85rem', fontWeight: 600,
+          color: 'var(--color-text-secondary, #64748b)',
+        }}
+      >
+        <span style={{ fontSize: '0.7rem' }}>{open ? '▼' : '▶'}</span>
+        Model Solution
+        <span className={`badge ${solution.isVerified ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: '0.7rem' }}>
+          {solution.isVerified ? 'Verified' : 'Pending Review'}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          marginTop: '0.6rem',
+          padding: '0.75rem 1rem',
+          background: 'var(--color-bg-tertiary, #f1f5f9)',
+          borderRadius: '6px',
+          borderLeft: '3px solid var(--color-primary, #6366f1)',
+        }}>
+          <SolutionContent content={solution.content} />
+          {solution.explanation && (
+            <details style={{ marginTop: '0.75rem' }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--color-text-secondary, #64748b)', fontWeight: 600 }}>
+                Marking Criteria
+              </summary>
+              <div style={{ marginTop: '0.4rem', fontSize: '0.85rem', color: 'var(--color-text-secondary, #64748b)' }}>
+                <SolutionContent content={solution.explanation} />
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const PastYearPaperQuestionsPage = () => {
   const { pypId } = useParams()
   const navigate = useNavigate()
 
   const [paper, setPaper] = useState(null)
   const [questions, setQuestions] = useState([])
+  const [solutions, setSolutions] = useState({})   // { [questionId]: { content, explanation, isVerified } }
   const [isLoading, setIsLoading] = useState(true)
   const [isReprocessing, setIsReprocessing] = useState(false)
+  // { [questionId]: 'loading' | 'error' }  — tracks per-question generate state
+  const [questionGenerating, setQuestionGenerating] = useState({})
+
+  const { generate, isGenerating, getResult, clearResult } = useSolutionGenerationStore()
+  const isGeneratingThis = isGenerating(pypId)
+  const generateResult   = getResult(pypId)
 
   useEffect(() => {
     loadAll()
@@ -51,10 +102,24 @@ const PastYearPaperQuestionsPage = () => {
       ])
       setPaper(papersRes.data.find((p) => p.pypId === pypId) || null)
       setQuestions(questionsRes.data)
+      await loadSolutions()
     } catch {
       // TODO: handle error
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadSolutions = async () => {
+    try {
+      const res = await PastYearPaperService.getSolutions(pypId)
+      const map = {}
+      for (const s of res.data) {
+        map[s.questionId] = s
+      }
+      setSolutions(map)
+    } catch {
+      // non-fatal — page still works without solutions
     }
   }
 
@@ -70,11 +135,29 @@ const PastYearPaperQuestionsPage = () => {
     }
   }
 
+  const handleGenerateSolutions = () => {
+    generate(pypId)
+  }
+
+  // Reload solutions when generation finishes so they appear inline immediately
+  useEffect(() => {
+    if (!isGeneratingThis && generateResult && !generateResult.error) {
+      loadSolutions()
+    }
+  }, [isGeneratingThis])
+
+  const handleGenerateSingleSolution = async (questionId) => {
+    setQuestionGenerating((prev) => ({ ...prev, [questionId]: 'loading' }))
+    try {
+      const res = await PastYearPaperService.generateSingleSolution(questionId)
+      setSolutions((prev) => ({ ...prev, [questionId]: res.data }))
+      setQuestionGenerating((prev) => { const n = { ...prev }; delete n[questionId]; return n })
+    } catch (err) {
+      setQuestionGenerating((prev) => ({ ...prev, [questionId]: 'error' }))
+    }
+  }
+
   const handleSaveQuestion = async (questionId, newContent, newMarks) => {
-    // newContent is whatever the user edited in the (already-stripped)
-    // textarea — re-attach this row's [QPART:...] marker (if it had one)
-    // before saving, so editing content doesn't silently drop it from its
-    // group on the next page load.
     const original = questions.find((q) => q.questionId === questionId)
     const { groupNum, label } = parseQPart(original?.content)
     const contentToSave = groupNum !== null ? `[QPART:${groupNum}:${label}]\n${newContent}` : newContent
@@ -85,10 +168,7 @@ const PastYearPaperQuestionsPage = () => {
     ))
   }
 
-  // Group rows back under their original "Question N" using the parsed
-  // marker — preserves insertion order (questions already come back
-  // ordered by question_id, which process_paper() inserts in document
-  // order). Marker-less rows (legacy data) become their own single-row group.
+  // Group rows back under their original "Question N"
   const groups = []
   const groupByNum = new Map()
   for (const q of questions) {
@@ -105,6 +185,8 @@ const PastYearPaperQuestionsPage = () => {
     }
     groupByNum.get(groupNum).items.push(entry)
   }
+
+  const canGenerate = paper?.status === 'PROCESSED' && !isGeneratingThis
 
   return (
     <div className="page-layout">
@@ -135,8 +217,50 @@ const PastYearPaperQuestionsPage = () => {
             <button className="btn btn-secondary" onClick={handleReprocess} disabled={isReprocessing}>
               {isReprocessing ? 'Processing...' : 'Reprocess'}
             </button>
+            {paper?.status === 'PROCESSED' && (
+              <button
+                className="btn btn-primary"
+                onClick={handleGenerateSolutions}
+                disabled={!canGenerate}
+                id="generate-solutions-btn"
+              >
+                {isGeneratingThis ? 'Generating...' : 'Generate Solutions'}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Generation result banner */}
+        {generateResult && (
+          <div
+            style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              background: generateResult.error ? 'var(--color-danger-bg, #fef2f2)' : 'var(--color-success-bg, #f0fdf4)',
+              border: `1px solid ${generateResult.error ? 'var(--color-danger, #dc2626)' : 'var(--color-success, #16a34a)'}`,
+              color: generateResult.error ? 'var(--color-danger, #dc2626)' : 'var(--color-success, #15803d)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}
+          >
+            {generateResult.error ? (
+              <span>Error: {generateResult.error}</span>
+            ) : (
+              <span>
+                {generateResult.generated} solution{generateResult.generated !== 1 ? 's' : ''} generated
+                {generateResult.skipped > 0 && ` · ${generateResult.skipped} already had solutions`}
+                {generateResult.failed > 0 && ` · ${generateResult.failed} failed`}
+                {' — pending educator verification'}
+              </span>
+            )}
+            <button
+              onClick={() => clearResult(pypId)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center">
@@ -147,11 +271,6 @@ const PastYearPaperQuestionsPage = () => {
         ) : (
           <div className="flex flex-col gap-5">
             {groups.map((group, gi) => {
-              // Subject/topics are shared across every sub-part of a group
-              // (one classification call per original question) — shown
-              // once on the group header. Difficulty genuinely varies per
-              // sub-part now (that's the whole point of splitting to this
-              // granularity), so it's shown per row instead.
               const repTopics = group.items[0]?.topics
               return (
                 <div key={group.groupNum ?? `solo-${gi}`} className="card" id={`question-group-${group.groupNum ?? gi}`}>
@@ -194,6 +313,26 @@ const PastYearPaperQuestionsPage = () => {
                           originalFileUrl={paper?.fileUrl}
                           onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
                         />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+                            disabled={questionGenerating[q.questionId] === 'loading'}
+                            onClick={() => handleGenerateSingleSolution(q.questionId)}
+                          >
+                            {questionGenerating[q.questionId] === 'loading'
+                              ? 'Generating...'
+                              : solutions[q.questionId]
+                                ? 'Regenerate Solution'
+                                : 'Generate Solution'}
+                          </button>
+                          {questionGenerating[q.questionId] === 'error' && (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--color-danger, #dc2626)' }}>
+                              Failed — check terminal for error
+                            </span>
+                          )}
+                        </div>
+                        <SolutionPanel solution={solutions[q.questionId]} />
                       </div>
                     ))}
                   </div>

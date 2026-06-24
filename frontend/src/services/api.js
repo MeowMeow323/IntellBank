@@ -175,6 +175,9 @@ export const PastYearPaperService = {
   },
   process: (pypId) => api.post(`/api/past-year-papers/${pypId}/process`),
   getProgress: (pypId) => api.get(`/api/past-year-papers/${pypId}/progress`),
+  generateSolutions: (pypId) => api.post(`/api/past-year-papers/${pypId}/generate-solutions`),
+  generateSingleSolution: (questionId) => api.post(`/api/past-year-papers/questions/${questionId}/generate-solution`),
+  getSolutions: (pypId) => api.get(`/api/past-year-papers/${pypId}/solutions`),
   delete: (pypId) => api.delete(`/api/past-year-papers/${pypId}`),
 }
 

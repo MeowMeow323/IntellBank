@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from app.services.generation_service import generate_questions, generate_solution, generate_full_paper
+from app.services.cloud_solution_service import generate_pyp_solutions_batch
 
 router = APIRouter()
 
@@ -158,3 +159,64 @@ async def generate_paper_endpoint(request: PaperGenerateRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Paper generation failed: {str(e)}")
+
+
+# ── PYP Cloud Solution Generation ─────────────────────────────────────────────
+
+class PypQuestionInput(BaseModel):
+    question_id: str
+    text: str
+    subject: str
+    topic: str
+    marks: int = 5
+
+
+class PypSolutionResult(BaseModel):
+    question_id: str
+    content: Optional[str] = None
+    explanation: Optional[str] = None
+    error: Optional[str] = None
+
+
+class PypSolutionsRequest(BaseModel):
+    questions: List[PypQuestionInput]
+
+
+class PypSolutionsResponse(BaseModel):
+    solutions: List[PypSolutionResult]
+    generated: int
+    failed: int
+    model_used: str
+
+
+@router.post("/pyp-solutions", response_model=PypSolutionsResponse)
+async def generate_pyp_solutions_endpoint(request: PypSolutionsRequest):
+    """
+    Generate model answers for a batch of past-year paper questions using
+    Gemini 2.0 Flash. Each question is processed independently so a single
+    failure does not abort the whole batch.
+
+    Called by the Java backend after a paper is processed (OCR complete).
+    The caller is responsible for persisting the returned content/explanation
+    into the solutions table and queuing them for educator verification.
+    """
+    if not request.questions:
+        raise HTTPException(status_code=400, detail="No questions provided.")
+
+    raw = [q.model_dump() for q in request.questions]
+
+    try:
+        results = generate_pyp_solutions_batch(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Batch solution generation failed: {str(e)}")
+
+    solutions = [PypSolutionResult(**r) for r in results]
+    generated = sum(1 for s in solutions if s.error is None)
+    failed    = len(solutions) - generated
+
+    return PypSolutionsResponse(
+        solutions=solutions,
+        generated=generated,
+        failed=failed,
+        model_used="gemini-2.0-flash",
+    )

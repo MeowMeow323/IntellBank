@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+
 @RestController
 @RequestMapping("/api/past-year-papers")
 @RequiredArgsConstructor
@@ -38,6 +39,21 @@ public class PastYearPaperController {
     @GetMapping("/{pypId}/progress")
     public ResponseEntity<Map<String, Object>> progress(@PathVariable UUID pypId) {
         return ResponseEntity.ok(pastYearPaperService.getProgress(pypId));
+    }
+
+    @PostMapping("/{pypId}/generate-solutions")
+    public ResponseEntity<Map<String, Object>> generateSolutions(@PathVariable UUID pypId) {
+        return ResponseEntity.ok(pastYearPaperService.generateSolutions(pypId));
+    }
+
+    @PostMapping("/questions/{questionId}/generate-solution")
+    public ResponseEntity<Map<String, Object>> generateSingleSolution(@PathVariable UUID questionId) {
+        return ResponseEntity.ok(pastYearPaperService.generateSingleSolution(questionId));
+    }
+
+    @GetMapping("/{pypId}/solutions")
+    public ResponseEntity<List<Map<String, Object>>> getSolutions(@PathVariable UUID pypId) {
+        return ResponseEntity.ok(pastYearPaperService.getSolutions(pypId));
     }
 
     @DeleteMapping("/{pypId}")

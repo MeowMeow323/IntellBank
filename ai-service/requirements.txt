@@ -17,6 +17,9 @@ psycopg2-binary==2.9.12
 # Lightweight dictionary-based spellcheck (no model inference)
 pyspellchecker
 
+# Cloud LLM — PYP solution generation
+google-genai>=1.0.0
+
 # Local ML inference (question generation, zero-shot classification)
 # Loose pins so pip can resolve a compatible build for the active Python version.
 torch>=2.3.0

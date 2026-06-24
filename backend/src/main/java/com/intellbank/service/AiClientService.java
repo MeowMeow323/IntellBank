@@ -206,6 +206,24 @@ public class AiClientService {
     }
 
     /**
+     * Generate model answers for a batch of past-year paper questions via Gemini 2.0 Flash.
+     * POST /ai/generate/pyp-solutions
+     */
+    public Map<String, Object> generatePypSolutions(List<Map<String, Object>> questions) {
+        String url = aiBaseUrl + "/ai/generate/pyp-solutions";
+        Map<String, Object> body = Map.of("questions", questions);
+        try {
+            ResponseEntity<Map<String, Object>> response =
+                    restTemplate.exchange(url, HttpMethod.POST, buildRequest(body), MAP_TYPE);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("PYP solution generation service error: {}", e.getMessage());
+            throw new RuntimeException("AI PYP solution generation unavailable: " + e.getMessage());
+        }
+    }
+
+    /**
      * Runs the full OCR -> parse -> classify -> store pipeline for a past
      * year paper that's already been uploaded to Storage + recorded in
      * past_year_papers (see PastYearPaperService.uploadPaper).
