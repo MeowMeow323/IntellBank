@@ -1,10 +1,12 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 
 // Pages
 import LoginPage from '../pages/LoginPage.jsx'
 import RegisterPage from '../pages/RegisterPage.jsx'
+import ForgotPasswordPage from '../pages/ForgotPasswordPage.jsx'
+import ResetPasswordPage from '../pages/ResetPasswordPage.jsx'
 import DashboardPage from '../pages/DashboardPage.jsx'
 import WorkspacePage from '../pages/WorkspacePage.jsx'
 import DocumentUploadPage from '../pages/DocumentUploadPage.jsx'
@@ -22,9 +24,11 @@ import EducatorAnalysisPage from '../pages/EducatorAnalysisPage.jsx'
  */
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { isAuthenticated, user } = useAuthStore()
+  const location = useLocation()
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    // Remember where the user was headed so we can return them after login.
+    return <Navigate to="/login" replace state={{ from: location }} />
   }
 
   // Role-based access control
@@ -51,6 +55,14 @@ const AppRoutes = () => {
       <Route
         path="/register"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+      />
+      <Route
+        path="/forgot-password"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />}
+      />
+      <Route
+        path="/reset-password"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />}
       />
 
       {/* ── Protected Routes (all authenticated users) ── */}

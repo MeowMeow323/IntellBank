@@ -38,7 +38,7 @@ const PageEditor = React.forwardRef(({
       display: 'flex', flexDirection: 'column',
       boxSizing: 'border-box', overflow: 'hidden', flexShrink: 0,
       padding: `${PAD_V}px ${PAD_H}px`,
-      ...(editingHF ? { outline: '1.5px dashed #0b57d0' } : {}),
+      ...(editingHF ? { outline: '1.5px dashed var(--accent)' } : {}),
     }}>
       {/* Header */}
       <div
@@ -90,8 +90,8 @@ const PageEditor = React.forwardRef(({
           style={{ fontSize: '8pt', color: '#70757a', fontFamily: 'Arial,sans-serif', outline: 'none', cursor: 'pointer' }}
         />
         <span style={{
-          fontSize: '8pt', color: '#0b57d0', fontWeight: 600,
-          background: '#f0f4f9', padding: '1px 8px', borderRadius: '4px'
+          fontSize: '8pt', color: 'var(--accent)', fontWeight: 600,
+          background: 'var(--accent-soft)', padding: '1px 8px', borderRadius: '4px'
         }}>
           {pageNum} / {pageCount}
         </span>
@@ -560,7 +560,7 @@ const WorkspaceContent = () => {
               >
                 {submitState === 'submitting' ? 'Submitting…'
                   : submitState === 'done' ? 'Submitted'
-                  : '📤 Submit for Review'}
+                    : '📤 Submit for Review'}
               </button>
             </div>
           )}
@@ -607,7 +607,7 @@ const WorkspaceContent = () => {
         <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('insertOrderedList') }}>1≡</button>
         <div style={S.div} />
         <div className="wc-more-wrap" style={{ position: 'relative' }}>
-          <button style={{ ...S.tbBtn, color: '#0b57d0', fontWeight: 600 }}
+          <button style={{ ...S.tbBtn, color: 'var(--accent)', fontWeight: 600 }}
             onMouseDown={e => { e.stopPropagation(); setShowMoreMenu(m => !m) }}>⚙️ More ▾</button>
           {showMoreMenu && (
             <div style={S.dropdown} onClick={e => e.stopPropagation()}>
@@ -621,7 +621,7 @@ const WorkspaceContent = () => {
             </div>
           )}
         </div>
-        <button style={{ ...S.tbBtn, background: '#0b57d0', color: '#fff', marginLeft: 'auto', padding: '4px 14px', borderRadius: '4px' }}
+        <button style={{ ...S.tbBtn, background: 'var(--accent)', color: '#fff', marginLeft: 'auto', padding: '4px 14px', borderRadius: '4px' }}
           onClick={() => window.print()}>🖨️ Export PDF</button>
       </div>
 

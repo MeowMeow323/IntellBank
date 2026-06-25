@@ -26,7 +26,6 @@ export default function VerificationPage() {
 
         {tab === 'submissions' ? <SubmissionGrading /> : <SolutionVerification />}
       </main>
-
     </div>
   )
 }
@@ -61,13 +60,13 @@ function SubmissionGrading() {
       setReview(res.data)
       // pre-zero every question
       const init = {}
-      ;(res.data.questions || []).forEach((q) => { init[q.questionId] = 0 })
+        ; (res.data.questions || []).forEach((q) => { init[q.questionId] = 0 })
       setMarks(init)
       // pre-fill any existing per-topic comments
       const initComments = {}
-      ;(res.data.topicFeedback || []).forEach((tf) => {
-        if (tf.comment) initComments[tf.topicName] = tf.comment
-      })
+        ; (res.data.topicFeedback || []).forEach((tf) => {
+          if (tf.comment) initComments[tf.topicName] = tf.comment
+        })
       setComments(initComments)
     } catch { alert('Failed to load submission.') }
   }
@@ -107,14 +106,14 @@ function SubmissionGrading() {
       <div className="vf-queue">
         {loading ? <p className="vf-empty">Loading…</p>
           : queue.length === 0 ? <p className="vf-empty">✓ No submissions awaiting grading.</p>
-          : queue.map((s) => (
-            <button key={s.submissionId}
-              className={`vf-queue-item ${activeId === s.submissionId ? 'active' : ''}`}
-              onClick={() => openSubmission(s.submissionId)}>
-              <div className="vf-queue-title">{s.document?.title || 'Untitled paper'}</div>
-              <div className="vf-queue-sub">Status: {s.status}</div>
-            </button>
-          ))}
+            : queue.map((s) => (
+              <button key={s.submissionId}
+                className={`vf-queue-item ${activeId === s.submissionId ? 'active' : ''}`}
+                onClick={() => openSubmission(s.submissionId)}>
+                <div className="vf-queue-title">{s.document?.title || 'Untitled paper'}</div>
+                <div className="vf-queue-sub">Status: {s.status}</div>
+              </button>
+            ))}
       </div>
 
       {/* Grading workspace */}
@@ -194,7 +193,7 @@ function SubmissionGrading() {
                       <div key={t.topicId} className="vf-bd-row">
                         <div style={{ flex: 1 }}>
                           <span>{t.topicName} — {t.earned}/{t.possible}</span>
-                          {t.comment && <div className="vf-bd-comment">“{t.comment}”</div>}
+                          {t.comment && <div className="vf-bd-comment">"{t.comment}"</div>}
                         </div>
                         <span className={`badge ${t.percentage < 50 ? 'badge-red' : t.percentage < 70 ? 'badge-amber' : 'badge-green'}`}>
                           {t.percentage}% · {t.mastery}
@@ -237,11 +236,14 @@ function SolutionVerification() {
     try { await VerificationService.approve(id); setSolutions((s) => s.filter((x) => x.solutionId !== id)) }
     catch { alert('Failed to approve.') }
   }
+
   const reject = async (id) => {
     const reason = prompt('Enter reason for rejection:') || 'Does not meet verification standards'
     try { await VerificationService.reject(id, reason); fetchPending() } catch { alert('Failed to reject.') }
   }
+
   const startEdit = (sol) => { setEditId(sol.solutionId); setEditContent(sol.content); setEditExplanation(sol.explanation || '') }
+
   const saveEdit = async (id) => {
     try { await VerificationService.edit(id, { content: editContent, explanation: editExplanation }); setEditId(null); fetchPending() }
     catch { alert('Failed to save edit.') }

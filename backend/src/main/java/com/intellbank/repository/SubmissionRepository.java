@@ -12,15 +12,21 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     void deleteByDocumentDocumentId(UUID documentId);
 
-    /** Every submission belonging to one student (resolved via Document → Project → Student → User.email). */
+    /**
+     * Every submission belonging to one student (resolved via Document → Project →
+     * Student → User.email).
+     */
     List<Submission> findByDocumentProjectStudentUserEmailIgnoreCase(String email);
 
     /**
      * A student's "active" submissions — anything not yet RETURNED.
-     * Used to enforce the one-active-submission rule (must be returned before resubmitting).
+     * Used to enforce the one-active-submission rule (must be returned before
+     * resubmitting).
      */
     List<Submission> findByDocumentProjectStudentUserEmailIgnoreCaseAndStatusNot(String email, String status);
 
-    /** Educator queue: every submission currently in a given status (e.g. PENDING). */
+    /**
+     * Educator queue: every submission currently in a given status (e.g. PENDING).
+     */
     List<Submission> findByStatus(String status);
 }

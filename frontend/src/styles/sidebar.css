@@ -21,7 +21,7 @@
 .sidebar-logo {
   width: 34px;
   height: 34px;
-  background: var(--ink);
+  background: var(--gradient-primary);
   border-radius: 9px;
   display: flex;
   align-items: center;
@@ -31,10 +31,11 @@
   font-size: 0.92rem;
   color: #fff;
   flex-shrink: 0;
+  box-shadow: var(--shadow-accent);
 }
 
-/* Brand wordmark carries the signature: a marigold highlighter swipe, like a
-   key term highlighted in revision notes. */
+/* Brand wordmark carries the signature: an Electric Blue highlighter swipe, like
+   a key term highlighted in revision notes. */
 .sidebar-brand-text {
   font-family: var(--font-heading);
   font-weight: 600;
@@ -126,8 +127,8 @@
 }
 
 .sidebar-nav-item.active {
-  color: var(--ink);
-  background: var(--highlight-soft);
+  color: var(--accent);
+  background: var(--accent-soft);
   border-color: transparent;
   font-weight: 600;
 }

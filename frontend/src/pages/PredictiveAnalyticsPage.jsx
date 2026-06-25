@@ -12,7 +12,7 @@ const masteryBand = (s) =>
   s >= 90 ? 'Mastered' : s >= 70 ? 'Advanced' : s >= 50 ? 'Intermediate' : 'Beginner'
 const predLabel = (p) => {
   const c = p.confidence ?? 0
-  if (p.tier === 'High'   || c >= 0.7) return 'High'
+  if (p.tier === 'High' || c >= 0.7) return 'High'
   if (p.tier === 'Medium' || c >= 0.4) return 'Medium'
   return 'Low'
 }
@@ -23,16 +23,16 @@ const PredictiveAnalyticsPage = () => {
   // All mastery rows fetched once — never mutated
   const allMastery = useRef([])
 
-  const [subjects, setSubjects]       = useState([])
+  const [subjects, setSubjects] = useState([])
   const [predictedSubjects, setPredictedSubjects] = useState([])  // subjects that HAVE predictions
-  const [subject, setSubject]         = useState('')
-  const [weaknesses, setWeaknesses]   = useState([])
-  const [predicted, setPredicted]     = useState([])
-  const [mastery, setMastery]         = useState([])      // this subject's mastery rows
-  const [selected, setSelected]       = useState(null)    // clicked prediction cell
+  const [subject, setSubject] = useState('')
+  const [weaknesses, setWeaknesses] = useState([])
+  const [predicted, setPredicted] = useState([])
+  const [mastery, setMastery] = useState([])      // this subject's mastery rows
+  const [selected, setSelected] = useState(null)    // clicked prediction cell
   const [heatmapMode, setHeatmapMode] = useState('mastery')   // 'mastery' | 'prediction'
   const [weaknessMode, setWeaknessMode] = useState('mine')    // 'mine' | 'class'
-  const [loading, setLoading]         = useState(true)
+  const [loading, setLoading] = useState(true)
   const [predLoading, setPredLoading] = useState(false)
 
   const hasPrediction = (subj) =>
@@ -133,10 +133,10 @@ const PredictiveAnalyticsPage = () => {
               {subjects.length === 0
                 ? <option value={subject}>{subject}</option>
                 : subjects.map(s => (
-                    <option key={s} value={s}>
-                      {hasPrediction(s) ? `${s}  ✓ prediction` : `${s}  — no prediction`}
-                    </option>
-                  ))
+                  <option key={s} value={s}>
+                    {hasPrediction(s) ? `${s}  ✓ prediction` : `${s}  — no prediction`}
+                  </option>
+                ))
               }
             </select>
           </div>
@@ -152,7 +152,7 @@ const PredictiveAnalyticsPage = () => {
                 <h3 className="chart-title" style={{ margin: 0 }}>
                   {heatmapMode === 'mastery' ? 'Topic Mastery'
                     : heatmapMode === 'class' ? 'Class Mastery Matrix'
-                    : 'Topic Prediction'} — {subject}
+                      : 'Topic Prediction'} — {subject}
                 </h3>
                 <div className="pa-toggle">
                   <button className={heatmapMode === 'mastery' ? 'active' : ''} onClick={() => switchHeatmap('mastery')}>Mastery</button>

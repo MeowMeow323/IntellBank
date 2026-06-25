@@ -116,6 +116,10 @@ const DashboardPage = () => {
       <main className="main-content">
         <div className="page-header flex justify-between items-center">
           <div>
+            <div className="section-label page-eyebrow">
+              <span className="section-label__dot" />
+              <span className="section-label__text">{isEducator ? 'Educator Workspace' : 'Your Workspace'}</span>
+            </div>
             <h1 className="page-title">Dashboard</h1>
             <p className="page-subtitle">Welcome back, {user?.fullName || user?.username}</p>
           </div>

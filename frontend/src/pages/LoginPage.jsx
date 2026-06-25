@@ -1,13 +1,24 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 import useAuthStore from '../store/authStore'
+import AuthLayout from '../components/auth/AuthLayout'
 
 const LoginPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login, isLoading, error, clearError } = useAuthStore()
 
   // Field name is 'email' — matches the backend AuthService.login() which reads data.get("email")
   const [form, setForm] = useState({ email: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
+  const [remember, setRemember] = useState(true)
+
+  // Notice shown when the response interceptor bounced us here on token expiry.
+  const sessionExpired = new URLSearchParams(location.search).get('expired') === '1'
+
+  // Where to send the user after login: the page they were blocked from, or dashboard.
+  const redirectTo = location.state?.from?.pathname || '/dashboard'
 
   const handleChange = (e) => {
     clearError()
@@ -17,53 +28,56 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      await login(form)
-      navigate('/dashboard')
+      await login(form, remember)
+      navigate(redirectTo, { replace: true })
     } catch {
       // Error handled in store
     }
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-container fade-in">
-        {/* Logo / Brand */}
-        <div className="auth-brand">
-          <div className="auth-logo">IB</div>
-          <h1 className="auth-title">IntellBank</h1>
-          <p className="auth-subtitle">Intelligent Educational Question Bank</p>
+    <AuthLayout>
+      <form className="auth-form" onSubmit={handleSubmit} id="login-form">
+        <div className="section-label auth-eyebrow">
+          <span className="section-label__dot" />
+          <span className="section-label__text">Welcome Back</span>
+        </div>
+        <h2 className="auth-title">Sign in to <span className="gradient-text">IntellBank</span></h2>
+
+        {sessionExpired && !error && (
+          <div className="alert alert-info" id="login-expired">
+            Your session expired. Please sign in again.
+          </div>
+        )}
+
+        {error && (
+          <div className="alert alert-error" id="login-error">
+            {error}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            className="form-input"
+            placeholder="Enter your email"
+            value={form.email}
+            onChange={handleChange}
+            required
+            autoComplete="email"
+          />
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit} id="login-form">
-          <h2 className="auth-form-title">Welcome Back</h2>
-
-          {error && (
-            <div className="alert alert-error" id="login-error">
-              {error}
-            </div>
-          )}
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              className="form-input"
-              placeholder="Enter your email"
-              value={form.email}
-              onChange={handleChange}
-              required
-              autoComplete="email"
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
+        <div className="form-group">
+          <label className="form-label" htmlFor="password">Password</label>
+          <div className="password-wrap">
             <input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               className="form-input"
               placeholder="Enter your password"
               value={form.password}
@@ -71,102 +85,51 @@ const LoginPage = () => {
               required
               autoComplete="current-password"
             />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
+        </div>
 
-          <button
-            id="login-submit"
-            type="submit"
-            className="btn btn-primary w-full"
-            disabled={isLoading}
-          >
-            {isLoading ? <span className="spinner" style={{ width: '1rem', height: '1rem' }} /> : null}
-            {isLoading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+        <div className="auth-options">
+          <label className="remember-me">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            Remember me
+          </label>
+          <Link to="/forgot-password" id="forgot-password-link" className="forgot-link">
+            Forgot password?
+          </Link>
+        </div>
+
+        <button id="login-submit" type="submit" className="btn btn-primary" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <span className="spinner" style={{ width: '1rem', height: '1rem' }} />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Sign In
+              <ArrowRight size={18} className="btn-arrow" />
+            </>
+          )}
+        </button>
 
         <p className="auth-footer">
           Don't have an account?{' '}
           <Link to="/register" id="register-link">Create one here</Link>
         </p>
-      </div>
-
-      <style>{`
-        .auth-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: var(--desk);
-          background-image: radial-gradient(ellipse at 50% -10%, var(--highlight-soft) 0%, transparent 55%);
-          padding: 1rem;
-        }
-        .auth-container {
-          width: 100%;
-          max-width: 420px;
-        }
-        .auth-brand {
-          text-align: center;
-          margin-bottom: 2rem;
-        }
-        .auth-logo {
-          width: 60px;
-          height: 60px;
-          background: var(--gradient-primary);
-          border-radius: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: var(--font-heading);
-          font-size: 1.4rem;
-          font-weight: 700;
-          color: #fff;
-          margin: 0 auto 1rem;
-          box-shadow: var(--shadow-glow);
-        }
-        .auth-title {
-          font-family: var(--font-heading);
-          font-size: 1.85rem;
-          font-weight: 600;
-          color: var(--ink);
-          letter-spacing: -0.01em;
-        }
-        .auth-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-          margin-top: 0.25rem;
-        }
-        .auth-form {
-          background: var(--color-bg-card);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-xl);
-          padding: 2rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1.25rem;
-        }
-        .auth-form-title {
-          font-size: 1.25rem;
-          font-weight: 600;
-          color: var(--color-text-primary);
-        }
-        .alert {
-          padding: 0.75rem 1rem;
-          border-radius: var(--radius-md);
-          font-size: 0.875rem;
-        }
-        .alert-error {
-          background: rgba(244, 63, 94, 0.1);
-          border: 1px solid rgba(244, 63, 94, 0.3);
-          color: var(--color-accent-rose);
-        }
-        .auth-footer {
-          text-align: center;
-          margin-top: 1.25rem;
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-        }
-      `}</style>
-    </div>
+      </form>
+    </AuthLayout>
   )
 }
 

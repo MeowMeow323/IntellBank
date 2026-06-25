@@ -12,7 +12,7 @@
   border: 1px solid var(--color-border); border-radius: var(--radius-md);
   padding: 0.8rem 1rem; cursor: pointer;
 }
-.vf-queue-item.active { border-color: var(--color-primary, #3b82f6); }
+.vf-queue-item.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
 .vf-queue-title { font-weight: 600; font-size: 0.9rem; }
 .vf-queue-sub { font-size: 0.78rem; color: var(--color-text-muted); margin-top: 0.2rem; }
 .vf-empty { color: var(--color-text-muted); }
@@ -41,7 +41,7 @@
 .vf-btn-return { background: rgba(148,163,184,0.18); color: var(--color-text-primary); }
 .vf-btn-approve { background: #22c55e; color: #fff; }
 .vf-btn-reject { background: #ef4444; color: #fff; }
-.vf-btn-edit { background: #3b82f6; color: #fff; }
+.vf-btn-edit { background: var(--accent); color: #fff; }
 .vf-breakdown {
   margin-top: 1rem; background: var(--color-bg-secondary);
   border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1rem;

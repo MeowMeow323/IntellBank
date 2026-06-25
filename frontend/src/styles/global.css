@@ -1,20 +1,29 @@
 /* IntellBank – Global Stylesheet */
 
 :root {
-  /* ── "Examiner's desk": ink & paper, with a highlighter signature ────────── */
-  --paper:        #FFFFFF;   /* cards — the exam paper */
-  --desk:         #F5F6F7;   /* page background — cool paper grey */
-  --inset:        #ECEEF0;   /* tracks, insets, hover fills */
-  --ink:          #1A1E27;   /* primary text + primary actions (exam ink) */
-  --ink-soft:     #56606E;   /* secondary text */
-  --ink-faint:    #98A0AC;   /* tertiary / captions */
-  --rule:         #E6E8EC;   /* hairline dividers & borders */
+  /* ── "Minimalist Modern": slate & paper, with an Electric Blue signature ──── */
+  --paper:        #FFFFFF;   /* cards — pure white for maximum lift */
+  --desk:         #FAFAFA;   /* page background — warm off-white */
+  --inset:        #F1F5F9;   /* Slate-100 — tracks, insets, hover fills */
+  --ink:          #0F172A;   /* Slate-900 — primary text + inverted backgrounds */
+  --ink-soft:     #64748B;   /* Slate-500 — secondary text */
+  --ink-faint:    #94A3B8;   /* Slate-400 — tertiary / captions */
+  --rule:         #E2E8F0;   /* Slate-200 — hairline dividers & borders */
 
-  /* The one signature accent — a revision highlighter. Used only for active /
-     focused / important moments, never as broad decoration. */
-  --highlight:      #EAB308;
-  --highlight-ink:  #7A5B00;            /* readable text on a highlight wash */
-  --highlight-soft: rgba(234,179,8,0.20);
+  /* The signature accent — Electric Blue. A dual-tone gradient is the heartbeat
+     of the system: used with confidence on every primary moment. */
+  --accent:           #0052FF;   /* primary action color */
+  --accent-secondary: #4D7CFF;   /* gradient endpoint */
+  --accent-foreground:#FFFFFF;
+  --accent-hover:     #0047E0;   /* solid-fill hover (gradient elements use brightness) */
+  --accent-soft:      rgba(0, 82, 255, 0.08);  /* tinted wash: active, focus glow */
+  --accent-border:    rgba(0, 82, 255, 0.30);  /* tinted border on pills/featured */
+
+  /* Backward-compatible "highlight" aliases — now point at the blue accent so
+     any component built against the old marigold identity shifts cleanly. */
+  --highlight:      var(--accent);
+  --highlight-ink:  var(--accent-foreground);
+  --highlight-soft: var(--accent-soft);
 
   /* Functional status colours (AA on white) */
   --success: #15803D;  --success-soft: #E6F4EA;
@@ -29,12 +38,6 @@
   --text-muted:   var(--ink-soft);
   --text-subtle:  var(--ink-faint);
   --border:       var(--rule);
-  --accent:       var(--ink);           /* primary actions = ink, minimal */
-  --accent-hover: #2A2F3A;
-  --accent-soft:  var(--highlight-soft);/* "active/highlighted" → marigold wash */
-
-  --shadow-card:        none;
-  --shadow-card-hover:  0 1px 2px rgba(20,24,33,0.05), 0 8px 24px rgba(20,24,33,0.06);
 
   /* ── Legacy aliases remapped to the new identity ─────────────────────────── */
   --color-bg-primary:   var(--desk);
@@ -42,10 +45,10 @@
   --color-bg-card:      var(--paper);
   --color-bg-hover:     var(--inset);
 
-  --color-accent-blue:   var(--ink);
-  --color-accent-indigo: var(--ink);
+  --color-accent-blue:   var(--accent);
+  --color-accent-indigo: var(--accent-secondary);
   --color-accent-purple: #6D28D9;
-  --color-accent-cyan:   var(--info);
+  --color-accent-cyan:   var(--accent-secondary);
   --color-accent-emerald:var(--success);
   --color-accent-rose:   var(--danger);
   --color-accent-amber:  var(--warning);
@@ -55,32 +58,46 @@
   --color-text-muted:     var(--ink-faint);
 
   --color-border:        var(--rule);
-  --color-border-accent: var(--ink);
-  --color-primary:       var(--ink);
+  --color-border-accent: var(--accent);
+  --color-primary:       var(--accent);
 
-  --gradient-primary: linear-gradient(135deg, var(--ink) 0%, var(--ink) 100%);
+  /* The signature gradient — appears on buttons, icon tiles, text highlights,
+     featured borders, accent bars. */
+  --gradient-primary: linear-gradient(135deg, #0052FF 0%, #4D7CFF 100%);
+  --gradient-primary-h: linear-gradient(90deg, #0052FF 0%, #4D7CFF 100%);
   --gradient-card:    var(--paper);
-  --gradient-glow:    transparent;
+  --gradient-glow:    radial-gradient(circle at 50% 0%, rgba(0,82,255,0.08), transparent 60%);
 
-  /* Typography — Fraunces (serif display) ↔ Inter (UI/data) */
-  --font-primary: 'Inter', sans-serif;
-  --font-heading: 'Fraunces', Georgia, 'Times New Roman', serif;
+  /* Typography — Calistoga (display serif) ↔ Inter (UI/body) ↔ JetBrains Mono */
+  --font-primary: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Calistoga', Georgia, 'Times New Roman', serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
 
   /* Spacing */
-  --radius-sm: 6px;
-  --radius-md: 9px;
-  --radius:    11px;
-  --radius-lg: 11px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius:    12px;
+  --radius-lg: 14px;
   --radius-xl: 16px;
 
-  --shadow-sm:   none;
-  --shadow-md:   var(--shadow-card-hover);
-  --shadow-lg:   var(--shadow-card-hover);
-  --shadow-glow: var(--shadow-card-hover);
+  /* Layered shadow system — depth without flatness */
+  --shadow-sm:        0 1px 3px rgba(15,23,42,0.06);
+  --shadow-md:        0 4px 6px rgba(15,23,42,0.07);
+  --shadow-lg:        0 10px 15px rgba(15,23,42,0.08);
+  --shadow-xl:        0 20px 25px rgba(15,23,42,0.10);
+  --shadow-accent:    0 4px 14px rgba(0,82,255,0.25);
+  --shadow-accent-lg: 0 8px 24px rgba(0,82,255,0.35);
+  --shadow-glow:      var(--shadow-lg);
+
+  --shadow-card:        var(--shadow-md);
+  --shadow-card-hover:  var(--shadow-xl);
 
   --transition-fast: 0.15s ease;
-  --transition-base: 0.25s ease;
+  --transition-base: 0.2s ease-out;
   --transition-slow: 0.4s ease;
+
+  /* Signature easing for entrances (cubic ease-out) */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---- Reset ---- */
@@ -106,8 +123,16 @@ body {
 }
 
 /* ---- Typography ---- */
+/* Display serif (Calistoga) anchors the big headline moments; Inter carries the
+   workhorse headings for density and legibility. */
 h1,
-h2,
+h2 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
 h3,
 h4,
 h5,
@@ -115,9 +140,9 @@ h6 {
   font-family: var(--font-primary);
   font-weight: 600;
   line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
-/* The serif display face is spent with restraint — only on true display moments. */
 .page-title,
 .sidebar-brand-text {
   font-family: var(--font-heading);
@@ -169,12 +194,13 @@ a:hover {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.5rem;
-  box-shadow: none;
-  transition: border-color var(--transition-base);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
 }
 
 .card:hover {
-  border-color: #D6D9DF;
+  border-color: #CBD5E1;
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* ---- Project Card Action Overrides ---- */
@@ -202,10 +228,10 @@ a:hover {
   justify-content: center;
   width: 38px;
   height: 38px;
-  background: var(--bg-surface-2);
+  background: var(--accent-soft);
   border: none;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--accent);
   font-family: var(--font-heading);
   font-size: 1.05rem;
   font-weight: 600;
@@ -229,13 +255,33 @@ a:hover {
   transition: all var(--transition-base);
 }
 
-.btn-primary {
-  background: var(--accent);
-  color: #fff;
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
-.btn-primary:hover {
-  background: var(--accent-hover);
+/* Primary = the signature gradient, with an accent-tinted lift on hover. */
+.btn-primary {
+  background: var(--gradient-primary-h);
+  color: var(--accent-foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-accent-lg);
+  filter: brightness(1.08);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* An arrow inside a primary/group button slides right on hover. */
+.btn .btn-arrow {
+  transition: transform var(--transition-base);
+}
+.btn:hover .btn-arrow {
+  transform: translateX(3px);
 }
 
 .btn-secondary {
@@ -245,8 +291,9 @@ a:hover {
 }
 
 .btn-secondary:hover {
-  border-color: var(--color-accent-blue);
+  border-color: var(--accent-border);
   background: var(--color-bg-hover);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger {
@@ -292,16 +339,23 @@ a:hover {
 }
 
 .page-title {
-  font-size: 1.7rem;
-  font-weight: 600;
+  font-size: 1.95rem;
+  font-weight: 400;
   color: var(--ink);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
 }
 
 .page-subtitle {
   color: var(--text-muted);
-  margin-top: 0.2rem;
-  font-size: 0.9rem;
+  margin-top: 0.35rem;
+  font-size: 0.92rem;
+}
+
+/* Optional eyebrow above a page title — reuses the section-label pattern.
+   Drop a <div class="section-label page-eyebrow"> … </div> above .page-title. */
+.page-eyebrow {
+  margin-bottom: 0.75rem;
 }
 
 /* ---- Form Inputs ---- */
@@ -355,7 +409,7 @@ a:hover {
   letter-spacing: 0.03em;
 }
 
-.badge-blue { background: var(--inset); color: var(--ink-soft); }
+.badge-blue { background: var(--accent-soft); color: var(--accent); }
 .badge-green { background: var(--success-soft); color: var(--success); }
 .badge-red { background: var(--danger-soft); color: var(--danger); }
 .badge-amber { background: var(--warning-soft); color: var(--warning); }
@@ -412,12 +466,21 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
 }
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+/* KPI icons carry the full signature gradient. */
 .stat-icon {
-  width: 38px; height: 38px; flex-shrink: 0;
+  width: 40px; height: 40px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius-md);
-  background: var(--bg-surface-2); color: var(--text-muted);
+  background: var(--gradient-primary);
+  color: var(--accent-foreground);
+  box-shadow: var(--shadow-accent);
 }
 .stat-label { font-size: 0.76rem; color: var(--text-muted); font-weight: 500; }
 .stat-value { font-size: 1.4rem; font-weight: 650; color: var(--text); line-height: 1.1; margin-top: 0.1rem; letter-spacing: -0.01em; }
@@ -464,8 +527,185 @@ a:hover {
 }
 .dash-empty-icon {
   width: 60px; height: 60px; border-radius: 50%;
-  background: var(--bg-surface-2); color: var(--text-subtle);
+  background: var(--accent-soft); color: var(--accent);
   display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;
 }
 .dash-empty h3 { font-size: 1.15rem; color: var(--text); }
 .dash-empty p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+/* ============================================================================
+   Minimalist Modern — Signature Elements
+   Reusable design-system primitives (CSS-native, no framework dependency).
+   ============================================================================ */
+
+/* ---- Gradient text: the signature highlight on key headline words ---- */
+.gradient-text {
+  background: var(--gradient-primary-h);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* A soft gradient bar to underscore a hero word (position relative on parent). */
+.gradient-underline {
+  position: relative;
+  display: inline-block;
+}
+.gradient-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -0.15em;
+  height: 0.5em;
+  width: 100%;
+  border-radius: 2px;
+  background: linear-gradient(to right, rgba(0,82,255,0.15), rgba(77,124,255,0.10));
+  z-index: -1;
+}
+
+/* ---- Section label: pill + (pulsing) dot + uppercase mono text ---- */
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+}
+.section-label__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.section-label__text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+
+/* ---- Gradient icon tile: feature icons sit on the full gradient ---- */
+.icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--gradient-primary);
+  color: var(--accent-foreground);
+  box-shadow: var(--shadow-accent);
+}
+
+/* ---- Featured card: 2px gradient border via padding wrapper ---- */
+.gradient-border {
+  border-radius: var(--radius-xl);
+  background: var(--gradient-primary);
+  padding: 2px;
+  box-shadow: var(--shadow-accent);
+}
+.gradient-border > * {
+  border-radius: calc(var(--radius-xl) - 2px);
+  background: var(--card, var(--paper));
+  height: 100%;
+  width: 100%;
+}
+
+/* ---- Inverted section: deep slate canvas with dot texture + accent glow ---- */
+.section-inverted {
+  position: relative;
+  background: var(--ink);
+  color: #FFFFFF;
+  overflow: hidden;
+  isolation: isolate;
+}
+.section-inverted::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.03;
+}
+.section-inverted::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 480px;
+  height: 480px;
+  z-index: -1;
+  background: radial-gradient(circle, rgba(0,82,255,0.35), transparent 70%);
+  filter: blur(120px);
+}
+.section-inverted .section-label {
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+}
+.section-inverted .section-label__text { color: var(--accent-secondary); }
+
+/* ---- Ambient radial glow you can drop behind any block ---- */
+.accent-glow {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(0,82,255,0.18), transparent 70%);
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ---- Continuous, living motion ---- */
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes float-slower {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(10px); }
+}
+@keyframes rotate-slow {
+  to { transform: rotate(360deg); }
+}
+.float-slow   { animation: float-slow 5s ease-in-out infinite; }
+.float-slower { animation: float-slower 4s ease-in-out infinite; }
+.rotate-slow  { animation: rotate-slow 60s linear infinite; }
+
+/* ---- Entrance animation: fade up into view ---- */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 0.7s var(--ease-out-expo) forwards;
+}
+/* Stagger helpers — apply alongside .fade-in-up */
+.delay-1 { animation-delay: 0.08s; }
+.delay-2 { animation-delay: 0.16s; }
+.delay-3 { animation-delay: 0.24s; }
+.delay-4 { animation-delay: 0.32s; }
+.delay-5 { animation-delay: 0.40s; }
+
+/* Smoother default fade (overrides the simple one above for the new easing). */
+.fade-in { animation: fadeIn 0.5s var(--ease-out-expo) forwards; }
+
+/* ---- Respect reduced-motion: kill continuous + entrance motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .fade-in-up { opacity: 1; transform: none; }
+}

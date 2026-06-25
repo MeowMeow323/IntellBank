@@ -16,19 +16,22 @@ import java.util.*;
 /**
  * VerificationService – the educator-facing service. Two responsibilities:
  *
- *  1. AI-solution verification (HITL): approve / reject / edit a {@link Solution#getIsVerified()}.
- *  2. Student submission grading: the educator enters per-question marks; the service
- *     auto-computes the total and spreads each question's marks across its topics to
- *     produce a per-topic mastery score, which is persisted as {@link StudentPerformance}
- *     (the student's weakness profile). Per-question marks themselves are transient
- *     (ERD-strict) — only the submission total and topic mastery are stored.
+ * 1. AI-solution verification (HITL): approve / reject / edit a
+ * {@link Solution#getIsVerified()}.
+ * 2. Student submission grading: the educator enters per-question marks; the
+ * service
+ * auto-computes the total and spreads each question's marks across its topics
+ * to
+ * produce a per-topic mastery score, which is persisted as
+ * {@link StudentPerformance}
+ * (the student's weakness profile). Per-question marks themselves are transient
+ * (ERD-strict) — only the submission total and topic mastery are stored.
  */
 @SuppressWarnings("null")
 @Service
 @RequiredArgsConstructor
 public class VerificationService {
-
-    private static final String STATUS_GRADED   = "GRADED";
+    private static final String STATUS_GRADED = "GRADED";
     private static final String STATUS_RETURNED = "RETURNED";
 
     private final SolutionRepository solutionRepository;
@@ -41,7 +44,6 @@ public class VerificationService {
     private final QuestionTopicRepository questionTopicRepository;
     private final StudentPerformanceRepository performanceRepository;
     private final EducatorRepository educatorRepository;
-
     // ── AI-solution verification (unchanged behaviour) ────────────────────────
 
     /** Get all solutions pending verification (isVerified = false). */
@@ -80,7 +82,7 @@ public class VerificationService {
         Solution solution = getById(solutionId);
         User editor = getUser(editorEmail);
 
-        boolean contentChanging     = newContent != null && !newContent.equals(solution.getContent());
+        boolean contentChanging = newContent != null && !newContent.equals(solution.getContent());
         boolean explanationChanging = newExplanation != null && !newExplanation.equals(solution.getExplanation());
 
         if (contentChanging || explanationChanging) {
@@ -91,8 +93,10 @@ public class VerificationService {
                     .changedBy(editor)
                     .build());
 
-            if (contentChanging) solution.setContent(newContent);
-            if (explanationChanging) solution.setExplanation(newExplanation);
+            if (contentChanging)
+                solution.setContent(newContent);
+            if (explanationChanging)
+                solution.setExplanation(newExplanation);
 
             solution.setIsVerified(false);
             solution.setVerifiedBy(null);
@@ -101,7 +105,7 @@ public class VerificationService {
         return solutionRepository.save(solution);
     }
 
-    // ── Student-submission grading (adjustment #4) ────────────────────────────
+    // ── Student-submission grading ────────────────────────────────────────────
 
     /** Educator queue: every submission currently PENDING review. */
     public List<Submission> getPendingSubmissions() {
@@ -109,7 +113,8 @@ public class VerificationService {
     }
 
     /**
-     * Build the full review payload for one submission — the answered document plus every
+     * Build the full review payload for one submission — the answered document plus
+     * every
      * question with its marks and topics. Drives both the grading screen and the
      * student's "view reviewed answers" screen.
      */
@@ -139,9 +144,11 @@ public class VerificationService {
         try {
             student = document.getProject().getStudent();
             studentName = student.getUser().getFullName();
-        } catch (Exception ignored) { /* defensive: lazy chain may be absent */ }
+        } catch (Exception ignored) {
+            /* defensive: lazy chain may be absent */ }
 
-        // Per-topic mastery + educator comment, pulled from the student's saved profile.
+        // Per-topic mastery + educator comment, pulled from the student's saved
+        // profile.
         List<SubmissionReview.TopicFeedback> topicFeedback = new ArrayList<>();
         if (student != null) {
             UUID studentId = student.getStudentId();
@@ -165,23 +172,29 @@ public class VerificationService {
     }
 
     /**
-     * Grade a submission from a per-question marks map ({@code questionId -> awardedMarks}).
+     * Grade a submission from a per-question marks map
+     * ({@code questionId -> awardedMarks}).
      *
-     * <p>Computes the total, marks the submission GRADED, links the grading educator, and
-     * updates the student's per-topic {@link StudentPerformance} (weakness profile).
+     * <p>
+     * Computes the total, marks the submission GRADED, links the grading educator,
+     * and
+     * updates the student's per-topic {@link StudentPerformance} (weakness
+     * profile).
      */
     @Transactional
     public GradeResult gradeSubmission(UUID submissionId, Map<UUID, Integer> questionMarks,
-                                       Map<String, String> topicComments, String educatorEmail) {
+            Map<String, String> topicComments, String educatorEmail) {
         Submission submission = getSubmission(submissionId);
         Educator educator = resolveEducator(educatorEmail);
         Student student = submission.getDocument().getProject().getStudent();
-        if (topicComments == null) topicComments = Map.of();
+        if (topicComments == null)
+            topicComments = Map.of();
 
         int total = 0;
         int maxTotal = 0;
         // topicId -> [earned, possible]; a question's marks are split EVENLY across its
-        // topics, so the running totals are fractional. LinkedHashMap keeps display order.
+        // topics, so the running totals are fractional. LinkedHashMap keeps display
+        // order.
         Map<UUID, double[]> topicTotals = new LinkedHashMap<>();
         Map<UUID, Topic> topicRefs = new HashMap<>();
 
@@ -194,14 +207,15 @@ public class VerificationService {
             maxTotal += max;
 
             List<QuestionTopic> qts = questionTopicRepository.findByQuestionQuestionId(q.getQuestionId());
-            if (qts.isEmpty()) continue;
-            double earnedShare   = (double) awarded / qts.size();
+            if (qts.isEmpty())
+                continue;
+            double earnedShare = (double) awarded / qts.size();
             double possibleShare = (double) max / qts.size();
             for (QuestionTopic qt : qts) {
                 Topic topic = qt.getTopic();
                 topicRefs.putIfAbsent(topic.getTopicId(), topic);
                 double[] acc = topicTotals.computeIfAbsent(topic.getTopicId(), k -> new double[2]);
-                acc[0] += earnedShare;   // earned
+                acc[0] += earnedShare; // earned
                 acc[1] += possibleShare; // possible
             }
         }
@@ -212,7 +226,8 @@ public class VerificationService {
         submission.setEducator(educator);
         submissionRepository.save(submission);
 
-        // Persist per-topic mastery + comment (weakness profile) and build the response breakdown.
+        // Persist per-topic mastery + comment (weakness profile) and build the response
+        // breakdown.
         List<GradeResult.TopicScore> topicScores = new ArrayList<>();
         for (Map.Entry<UUID, double[]> e : topicTotals.entrySet()) {
             double earned = e.getValue()[0];
@@ -232,12 +247,17 @@ public class VerificationService {
         return new GradeResult(submission.getSubmissionId(), total, maxTotal, STATUS_GRADED, topicScores);
     }
 
-    /** Round to one decimal place for display (even-split marks can be fractional). */
+    /**
+     * Round to one decimal place for display (even-split marks can be fractional).
+     */
     private double round1(double v) {
         return Math.round(v * 10.0) / 10.0;
     }
 
-    /** Educator returns a graded submission to the student, freeing the student's submission slot. */
+    /**
+     * Educator returns a graded submission to the student, freeing the student's
+     * submission slot.
+     */
     @Transactional
     public Submission returnSubmission(UUID submissionId) {
         Submission submission = getSubmission(submissionId);
@@ -247,16 +267,23 @@ public class VerificationService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /** Bands: <50 Beginner (weak) · 50–69 Intermediate · 70–89 Advanced · ≥90 Mastered. */
+    /**
+     * Bands: <50 Beginner (weak) · 50–69 Intermediate · 70–89 Advanced · ≥90
+     * Mastered.
+     */
     private String masteryBand(int pct) {
-        if (pct >= 90) return "Mastered";
-        if (pct >= 70) return "Advanced";
-        if (pct >= 50) return "Intermediate";
+        if (pct >= 90)
+            return "Mastered";
+        if (pct >= 70)
+            return "Advanced";
+        if (pct >= 50)
+            return "Intermediate";
         return "Beginner";
     }
 
     private int clampAwarded(Integer awarded, int max) {
-        if (awarded == null || awarded < 0) return 0;
+        if (awarded == null || awarded < 0)
+            return 0;
         return Math.min(awarded, max);
     }
 
@@ -265,7 +292,8 @@ public class VerificationService {
                 .findByStudentStudentIdAndTopicTopicId(student.getStudentId(), topic.getTopicId())
                 .orElseGet(() -> StudentPerformance.builder().student(student).topic(topic).build());
         perf.setMasteryLevel(mastery);
-        // Only touch the comment when the educator supplied one for this topic (key present);
+        // Only touch the comment when the educator supplied one for this topic (key
+        // present);
         // a blank value clears it, an absent key keeps the previous comment.
         if (comment != null) {
             String c = comment.trim();

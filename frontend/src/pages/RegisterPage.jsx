@@ -1,8 +1,30 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 import useAuthStore from '../store/authStore'
+import AuthLayout from '../components/auth/AuthLayout'
 
-const ROLES = ['STUDENT', 'EDUCATOR', 'ADMIN']
+// Mirrors the backend password policy (AuthService.validatePassword).
+const passwordChecks = (pw) => ({
+  length: pw.length >= 8,
+  letter: /[a-zA-Z]/.test(pw),
+  number: /[0-9]/.test(pw),
+})
+
+// 0–4 strength score for the meter (length + character variety).
+const passwordStrength = (pw) => {
+  if (!pw) return 0
+  let score = 0
+  if (pw.length >= 8) score++
+  if (pw.length >= 12) score++
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++
+  if (/[0-9]/.test(pw)) score++
+  if (/[^a-zA-Z0-9]/.test(pw)) score++
+  return Math.min(score, 4)
+}
+
+const STRENGTH_LABELS = ['Too weak', 'Weak', 'Fair', 'Good', 'Strong']
+const STRENGTH_COLORS = ['#B91C1C', '#B45309', '#EAB308', '#84cc16', '#15803D']
 
 const RegisterPage = () => {
   const navigate = useNavigate()
@@ -14,9 +36,13 @@ const RegisterPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'STUDENT',
   })
+  const [showPassword, setShowPassword] = useState(false)
   const [localError, setLocalError] = useState('')
+
+  const checks = passwordChecks(form.password)
+  const allChecksPass = checks.length && checks.letter && checks.number
+  const strength = passwordStrength(form.password)
 
   const handleChange = (e) => {
     clearError()
@@ -26,6 +52,10 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!allChecksPass) {
+      setLocalError('Password does not meet the requirements below')
+      return
+    }
     if (form.password !== form.confirmPassword) {
       setLocalError('Passwords do not match')
       return
@@ -42,100 +72,119 @@ const RegisterPage = () => {
   const displayError = localError || error
 
   return (
-    <div className="auth-page">
-      <div className="auth-container fade-in">
-        <div className="auth-brand">
-          <div className="auth-logo">IB</div>
-          <h1 className="auth-title">IntellBank</h1>
-          <p className="auth-subtitle">Create your account</p>
+    <AuthLayout>
+      <form className="auth-form" onSubmit={handleSubmit} id="register-form">
+        <div className="section-label auth-eyebrow">
+          <span className="section-label__dot" />
+          <span className="section-label__text">Get Started</span>
+        </div>
+        <h2 className="auth-title">Create your <span className="gradient-text">account</span></h2>
+
+        {displayError && (
+          <div className="alert alert-error" id="register-error">
+            {displayError}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="fullName">Full Name</label>
+          <input
+            id="fullName" name="fullName" type="text" className="form-input"
+            placeholder="John Doe" value={form.fullName} onChange={handleChange} required
+          />
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit} id="register-form">
-          <h2 className="auth-form-title">Get Started</h2>
+        <div className="form-group">
+          <label className="form-label" htmlFor="reg-username">Username</label>
+          <input
+            id="reg-username" name="username" type="text" className="form-input"
+            placeholder="john_doe" value={form.username} onChange={handleChange} required
+          />
+        </div>
 
-          {displayError && (
-            <div className="alert alert-error" id="register-error">
-              {displayError}
-            </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="email">Email</label>
+          <input
+            id="email" name="email" type="email" className="form-input"
+            placeholder="john@example.com" value={form.email} onChange={handleChange} required
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="reg-password">Password</label>
+          <div className="password-wrap">
+            <input
+              id="reg-password" name="password"
+              type={showPassword ? 'text' : 'password'}
+              className="form-input"
+              placeholder="Create a password" value={form.password}
+              onChange={handleChange} required autoComplete="new-password"
+            />
+            <button
+              type="button" className="password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+
+          {form.password && (
+            <>
+              <div className="strength-bar" aria-hidden="true">
+                {[0, 1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className="strength-seg"
+                    style={{ background: i < strength ? STRENGTH_COLORS[strength] : undefined }}
+                  />
+                ))}
+              </div>
+              <p className="strength-label" style={{ color: STRENGTH_COLORS[strength] }}>
+                {STRENGTH_LABELS[strength]}
+              </p>
+            </>
           )}
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="fullName">Full Name</label>
-            <input
-              id="fullName" name="fullName" type="text" className="form-input"
-              placeholder="John Doe" value={form.fullName} onChange={handleChange} required
-            />
-          </div>
+          <ul className="pw-requirements">
+            <li className={checks.length ? 'met' : ''}>
+              {checks.length ? '✓' : '○'} At least 8 characters
+            </li>
+            <li className={checks.letter ? 'met' : ''}>
+              {checks.letter ? '✓' : '○'} Contains a letter
+            </li>
+            <li className={checks.number ? 'met' : ''}>
+              {checks.number ? '✓' : '○'} Contains a number
+            </li>
+          </ul>
+        </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="reg-username">Username</label>
-            <input
-              id="reg-username" name="username" type="text" className="form-input"
-              placeholder="john_doe" value={form.username} onChange={handleChange} required
-            />
-          </div>
+        <div className="form-group">
+          <label className="form-label" htmlFor="confirmPassword">Confirm Password</label>
+          <input
+            id="confirmPassword" name="confirmPassword"
+            type={showPassword ? 'text' : 'password'}
+            className="form-input"
+            placeholder="Repeat password" value={form.confirmPassword}
+            onChange={handleChange} required autoComplete="new-password"
+          />
+        </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email</label>
-            <input
-              id="email" name="email" type="email" className="form-input"
-              placeholder="john@example.com" value={form.email} onChange={handleChange} required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="role">Role</label>
-            <select
-              id="role" name="role" className="form-select"
-              value={form.role} onChange={handleChange}
-            >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="reg-password">Password</label>
-            <input
-              id="reg-password" name="password" type="password" className="form-input"
-              placeholder="Min. 8 characters" value={form.password} onChange={handleChange} required minLength={8}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="confirmPassword">Confirm Password</label>
-            <input
-              id="confirmPassword" name="confirmPassword" type="password" className="form-input"
-              placeholder="Repeat password" value={form.confirmPassword} onChange={handleChange} required
-            />
-          </div>
-
-          <button id="register-submit" type="submit" className="btn btn-primary w-full" disabled={isLoading}>
-            {isLoading ? 'Creating account...' : 'Create Account'}
-          </button>
-        </form>
+        <button id="register-submit" type="submit" className="btn btn-primary" disabled={isLoading}>
+          {isLoading ? 'Creating account...' : (
+            <>
+              Create Account
+              <ArrowRight size={18} className="btn-arrow" />
+            </>
+          )}
+        </button>
 
         <p className="auth-footer">
           Already have an account?{' '}
           <Link to="/login" id="login-link">Sign in</Link>
         </p>
-      </div>
-
-      <style>{`
-        .auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--desk); background-image: radial-gradient(ellipse at 50% -10%, var(--highlight-soft) 0%, transparent 55%); padding: 1rem; }
-        .auth-container { width: 100%; max-width: 440px; }
-        .auth-brand { text-align: center; margin-bottom: 2rem; }
-        .auth-logo { width: 60px; height: 60px; background: var(--gradient-primary); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: #fff; margin: 0 auto 1rem; box-shadow: var(--shadow-glow); }
-        .auth-title { font-family: var(--font-heading); font-size: 1.85rem; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
-        .auth-subtitle { color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 0.25rem; }
-        .auth-form { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--radius-xl); padding: 2rem; display: flex; flex-direction: column; gap: 1.1rem; }
-        .auth-form-title { font-size: 1.25rem; font-weight: 600; color: var(--color-text-primary); }
-        .alert { padding: 0.75rem 1rem; border-radius: var(--radius-md); font-size: 0.875rem; }
-        .alert-error { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.3); color: var(--color-accent-rose); }
-        .auth-footer { text-align: center; margin-top: 1.25rem; color: var(--color-text-secondary); font-size: 0.875rem; }
-      `}</style>
-    </div>
+      </form>
+    </AuthLayout>
   )
 }
 

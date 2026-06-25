@@ -18,12 +18,15 @@ import java.util.stream.Collectors;
 
 /**
  * VerificationController – educator interface.
- *  - /pending, /{id}/approve|reject, /{id}/edit  → AI-solution HITL verification.
- *  - /submissions/...                            → grade student submissions (weakness pipeline).
+ * - /pending, /{id}/approve|reject, /{id}/edit → AI-solution HITL verification.
+ * - /submissions/... → grade student submissions (weakness pipeline).
  *
- * All endpoints return plain DTO maps rather than raw JPA entities: serializing entities
- * with un-initialised lazy associations (Submission→document, Solution→question) makes
- * Jackson choke on the Hibernate proxy (hibernateLazyInitializer) and throw a 500.
+ * All endpoints return plain DTO maps rather than raw JPA entities: serializing
+ * entities
+ * with un-initialised lazy associations (Submission→document,
+ * Solution→question) makes
+ * Jackson choke on the Hibernate proxy (hibernateLazyInitializer) and throw a
+ * 500.
  */
 @RestController
 @RequestMapping("/api/verification")
@@ -32,7 +35,10 @@ public class VerificationController {
 
     private final VerificationService verificationService;
 
-    /** Resolve the logged-in user's email from the JWT principal (a {@link User} entity). */
+    /**
+     * Resolve the logged-in user's email from the JWT principal (a {@link User}
+     * entity).
+     */
     private static String emailOf(Authentication auth) {
         return ((User) auth.getPrincipal()).getEmail();
     }
@@ -57,17 +63,19 @@ public class VerificationController {
 
     @PutMapping("/{solutionId}/reject")
     public ResponseEntity<Map<String, Object>> reject(@PathVariable UUID solutionId, Authentication auth) {
-        // Rejection reason is captured by the UI for audit; reverting clears verification.
+        // Rejection reason is captured by the UI for audit; reverting clears
+        // verification.
         return ResponseEntity.ok(toSolutionDto(verificationService.reject(solutionId, emailOf(auth))));
     }
 
     @PutMapping("/{solutionId}/edit")
     public ResponseEntity<Map<String, Object>> edit(@PathVariable UUID solutionId,
-                                                    @RequestBody Map<String, Object> body,
-                                                    Authentication auth) {
-        String content     = (String) body.get("content");
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        String content = (String) body.get("content");
         String explanation = (String) body.get("explanation");
-        return ResponseEntity.ok(toSolutionDto(verificationService.edit(solutionId, content, explanation, emailOf(auth))));
+        return ResponseEntity
+                .ok(toSolutionDto(verificationService.edit(solutionId, content, explanation, emailOf(auth))));
     }
 
     // ── Student-submission grading ────────────────────────────────────────────
@@ -79,7 +87,9 @@ public class VerificationController {
                 .stream().map(VerificationController::toSubmissionDto).collect(Collectors.toList()));
     }
 
-    /** Full review payload (answered doc + questions + topics) for one submission. */
+    /**
+     * Full review payload (answered doc + questions + topics) for one submission.
+     */
     @GetMapping("/submissions/{submissionId}")
     public ResponseEntity<SubmissionReview> reviewSubmission(@PathVariable UUID submissionId) {
         return ResponseEntity.ok(verificationService.getSubmissionReview(submissionId));
@@ -93,14 +103,15 @@ public class VerificationController {
     @PutMapping("/submissions/{submissionId}/grade")
     @SuppressWarnings("unchecked")
     public ResponseEntity<GradeResult> gradeSubmission(@PathVariable UUID submissionId,
-                                                       @RequestBody Map<String, Object> body,
-                                                       Authentication auth) {
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
         Map<String, Object> raw = (Map<String, Object>) body.getOrDefault("marks", Map.of());
         Map<UUID, Integer> questionMarks = raw.entrySet().stream().collect(Collectors.toMap(
                 e -> UUID.fromString(e.getKey()),
                 e -> e.getValue() == null ? 0 : ((Number) e.getValue()).intValue()));
 
-        // Per-topic educator comments, keyed by topic NAME (the grading UI works in names).
+        // Per-topic educator comments, keyed by topic NAME (the grading UI works in
+        // names).
         Map<String, Object> rawComments = (Map<String, Object>) body.getOrDefault("comments", Map.of());
         Map<String, String> topicComments = rawComments.entrySet().stream().collect(Collectors.toMap(
                 Map.Entry::getKey,
@@ -132,7 +143,8 @@ public class VerificationController {
                 qMap.put("content", q.getContent());
                 map.put("question", qMap);
             }
-        } catch (Exception ignored) { /* lazy question may be absent */ }
+        } catch (Exception ignored) {
+            /* lazy question may be absent */ }
         return map;
     }
 
@@ -150,7 +162,8 @@ public class VerificationController {
                 docMap.put("type", doc.getType() != null ? doc.getType() : "");
                 map.put("document", docMap);
             }
-        } catch (Exception ignored) { /* lazy document may be absent */ }
+        } catch (Exception ignored) {
+            /* lazy document may be absent */ }
         return map;
     }
 }

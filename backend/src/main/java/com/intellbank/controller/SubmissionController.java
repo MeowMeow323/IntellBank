@@ -18,7 +18,11 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * SubmissionController – students submit / withdraw answered "AI Generated Exam" documents
+ * SubmissionController – students submit / withdraw answered "AI Generated
+ * Exam" documents
+ * and view their own submission history.
+ * SubmissionController – students submit / withdraw answered "AI Generated
+ * Exam" documents
  * and view their own submission history.
  */
 @RestController
@@ -29,13 +33,16 @@ public class SubmissionController {
     private final SubmissionService submissionService;
     private final VerificationService verificationService;
 
-    /** Resolve the logged-in user's email from the JWT principal (a {@link User} entity). */
+    /**
+     * Resolve the logged-in user's email from the JWT principal (a {@link User}
+     * entity).
+     */
     private static String emailOf(Authentication auth) {
         return ((User) auth.getPrincipal()).getEmail();
     }
 
     /**
-     * POST /api/submissions  Body: { documentId }
+     * POST /api/submissions Body: { documentId }
      * Enforces type = "AI Generated Exam" and the one-active-submission rule.
      */
     @PostMapping
@@ -44,18 +51,19 @@ public class SubmissionController {
         Submission sub = submissionService.submit(documentId, emailOf(auth));
         return ResponseEntity.ok(Map.of(
                 "submissionId", sub.getSubmissionId(),
-                "status", sub.getStatus()
-        ));
+                "status", sub.getStatus()));
     }
 
-    /** POST /api/submissions/{id}/unsubmit – student withdraws (deletes) their own PENDING submission. */
+    /**
+     * POST /api/submissions/{id}/unsubmit – student withdraws (deletes) their own
+     * PENDING submission.
+     */
     @PostMapping("/{submissionId}/unsubmit")
     public ResponseEntity<Map<String, Object>> unsubmit(@PathVariable UUID submissionId, Authentication auth) {
         submissionService.unsubmit(submissionId, emailOf(auth));
         return ResponseEntity.ok(Map.of(
                 "submissionId", submissionId,
-                "status", "WITHDRAWN"
-        ));
+                "status", "WITHDRAWN"));
     }
 
     /**

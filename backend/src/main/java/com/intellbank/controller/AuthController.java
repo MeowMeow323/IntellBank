@@ -26,6 +26,18 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(body));
     }
 
+    /** Request a password reset link. Always returns 200 with a generic message. */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(authService.forgotPassword(body));
+    }
+
+    /** Complete a password reset using the token from the email. */
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, Object>> resetPassword(@RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(authService.resetPassword(body));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<User> me(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(user);

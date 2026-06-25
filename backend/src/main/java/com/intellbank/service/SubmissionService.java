@@ -15,11 +15,19 @@ import java.util.UUID;
  * SubmissionService – students submit answered "AI Generated Exam" documents.
  *
  * Business rules (FYP adjustments #1 & #2):
- *  - Only Documents with type = "AI Generated Exam" may be submitted.
- *  - A student may hold at most ONE active submission (status != RETURNED).
- *    The current work must be RETURNED (by the educator after grading, or by the
- *    student via unsubmit) before another paper can be submitted — this prevents
- *    a single student flooding the educator's verification queue.
+ * - Only Documents with type = "AI Generated Exam" may be submitted.
+ * - A student may hold at most ONE active submission (status != RETURNED).
+ * The current work must be RETURNED (by the educator after grading, or by the
+ * student via unsubmit) before another paper can be submitted — this prevents
+ * a single student flooding the educator's verification queue.
+ * SubmissionService – students submit answered "AI Generated Exam" documents.
+ *
+ * Business rules (FYP adjustments #1 & #2):
+ * - Only Documents with type = "AI Generated Exam" may be submitted.
+ * - A student may hold at most ONE active submission (status != RETURNED).
+ * The current work must be RETURNED (by the educator after grading, or by the
+ * student via unsubmit) before another paper can be submitted — this prevents
+ * a single student flooding the educator's verification queue.
  */
 @SuppressWarnings("null")
 @Service
@@ -27,16 +35,25 @@ import java.util.UUID;
 public class SubmissionService {
 
     private static final String TYPE_GENERATED = "AI Generated Exam";
-    private static final String STATUS_PENDING  = "PENDING";
+    private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_RETURNED = "RETURNED";
 
-    /** A student may have at most this many submissions in flight (not yet returned),
-     *  so the educator's queue isn't flooded. */
+    /**
+     * A student may have at most this many submissions in flight (not yet
+     * returned),
+     * so the educator's queue isn't flooded.
+     */
     private static final int MAX_ACTIVE_SUBMISSIONS = 3;
 
     private final SubmissionRepository submissionRepository;
     private final DocumentRepository documentRepository;
 
+    /**
+     * Submit a generated exam for educator review.
+     *
+     * @param documentId the AI-generated exam document the student answered
+     * @param email      the logged-in student's account email (from JWT)
+     */
     /**
      * Submit a generated exam for educator review.
      *
@@ -50,31 +67,34 @@ public class SubmissionService {
 
         if (!TYPE_GENERATED.equals(document.getType())) {
             throw new AppException(
-                "Only generated practice papers can be submitted (type was: " + document.getType() + ").",
-                HttpStatus.BAD_REQUEST);
+                    "Only generated practice papers can be submitted (type was: " + document.getType() + ").",
+                    HttpStatus.BAD_REQUEST);
         }
 
         // One-paper-one-submission rule: this exact document was already submitted.
-        // (Withdrawing deletes the submission, which frees the paper to be submitted again.)
+        // (Withdrawing deletes the submission, which frees the paper to be submitted
+        // again.)
         if (!submissionRepository.findByDocumentDocumentId(documentId).isEmpty()) {
             throw new AppException(
-                "This paper has already been submitted. Generate a new paper if you want to submit again.",
-                HttpStatus.CONFLICT);
+                    "This paper has already been submitted. Generate a new paper if you want to submit again.",
+                    HttpStatus.CONFLICT);
         }
 
         // Active-submission cap: a student may hold up to MAX_ACTIVE_SUBMISSIONS papers
-        // that are not yet returned. Returned papers don't count, so they can keep practising.
-        List<Submission> active =
-                submissionRepository.findByDocumentProjectStudentUserEmailIgnoreCaseAndStatusNot(email, STATUS_RETURNED);
+        // that are not yet returned. Returned papers don't count, so they can keep
+        // practising.
+        List<Submission> active = submissionRepository
+                .findByDocumentProjectStudentUserEmailIgnoreCaseAndStatusNot(email, STATUS_RETURNED);
         if (active.size() >= MAX_ACTIVE_SUBMISSIONS) {
             throw new AppException(
-                "You already have " + MAX_ACTIVE_SUBMISSIONS + " submissions awaiting review. "
-                + "Wait for one to be returned (or withdraw it) before submitting another.",
-                HttpStatus.CONFLICT);
+                    "You already have " + MAX_ACTIVE_SUBMISSIONS + " submissions awaiting review. "
+                            + "Wait for one to be returned (or withdraw it) before submitting another.",
+                    HttpStatus.CONFLICT);
         }
 
         Submission submission = Submission.builder()
                 .document(document)
+                .status(STATUS_PENDING)
                 .status(STATUS_PENDING)
                 .build();
         return submissionRepository.save(submission);
@@ -82,8 +102,10 @@ public class SubmissionService {
 
     /**
      * Student withdraws their own PENDING submission (UC_005 "Unsubmit").
-     * Deletes the submission row, which both frees the one-active slot AND allows the
-     * same paper to be submitted again (a graded+returned paper keeps its row, so it
+     * Deletes the submission row, which both frees the one-active slot AND allows
+     * the
+     * same paper to be submitted again (a graded+returned paper keeps its row, so
+     * it
      * can't be resubmitted).
      */
     @Transactional
@@ -92,13 +114,16 @@ public class SubmissionService {
         assertOwner(submission, email);
         if (!STATUS_PENDING.equals(submission.getStatus())) {
             throw new AppException(
-                "Only pending submissions can be withdrawn (current status: " + submission.getStatus() + ").",
-                HttpStatus.BAD_REQUEST);
+                    "Only pending submissions can be withdrawn (current status: " + submission.getStatus() + ").",
+                    HttpStatus.BAD_REQUEST);
         }
         submissionRepository.delete(submission);
     }
 
-    /** Verify the given email owns this submission (resolved via Document → Project → Student → User). */
+    /**
+     * Verify the given email owns this submission (resolved via Document → Project
+     * → Student → User).
+     */
     public void assertOwner(UUID submissionId, String email) {
         assertOwner(getById(submissionId), email);
     }
@@ -107,13 +132,17 @@ public class SubmissionService {
         String owner = null;
         try {
             owner = submission.getDocument().getProject().getStudent().getUser().getEmail();
-        } catch (Exception ignored) { /* lazy chain may be absent */ }
+        } catch (Exception ignored) {
+            /* lazy chain may be absent */ }
         if (owner == null || !owner.equalsIgnoreCase(email)) {
             throw new AppException("You can only access your own submissions.", HttpStatus.FORBIDDEN);
         }
     }
 
-    /** All submissions belonging to the logged-in student (for the Submissions page). */
+    /**
+     * All submissions belonging to the logged-in student (for the Submissions
+     * page).
+     */
     public List<Submission> getMySubmissions(String email) {
         return submissionRepository.findByDocumentProjectStudentUserEmailIgnoreCase(email);
     }

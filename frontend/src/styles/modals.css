@@ -18,16 +18,17 @@
 .modal-content {
   background: var(--color-bg-card) !important;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 2.25rem;
   width: 100%;
   max-width: 460px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   max-height: 90vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  animation: fadeInUp 0.3s var(--ease-out-expo) forwards;
 }
 
 /* Header Configs */

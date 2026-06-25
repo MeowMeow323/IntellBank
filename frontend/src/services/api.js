@@ -5,48 +5,96 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
 })
 
+// ── Token Storage ──────────────────────────────────────────────────────────────
+// "Remember me" → localStorage (survives browser restarts).
+// Unchecked     → sessionStorage (cleared when the tab/browser closes).
+// Reads check both so the rest of the app doesn't care which was used.
+const TOKEN_KEY = 'intellbank_token'
+const USER_KEY = 'intellbank_user'
+
+const tokenStorage = {
+  getToken: () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY),
+  getUserRaw: () => localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY),
+  set: (token, user, remember) => {
+    const store = remember ? localStorage : sessionStorage
+    const other = remember ? sessionStorage : localStorage
+    store.setItem(TOKEN_KEY, token)
+    store.setItem(USER_KEY, JSON.stringify(user))
+    other.removeItem(TOKEN_KEY)
+    other.removeItem(USER_KEY)
+  },
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(USER_KEY)
+  },
+}
+
 // Attach JWT token to every outgoing request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('intellbank_token')
+  const token = tokenStorage.getToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
+// On an expired/invalid token (401) for an authenticated request, clear the
+// session and bounce to login with a notice. Auth endpoints are excluded so a
+// bad-credentials 401 doesn't trigger a redirect loop on the login page.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status
+    const url = error.config?.url || ''
+    const isAuthCall = url.includes('/api/auth/')
+    if (status === 401 && !isAuthCall && tokenStorage.getToken()) {
+      tokenStorage.clear()
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login?expired=1')
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // ── Auth Service ──────────────────────────────────────────────────────────────
 export const AuthService = {
   register: (data) => api.post('/api/auth/register', data),
 
-  login: async (credentials) => {
+  login: async (credentials, remember = false) => {
     const response = await api.post('/api/auth/login', credentials)
     const { token, userId, email, fullName, role } = response.data
     const user = { userId, email, fullName, username: email, role }
-    localStorage.setItem('intellbank_token', token)
-    localStorage.setItem('intellbank_user', JSON.stringify(user))
+    tokenStorage.set(token, user, remember)
     return response
   },
 
+  forgotPassword: (email) => api.post('/api/auth/forgot-password', { email }),
+
+  resetPassword: (token, password) =>
+    api.post('/api/auth/reset-password', { token, password }),
+
   getMe: () => api.get('/api/auth/me'),
 
-  logout: () => {
-    localStorage.removeItem('intellbank_token')
-    localStorage.removeItem('intellbank_user')
-  },
+  logout: () => tokenStorage.clear(),
 
   getLocalUser: () => {
-    const raw = localStorage.getItem('intellbank_user')
+    const raw = tokenStorage.getUserRaw()
     if (!raw) return null
     try {
       return JSON.parse(raw)
     } catch (e) {
-      console.warn("Corrupted user data in localStorage, clearing it.")
-      localStorage.removeItem('intellbank_user')
+      console.warn("Corrupted user data in storage, clearing it.")
+      tokenStorage.clear()
       return null
     }
   },
 
-  isAuthenticated: () => !!localStorage.getItem('intellbank_token'),
+  isAuthenticated: () => !!tokenStorage.getToken(),
+
+  getToken: () => tokenStorage.getToken(),
 }
 
 // ── Project Service ───────────────────────────────────────────────────────────
@@ -88,7 +136,12 @@ export const ExamService = {
 // ── Submission Service ────────────────────────────────────────────────────────
 export const SubmissionService = {
   // Student submits an answered "AI Generated Exam" (one active submission at a time)
+  // Student submits an answered "AI Generated Exam" (one active submission at a time)
   submit: (documentId) => api.post('/api/submissions', { documentId }),
+  // Student withdraws their own PENDING submission (frees the slot)
+  unsubmit: (id) => api.post(`/api/submissions/${id}/unsubmit`),
+  // The logged-in student's full submission history (Submissions page)
+  getMine: () => api.get('/api/submissions/mine'),
   // Student withdraws their own PENDING submission (frees the slot)
   unsubmit: (id) => api.post(`/api/submissions/${id}/unsubmit`),
   // The logged-in student's full submission history (Submissions page)
@@ -114,6 +167,7 @@ export const QuestionService = {
 
 // ── Verification Service ──────────────────────────────────────────────────────
 export const VerificationService = {
+  // AI-solution verification (HITL)
   // AI-solution verification (HITL)
   getPending: () => api.get('/api/verification/pending'),
   getById: (id) => api.get(`/api/verification/${id}`),
@@ -194,10 +248,10 @@ export const MetadataService = {
 // ── AI Gateway Service ────────────────────────────────────────────────────────
 export const AIService = {
   generateQuestions: (data) => api.post('/api/ai/generate/question', data),
-  generateSolution:  (data) => api.post('/api/ai/generate/solution', data),
-  classifyQuestion:  (data) => api.post('/api/ai/classify/question', data),
-  predictTopics:     (data) => api.post('/api/ai/predict/topics',    data),
-  generatePaper:     (data) => api.post('/api/ai/generate/paper',    data),  // new
+  generateSolution: (data) => api.post('/api/ai/generate/solution', data),
+  classifyQuestion: (data) => api.post('/api/ai/classify/question', data),
+  predictTopics: (data) => api.post('/api/ai/predict/topics', data),
+  generatePaper: (data) => api.post('/api/ai/generate/paper', data),  // new
 }
 // Default export is the Axios client instance
 export default api

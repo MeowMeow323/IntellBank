@@ -1,17 +1,18 @@
-/* WORKSPACE MAIN GRID LAYOUT */
+/* WORKSPACE MAIN GRID LAYOUT — themed to the Minimalist Modern token system. */
 .workspace-layout-grid {
   display: flex;
   width: 100vw;
   height: 100vh;
-  background: #0b131a; /* Base dark theme background */
+  background: var(--desk);
   overflow: hidden;
-  color: #ffffff;
+  color: var(--text);
 }
 
+/* ── Project Explorer (light panel, matches the main app sidebar) ──────────── */
 .workspace-sidebar {
   width: 260px;
-  background: #111c24;
-  border-right: 1px solid #1f2e3d;
+  background: var(--paper);
+  border-right: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
   padding: 1.25rem 1rem;
@@ -20,28 +21,47 @@
 .sidebar-project-header h3 {
   font-size: 1rem;
   font-weight: 600;
+  color: var(--text);
   margin-bottom: 0.25rem;
 }
 
 .project-id-sub {
   font-size: 0.75rem;
-  color: #6c7d8c;
+  color: var(--text-subtle);
 }
 
+/* Primary action = the signature gradient. */
 .generate-btn {
   margin-top: 1rem;
-  padding: 0.75rem;
-  background: #0066cc;
-  color: white;
+  padding: 0.7rem;
+  background: var(--gradient-primary-h);
+  color: var(--accent-foreground);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: bold;
-  transition: background 0.2s;
+  font-weight: 600;
+  box-shadow: var(--shadow-accent);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), filter var(--transition-base);
+}
+.generate-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-accent-lg);
+  filter: brightness(1.08);
 }
 
-.generate-btn:hover {
-  background: #0052a3;
+/* Secondary explorer actions — dashed accent ghost buttons (unified). */
+.ws-ghost-btn {
+  padding: 0.7rem;
+  background: transparent;
+  border: 1px dashed var(--accent-border);
+  color: var(--accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background var(--transition-base);
+}
+.ws-ghost-btn:hover {
+  background: var(--accent-soft);
 }
 
 .sidebar-document-list {
@@ -50,7 +70,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
 }
 
 /* Document List Item Container */
@@ -60,23 +80,24 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 0.85rem;
-  color: #a4b3c1;
-  transition: background 0.2s, color 0.2s;
+  color: var(--text-muted);
+  transition: background var(--transition-base), color var(--transition-base);
   position: relative;
+  border: 1px solid transparent;
 }
 
 .sidebar-doc-item:hover {
-  background: #1c2b36;
-  color: #ffffff;
+  background: var(--inset);
+  color: var(--text);
 }
 
 .sidebar-doc-item.active-item {
-  background: #0066cc;
-  color: #ffffff;
-  font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .doc-icon {
@@ -94,26 +115,27 @@
 .status-text,
 .status-textempty {
   font-size: 0.8rem;
-  color: #6c7d8c;
+  color: var(--text-subtle);
   text-align: center;
   margin-top: 2rem;
 }
 
 .back-projects-btn {
   background: transparent;
-  border: 1px solid #1f2e3d;
-  color: #a4b3c1;
-  padding: 0.5rem;
-  border-radius: 4px;
+  border: 1px solid var(--rule);
+  color: var(--text-muted);
+  padding: 0.55rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 0.8rem;
+  font-weight: 500;
   margin-top: auto;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-base), color var(--transition-base);
 }
 
 .back-projects-btn:hover {
-  border-color: #0066cc;
-  color: #ffffff;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .workspace-main-panel {
@@ -123,8 +145,7 @@
   overflow: hidden;
 }
 
-/* ⚠️ FIXED: Removed the dangerous general immediate-child selector (.workspace-main-panel > div:first-child) */
-/* It now only safely hides the explicit TabBar classes if they ever pop back up */
+/* Legacy tab-bar guards (kept). */
 .workspace-tab-bar,
 .workspace-tab-container {
   display: none !important;
@@ -135,72 +156,61 @@
   border: none !important;
 }
 
-/* Main inner viewport display box where Document Content lives */
+/* Clean container — WorkspaceContent provides its own full-height editor chrome,
+   so this is just a neutral light frame (no dark backdrop). */
 .workspace-canvas-scrollbox {
   flex: 1;
-  padding: 2.5rem 1rem;
-  overflow-y: auto;          /* 💡 The scrollbar stays locked inside this viewport frame */
-  background: #0f172a;       /* Dark premium workspace backdrop fill */
+  overflow: hidden;
+  background: var(--desk);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2rem;                 /* Creates clean gaps between consecutive page blocks */
 }
 
-/* 📄 GOOGLE DOCS STYLE PAGED CONTAINER ENGINE */
-/* These classes isolate your page sheets, creating a strict physical footprint */
+/* 📄 Paged document sheets (used by any class-based document views). */
 .workspace-canvas-scrollbox .document-container,
 .workspace-canvas-scrollbox .editor-paper-canvas,
 .workspace-canvas-scrollbox .document-card-view {
-  background: #ffffff !important; 
-  color: #1e293b !important;       
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  padding: 3.5rem 3.5rem 4.5rem 3.5rem; /* Large bottom padding allocates safe zone for a fixed footer */
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-sm);
+  padding: 3.5rem 3.5rem 4.5rem 3.5rem;
   margin: 0 auto;
-  
-  /* 📐 Enforces explicit standard A4 physical document dimenions */
   width: 100%;
-  max-width: 812px; 
-  height: 1123px;            /* 💡 HARD LIMIT: Keeps height locked exactly to standard document sheet scaling */
-  min-height: 1123px;        
-  max-height: 1123px;        
-  
-  position: relative;        /* Permits absolute positioning vectors inside the page sheet context */
+  max-width: 812px;
+  height: 1123px;
+  min-height: 1123px;
+  max-height: 1123px;
+  position: relative;
   box-sizing: border-box;
-  overflow: hidden;          /* Prevents expanding content strings from physically warping or dragging the page block */
-  
-  /* Modern styling token to manage printing configurations neatly */
+  overflow: hidden;
   page-break-after: always;
   break-after: page;
 }
 
-/* 🎯 FIXED POSITION FOOTER WITHIN THE APEX OF EACH SHEET */
-/* Ensure your internal footer uses this class format so it locks securely above the lower fold */
 .workspace-canvas-scrollbox .document-footer {
   position: absolute;
   bottom: 1.5rem;
   left: 3.5rem;
   right: 3.5rem;
   height: 2rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--rule);
   padding-top: 0.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #94a3b8 !important;
+  color: var(--text-subtle) !important;
   font-size: 0.75rem;
   background: #ffffff;
   z-index: 10;
-  pointer-events: none;      /* Assures click inputs pass completely cleanly through structural margins */
+  pointer-events: none;
 }
 
-/* Dynamic Editor Workspace Canvas constraints */
 .workspace-canvas-scrollbox .document-body-content {
   color: #334155 !important;
   line-height: 1.7;
   font-size: 1rem;
-  height: calc(100% - 6rem); /* 💡 Locks typing boundaries safely above the structural footer ceiling */
+  height: calc(100% - 6rem);
   overflow: hidden;
 }

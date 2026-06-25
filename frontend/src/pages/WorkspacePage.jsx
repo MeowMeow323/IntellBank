@@ -199,28 +199,11 @@ const WorkspacePage = () => {
             ✨ Generate AI Paper
           </button>
 
-          <button
-            className="generate-btn"
-            onClick={handleOpenPypModal}
-            style={{ margin: 0, background: 'transparent', border: '1px dashed #0d9488', color: '#0d9488' }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(13,148,136,0.1)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
+          <button className="ws-ghost-btn" onClick={handleOpenPypModal}>
             📄 Practice Past Year Paper
           </button>
 
-          <button
-            className="generate-btn"
-            onClick={handleCreateRawDocument}
-            style={{
-              margin: 0,
-              background: 'transparent',
-              border: '1px dashed #0066cc',
-              color: '#0066cc'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0, 102, 204, 0.1)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
+          <button className="ws-ghost-btn" onClick={handleCreateRawDocument}>
             ➕ Create Blank Doc
           </button>
         </div>
@@ -257,7 +240,7 @@ const WorkspacePage = () => {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: isActive ? '#ffffff' : '#64748b',
+                      color: isActive ? 'var(--accent)' : 'var(--ink-faint)',
                       cursor: 'pointer',
                       padding: '4px',
                       display: 'flex',
@@ -303,12 +286,12 @@ const WorkspacePage = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0 }}>✨ Generate Customized Paper</h2>
               <button onClick={() => setIsModalOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </div>
 
             {/* Subject */}
             <div className="input-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>Subject</label>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>Subject</label>
               <select className="form-input"
                 value={paperConfig.subject}
                 onChange={e => setPaperConfig({ ...paperConfig, subject: e.target.value, topics: [] })}
@@ -324,7 +307,7 @@ const WorkspacePage = () => {
             {/* Topics — checkbox grid */}
             <div className="input-group" style={{ marginBottom: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>
                   Topics
                 </label>
                 <span style={{ fontSize: '0.72rem', color: tooFewTopics ? '#f59e0b' : '#64748b' }}>
@@ -336,8 +319,8 @@ const WorkspacePage = () => {
               <div style={{
                 display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem',
                 maxHeight: '220px', overflowY: 'auto', padding: '0.5rem',
-                border: '1px solid var(--color-border, #1f2e3d)',
-                borderRadius: '6px', background: 'var(--color-bg-secondary, #0b131a)'
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)', background: 'var(--inset)'
               }}>
                 {(subjectTopicsMap[paperConfig.subject] || []).map(topic => {
                   const checked = paperConfig.topics.includes(topic)
@@ -347,15 +330,15 @@ const WorkspacePage = () => {
                     <label key={topic} style={{
                       display: 'flex', alignItems: 'center', gap: '0.5rem',
                       padding: '0.4rem 0.6rem', borderRadius: '5px', cursor: disabled ? 'not-allowed' : 'pointer',
-                      background: checked ? 'rgba(59,130,246,0.18)' : 'transparent',
-                      border: `1px solid ${checked ? 'rgba(59,130,246,0.5)' : 'transparent'}`,
+                      background: checked ? 'var(--accent-soft)' : 'transparent',
+                      border: `1px solid ${checked ? 'var(--accent-border)' : 'transparent'}`,
                       transition: 'all 0.12s',
                       opacity: disabled ? 0.35 : 1,
-                      fontSize: '0.8rem', color: 'var(--color-text-primary, #e2e8f0)',
+                      fontSize: '0.8rem', color: 'var(--text)',
                       userSelect: 'none',
                     }}>
                       <input type="checkbox" checked={checked} disabled={disabled}
-                        style={{ accentColor: '#3b82f6', width: '14px', height: '14px', flexShrink: 0 }}
+                        style={{ accentColor: 'var(--accent)', width: '14px', height: '14px', flexShrink: 0 }}
                         onChange={() => {
                           if (checked) {
                             setPaperConfig({ ...paperConfig, topics: paperConfig.topics.filter(t => t !== topic) })
@@ -392,13 +375,13 @@ const WorkspacePage = () => {
                   {paperConfig.topics.map(t => (
                     <span key={t} style={{
                       display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                      background: 'rgba(59,130,246,0.22)', color: '#93c5fd',
+                      background: 'var(--accent-soft)', color: 'var(--accent)',
                       padding: '2px 10px 2px 10px', borderRadius: '999px',
-                      fontSize: '0.72rem', fontWeight: 500, border: '1px solid rgba(59,130,246,0.35)'
+                      fontSize: '0.72rem', fontWeight: 500, border: '1px solid var(--accent-border)'
                     }}>
                       {t}
                       <button onClick={() => setPaperConfig({ ...paperConfig, topics: paperConfig.topics.filter(x => x !== t) })}
-                        style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', padding: '0 0 0 2px', lineHeight: 1, fontSize: '0.85rem' }}>×</button>
+                        style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: '0 0 0 2px', lineHeight: 1, fontSize: '0.85rem' }}>×</button>
                     </span>
                   ))}
                 </div>
@@ -407,11 +390,11 @@ const WorkspacePage = () => {
 
             {/* Format info */}
             <div style={{
-              padding: '0.65rem 0.9rem', borderRadius: '6px', fontSize: '0.8rem',
-              background: 'rgba(15,23,42,0.5)', border: '1px solid var(--color-border, #1f2e3d)',
-              color: '#94a3b8'
+              padding: '0.65rem 0.9rem', borderRadius: 'var(--radius-md)', fontSize: '0.8rem',
+              background: 'var(--inset)', border: '1px solid var(--border)',
+              color: 'var(--text-muted)'
             }}>
-              <strong style={{ color: '#cbd5e1' }}>Format: </strong>
+              <strong style={{ color: 'var(--text)' }}>Format: </strong>
               4 Questions × 25 Marks = 100 Marks Total
             </div>
 

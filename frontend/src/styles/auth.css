@@ -1,0 +1,382 @@
+/* IntellBank – Authentication surfaces (Minimalist Modern).
+   Shared shell for Login / Register / Forgot / Reset. A split layout: an
+   inverted brand panel with an animated hero on the left, the form on the
+   right. Collapses to a single centered column on small screens. */
+
+/* ── Shell ─────────────────────────────────────────────────────────────────── */
+.auth-shell {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  min-height: 100vh;
+  background: var(--desk);
+}
+
+/* ── Brand panel (inverted, animated) ──────────────────────────────────────── */
+.auth-brand-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2.5rem;
+  padding: 3.5rem;
+  background: var(--ink);
+  color: #fff;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Dot texture */
+.auth-brand-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.04;
+}
+/* Ambient accent glow */
+.auth-brand-panel::after {
+  content: '';
+  position: absolute;
+  top: -15%;
+  right: -10%;
+  width: 520px;
+  height: 520px;
+  z-index: -1;
+  background: radial-gradient(circle, rgba(0,82,255,0.45), transparent 70%);
+  filter: blur(130px);
+}
+
+.auth-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.auth-brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  color: #fff;
+  box-shadow: var(--shadow-accent);
+}
+.auth-brand-name {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+}
+
+.auth-brand-headline {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: clamp(2rem, 3.2vw, 2.85rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  max-width: 16ch;
+}
+.auth-brand-sub {
+  margin-top: 1rem;
+  color: rgba(255,255,255,0.7);
+  font-size: 1rem;
+  line-height: 1.65;
+  max-width: 42ch;
+}
+
+.auth-feature-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+.auth-feature-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.95rem;
+  color: rgba(255,255,255,0.85);
+}
+.auth-feature-list .icon-tile {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+/* ── Animated hero graphic ─────────────────────────────────────────────────── */
+.auth-hero {
+  position: relative;
+  height: 230px;
+  margin-top: auto;
+}
+.auth-hero__ring {
+  position: absolute;
+  top: 50%;
+  left: 38%;
+  width: 230px;
+  height: 230px;
+  margin: -115px 0 0 -115px;
+  border: 1.5px dashed rgba(255,255,255,0.18);
+  border-radius: 50%;
+}
+.auth-hero__blob {
+  position: absolute;
+  top: 50%;
+  left: 38%;
+  width: 130px;
+  height: 130px;
+  margin: -65px 0 0 -65px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  opacity: 0.9;
+  filter: blur(2px);
+  box-shadow: var(--shadow-accent-lg);
+}
+.auth-hero__card {
+  position: absolute;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  padding: 0.85rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+.auth-hero__card--one {
+  top: 18px;
+  left: 8%;
+  width: 190px;
+}
+.auth-hero__card--two {
+  bottom: 8px;
+  right: 6%;
+  width: 170px;
+}
+.auth-hero__card-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.auth-hero__chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--gradient-primary);
+  flex-shrink: 0;
+}
+.auth-hero__line {
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.22);
+}
+.auth-hero__line + .auth-hero__line { margin-top: 6px; }
+.auth-hero__bar {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.12);
+  margin-top: 0.7rem;
+  overflow: hidden;
+}
+.auth-hero__bar > span {
+  display: block;
+  height: 100%;
+  width: 68%;
+  background: var(--gradient-primary-h);
+}
+.auth-hero__dots {
+  position: absolute;
+  bottom: 4px;
+  left: 2%;
+  display: grid;
+  grid-template-columns: repeat(3, 6px);
+  gap: 8px;
+}
+.auth-hero__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+}
+
+/* ── Form side ─────────────────────────────────────────────────────────────── */
+.auth-form-side {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.5rem;
+}
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Compact brand shown above the form on mobile (hidden on desktop) */
+.auth-mobile-brand {
+  display: none;
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+.auth-mobile-brand .auth-brand-mark {
+  margin: 0 auto 0.75rem;
+}
+
+.auth-form {
+  background: var(--card, var(--paper));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  padding: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.auth-eyebrow {
+  margin-bottom: 0.25rem;
+}
+.auth-title {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 1.85rem;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.auth-lead {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-top: -0.5rem;
+}
+
+/* ── Alerts ────────────────────────────────────────────────────────────────── */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.alert-error {
+  background: var(--danger-soft);
+  border: 1px solid rgba(185,28,28,0.25);
+  color: var(--danger);
+}
+.alert-info {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+}
+.alert-success {
+  background: var(--success-soft);
+  border: 1px solid rgba(21,128,61,0.25);
+  color: var(--success);
+}
+
+/* ── Password field + strength + requirements ──────────────────────────────── */
+.password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrap .form-input {
+  width: 100%;
+  padding-right: 3.5rem;
+}
+.password-toggle {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+.password-toggle:hover { color: var(--accent); }
+
+.strength-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 0.5rem;
+}
+.strength-seg {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background var(--transition-base);
+}
+.strength-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+}
+
+.pw-requirements {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.pw-requirements li {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+.pw-requirements li.met { color: var(--success); }
+
+/* ── Options row (remember / forgot) ───────────────────────────────────────── */
+.auth-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.remember-me input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.forgot-link {
+  color: var(--accent);
+  font-weight: 500;
+}
+.forgot-link:hover { text-decoration: underline; }
+
+.auth-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.auth-footer a { font-weight: 600; }
+
+/* Full-width primary CTA inside auth forms, comfortable touch target */
+.auth-form .btn-primary,
+.auth-card .btn-primary {
+  width: 100%;
+  height: 48px;
+  font-size: 0.95rem;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .auth-shell { grid-template-columns: 1fr; }
+  .auth-brand-panel { display: none; }
+  .auth-mobile-brand { display: block; }
+  .auth-form { padding: 1.75rem; }
+}
