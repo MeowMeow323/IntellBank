@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom' 
 import useWorkspaceStore from '../store/workspaceStore'
 import WorkspaceContent from '../components/workspace/WorkspaceContent'
@@ -26,10 +26,23 @@ const WorkspacePage = () => {
     isLoading,
     addTab,
     removeTab,
+    renameTab,
     generateTabWithAI,
     openPastYearPaperTab,
     loadPastYearPapers,
   } = useWorkspaceStore()
+
+  // Inline document rename
+  const [renamingDocId, setRenamingDocId] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameCancel = useRef(false)
+
+  const commitDocRename = async (docId) => {
+    const val = renameValue.trim()
+    setRenamingDocId(null)
+    const current = tabs.find((t) => (t.documentId || t.id) === docId)
+    if (val && current && val !== current.title) await renameTab(docId, val)
+  }
 
   // AI Generation Configuration Modal States
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -48,6 +61,10 @@ const WorkspacePage = () => {
   const [pypList, setPypList] = useState([])
   const [isPypLoading, setIsPypLoading] = useState(false)
   const [isOpeningPyp, setIsOpeningPyp] = useState(false)
+  const [pypSearch, setPypSearch] = useState('')
+  const [pypSubject, setPypSubject] = useState('all')
+  const [pypYear, setPypYear] = useState('all')
+  const [pypToConfirm, setPypToConfirm] = useState(null)  // paper awaiting open confirmation
 
   // Document Deletion Modal States
   const [docToDelete, setDocToDelete] = useState(null)
@@ -86,9 +103,17 @@ const WorkspacePage = () => {
   const handleOpenPypModal = async () => {
     setIsPypModalOpen(true)
     setIsPypLoading(true)
+    setPypSearch(''); setPypSubject('all'); setPypYear('all'); setPypToConfirm(null)
     const papers = await loadPastYearPapers()
     setPypList(papers)
     setIsPypLoading(false)
+  }
+
+  // Exam year — prefer a 4-digit year in the title, fall back to the upload year.
+  const pypYearOf = (p) => {
+    const m = (p.title || '').match(/(19|20)\d{2}/)
+    if (m) return m[0]
+    return p.uploadDate ? String(new Date(p.uploadDate).getFullYear()) : '—'
   }
 
   const handleOpenPyp = async (pypId) => {
@@ -171,6 +196,23 @@ const WorkspacePage = () => {
     }
   }
 
+  // Project Explorer order: most recently edited document on top.
+  const sortedTabs = [...tabs].sort((a, b) => {
+    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime()
+    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime()
+    return tb - ta
+  })
+
+  // ── Past-year-paper picker: only ready papers, with search + subject + year ──
+  const readyPyps = pypList.filter((p) => p.status === 'PROCESSED')
+  const pypSubjectOptions = [...new Set(readyPyps.map((p) => p.subject).filter(Boolean))].sort()
+  const pypYearOptions = [...new Set(readyPyps.map(pypYearOf))].sort().reverse()
+  const visiblePyps = readyPyps.filter((p) =>
+    (!pypSearch || (p.title || '').toLowerCase().includes(pypSearch.toLowerCase().trim())) &&
+    (pypSubject === 'all' || p.subject === pypSubject) &&
+    (pypYear === 'all' || pypYearOf(p) === pypYear)
+  )
+
   // ── Topic-count guard rails for the generate modal ──────────────────────────
   const availableTopics = subjectTopicsMap[paperConfig.subject] || []
   const effectiveMinTopics = Math.min(MIN_TOPICS, availableTopics.length)
@@ -214,7 +256,7 @@ const WorkspacePage = () => {
           ) : tabs.length === 0 ? (
             <p className="status-textempty">No documents found inside this project.</p>
           ) : (
-            tabs.map((doc) => {
+            sortedTabs.map((doc) => {
               const currentId = doc.documentId || doc.id
               const isActive = activeTabId === currentId
 
@@ -227,8 +269,54 @@ const WorkspacePage = () => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden', flex: 1 }}>
                     <span className="doc-icon">📄</span>
-                    <span className="doc-name">{doc.title || 'Untitled Document'}</span>
+                    {renamingDocId === currentId ? (
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() }
+                          else if (e.key === 'Escape') { renameCancel.current = true; e.currentTarget.blur() }
+                        }}
+                        onBlur={() => {
+                          if (renameCancel.current) { renameCancel.current = false; setRenamingDocId(null); return }
+                          commitDocRename(currentId)
+                        }}
+                        style={{
+                          flex: 1, minWidth: 0, font: 'inherit', padding: '2px 6px',
+                          border: '1px solid var(--accent)', borderRadius: '4px',
+                          background: 'var(--bg-surface)', color: 'var(--text)',
+                        }}
+                      />
+                    ) : (
+                      <span className="doc-name">{doc.title || 'Untitled Document'}</span>
+                    )}
                   </div>
+
+                  <button
+                    type="button"
+                    title="Rename Document"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRenamingDocId(currentId)
+                      setRenameValue(doc.title || '')
+                    }}
+                    style={{
+                      background: 'none', border: 'none',
+                      color: isActive ? 'var(--accent)' : 'var(--ink-faint)',
+                      cursor: 'pointer', padding: '4px', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', opacity: 0.7,
+                      transition: 'opacity 0.2s, color 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                    </svg>
+                  </button>
 
                   <button
                     type="button"
@@ -409,49 +497,93 @@ const WorkspacePage = () => {
         </div>
       )}
 
-      {/* 3b. 📄 PAST YEAR PAPER MODAL */}
+      {/* 3b. PAST YEAR PAPER PICKER */}
       {isPypModalOpen && (
         <div className="modal-overlay" onClick={() => setIsPypModalOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2>📄 Practice Past Year Paper</h2>
-            <p style={{ color: '#94a3b8', fontSize: '0.875rem', margin: '0 0 1rem 0' }}>
-              Select a paper to open as a practice document.
+          <div className="modal-content pyp-picker" onClick={e => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '0.2rem' }}>Past Year Papers</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem 0' }}>
+              Search and pick a paper to open as a practice document.
             </p>
 
+            <div className="pyp-filters">
+              <input
+                className="pyp-search"
+                placeholder="Search papers…"
+                value={pypSearch}
+                onChange={e => setPypSearch(e.target.value)}
+              />
+              <select className="pyp-select" value={pypSubject} onChange={e => setPypSubject(e.target.value)}>
+                <option value="all">All subjects</option>
+                {pypSubjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select className="pyp-select" value={pypYear} onChange={e => setPypYear(e.target.value)}>
+                <option value="all">All years</option>
+                {pypYearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+
             {isPypLoading ? (
-              <p style={{ color: '#64748b', textAlign: 'center', padding: '1rem' }}>Loading papers...</p>
-            ) : pypList.length === 0 ? (
-              <p style={{ color: '#94a3b8', textAlign: 'center', padding: '1rem' }}>
-                No past year papers found. Upload and process a paper first.
+              <p className="pyp-empty">Loading papers…</p>
+            ) : visiblePyps.length === 0 ? (
+              <p className="pyp-empty">
+                {readyPyps.length === 0
+                  ? 'No processed papers yet. Upload and process a paper first.'
+                  : 'No papers match your filters.'}
               </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto', marginBottom: '1.5rem' }}>
-                {pypList.map(pyp => (
-                  <button
-                    key={pyp.pypId}
-                    onClick={() => handleOpenPyp(pyp.pypId)}
-                    disabled={isOpeningPyp}
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '0.75rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0',
-                      background: '#f8fafc', cursor: 'pointer', textAlign: 'left',
-                      opacity: isOpeningPyp ? 0.6 : 1, transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={(e) => { if (!isOpeningPyp) e.currentTarget.style.background = '#e0f2fe' }}
-                    onMouseLeave={(e) => e.currentTarget.style.background = '#f8fafc'}
-                  >
-                    <span style={{ fontWeight: 500, color: '#1e293b', fontSize: '0.875rem' }}>{pyp.title}</span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '1rem', whiteSpace: 'nowrap' }}>
-                      {pyp.status} · {pyp.uploadDate ? new Date(pyp.uploadDate).getFullYear() : '—'}
-                    </span>
+              <div className="pyp-list">
+                {visiblePyps.map(pyp => (
+                  <button key={pyp.pypId} className="pyp-row" onClick={() => setPypToConfirm(pyp)}>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="pyp-row-title">{pyp.title}</span>
+                      <span className="pyp-row-meta">
+                        {pyp.subject && <span className="pyp-chip">{pyp.subject}</span>}
+                        <span className="pyp-chip">{pypYearOf(pyp)}</span>
+                        <span className="pyp-q">{pyp.questionCount ?? '—'} questions</span>
+                      </span>
+                    </div>
+                    <span className="pyp-open">Open →</span>
                   </button>
                 ))}
               </div>
             )}
 
             <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setIsPypModalOpen(false)}>
+              <button className="btn btn-secondary" onClick={() => setIsPypModalOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3c. PAST YEAR PAPER — OPEN CONFIRMATION */}
+      {pypToConfirm && (
+        <div className="modal-overlay" onClick={() => setPypToConfirm(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <h2 style={{ marginBottom: '0.2rem' }}>Open this paper?</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem 0' }}>
+              It opens as a practice document you can answer.
+            </p>
+
+            <div className="pyp-confirm-card">
+              <div className="pyp-confirm-title">{pypToConfirm.title}</div>
+              <div className="pyp-confirm-rows">
+                {pypToConfirm.subject && <div><span>Subject</span><strong>{pypToConfirm.subject}</strong></div>}
+                <div><span>Year</span><strong>{pypYearOf(pypToConfirm)}</strong></div>
+                <div><span>Questions</span><strong>{pypToConfirm.questionCount ?? '—'} (25 marks each)</strong></div>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setPypToConfirm(null)} disabled={isOpeningPyp}>
                 Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={isOpeningPyp}
+                onClick={async () => { await handleOpenPyp(pypToConfirm.pypId); setPypToConfirm(null) }}
+              >
+                {isOpeningPyp ? 'Opening…' : 'Open paper'}
               </button>
             </div>
           </div>

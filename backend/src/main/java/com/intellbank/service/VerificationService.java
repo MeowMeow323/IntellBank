@@ -44,6 +44,7 @@ public class VerificationService {
     private final QuestionTopicRepository questionTopicRepository;
     private final StudentPerformanceRepository performanceRepository;
     private final EducatorRepository educatorRepository;
+    private final SpecializationService specializationService;
     // ── AI-solution verification (unchanged behaviour) ────────────────────────
 
     /** Get all solutions pending verification (isVerified = false). */
@@ -113,11 +114,76 @@ public class VerificationService {
     }
 
     /**
+     * Enriched educator queue for the Verification list: PENDING, GRADED and
+     * RETURNED submissions, each carrying student name, derived subject and a
+     * submitted-date proxy so the frontend can search / filter / sort. Sorted
+     * most-recent first.
+     */
+    public List<com.intellbank.dto.SubmissionQueueItem> getSubmissionQueue(String email, String role) {
+        List<Submission> subs = submissionRepository.findByStatusIn(
+                List.of("PENDING", STATUS_GRADED, STATUS_RETURNED));
+
+        List<com.intellbank.dto.SubmissionQueueItem> out = new ArrayList<>();
+        for (Submission s : subs) {
+            Document doc = s.getDocument();
+            String title = "", type = "", studentName = "", subject = "";
+            UUID documentId = null;
+            OffsetDateTime submittedAt = null;
+            if (doc != null) {
+                documentId = doc.getDocumentId();
+                title = doc.getTitle() != null ? doc.getTitle() : "";
+                type = doc.getType() != null ? doc.getType() : "";
+                submittedAt = doc.getCreatedAt();
+                subject = deriveSubject(doc);
+                try {
+                    studentName = doc.getProject().getStudent().getUser().getFullName();
+                } catch (Exception ignored) {
+                    /* lazy chain may be absent */ }
+            }
+            // Specialization gate: educators only see submissions in their subjects
+            // (admins see all; strict — no specialization means no rows).
+            if (!specializationService.canHandleSubjectName(email, role, subject)) continue;
+            out.add(new com.intellbank.dto.SubmissionQueueItem(
+                    s.getSubmissionId(), s.getStatus(), s.getMarks(),
+                    documentId, title, type, studentName, subject, submittedAt));
+        }
+
+        // Most-recent first; null dates sink to the bottom.
+        out.sort((a, b) -> {
+            if (a.submittedAt() == null) return 1;
+            if (b.submittedAt() == null) return -1;
+            return b.submittedAt().compareTo(a.submittedAt());
+        });
+        return out;
+    }
+
+    /** A paper's subject = the subject of any one of its questions' topics (papers are single-subject). */
+    private String deriveSubject(Document doc) {
+        for (DocumentQuestion dq : documentQuestionRepository.findByDocumentDocumentId(doc.getDocumentId())) {
+            for (QuestionTopic qt : questionTopicRepository.findByQuestionQuestionId(dq.getQuestion().getQuestionId())) {
+                try {
+                    return qt.getTopic().getSubject().getName();
+                } catch (Exception ignored) {
+                    /* lazy proxy may be absent */ }
+            }
+        }
+        return "";
+    }
+
+    /**
      * Build the full review payload for one submission — the answered document plus
      * every
      * question with its marks and topics. Drives both the grading screen and the
      * student's "view reviewed answers" screen.
      */
+    public SubmissionReview getSubmissionReview(UUID submissionId, String email, String role) {
+        // Educator path: enforce the specialization gate, then build the review.
+        Submission gated = getSubmission(submissionId);
+        specializationService.assertCanHandleSubjectName(email, role, deriveSubject(gated.getDocument()));
+        return getSubmissionReview(submissionId);
+    }
+
+    /** Ungated builder — used by the student's own (owner-checked) review path. */
     public SubmissionReview getSubmissionReview(UUID submissionId) {
         Submission submission = getSubmission(submissionId);
         Document document = submission.getDocument();
@@ -183,8 +249,9 @@ public class VerificationService {
      */
     @Transactional
     public GradeResult gradeSubmission(UUID submissionId, Map<UUID, Integer> questionMarks,
-            Map<String, String> topicComments, String educatorEmail) {
+            Map<String, String> topicComments, String educatorEmail, String role) {
         Submission submission = getSubmission(submissionId);
+        specializationService.assertCanHandleSubjectName(educatorEmail, role, deriveSubject(submission.getDocument()));
         Educator educator = resolveEducator(educatorEmail);
         Student student = submission.getDocument().getProject().getStudent();
         if (topicComments == null)
@@ -259,8 +326,9 @@ public class VerificationService {
      * submission slot.
      */
     @Transactional
-    public Submission returnSubmission(UUID submissionId) {
+    public Submission returnSubmission(UUID submissionId, String email, String role) {
         Submission submission = getSubmission(submissionId);
+        specializationService.assertCanHandleSubjectName(email, role, deriveSubject(submission.getDocument()));
         submission.setStatus(STATUS_RETURNED);
         return submissionRepository.save(submission);
     }

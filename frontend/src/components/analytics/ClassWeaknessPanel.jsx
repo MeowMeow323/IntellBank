@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { AnalyticsService } from '../../services/api'
+import '../../styles/analytics.css'
 
 const TIER_BADGE = { High: 'badge-red', Medium: 'badge-amber', Low: 'badge-green' }
 
@@ -73,23 +74,6 @@ export default function ClassWeaknessPanel({ subject }) {
       </div>
 
       <p className="cw-model">Cohort weakness clustering · retrained on demand</p>
-
-      <style>{`
-        .cw-head { display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.85rem; flex-wrap:wrap; }
-        .cw-meta { font-size:0.76rem; color:var(--text-muted); }
-        .cw-sort {
-          font-size:0.78rem; padding:0.35rem 0.55rem; border:1px solid var(--border);
-          border-radius:var(--radius-sm); background:var(--bg-surface); color:var(--text); cursor:pointer;
-        }
-        .cw-list { display:flex; flex-direction:column; gap:0.5rem; max-height:360px; overflow-y:auto; padding-right:2px; }
-        .cw-item {
-          display:flex; align-items:center; gap:0.75rem; padding:0.6rem 0.85rem;
-          background:var(--bg-surface-2); border-radius:var(--radius-md);
-        }
-        .cw-topic { font-weight:600; font-size:0.88rem; color:var(--text); }
-        .cw-sub { font-size:0.76rem; color:var(--text-muted); margin-top:0.15rem; }
-        .cw-model { margin-top:0.85rem; font-size:0.72rem; color:var(--text-subtle); font-style:italic; }
-      `}</style>
     </div>
   )
 }

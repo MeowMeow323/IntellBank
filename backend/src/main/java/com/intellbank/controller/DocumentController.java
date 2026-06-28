@@ -44,6 +44,11 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.openPastYearPaper(pypId, projectId));
     }
 
+    @PutMapping("/{documentId}/rename")
+    public ResponseEntity<Document> rename(@PathVariable UUID documentId, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(documentService.rename(documentId, body.get("title")));
+    }
+
     @DeleteMapping("/{documentId}")
     public ResponseEntity<Void> delete(@PathVariable UUID documentId, @RequestParam String email) {
         documentService.delete(documentId, email);

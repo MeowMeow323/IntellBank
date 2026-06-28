@@ -1,9 +1,11 @@
 package com.intellbank.controller;
 
 import com.intellbank.dto.PastYearPaperResponse;
+import com.intellbank.entity.User;
 import com.intellbank.service.PastYearPaperService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,46 +21,56 @@ public class PastYearPaperController {
 
     private final PastYearPaperService pastYearPaperService;
 
+    private static String emailOf(Authentication auth) {
+        return ((User) auth.getPrincipal()).getEmail();
+    }
+
+    private static String roleOf(Authentication auth) {
+        return ((User) auth.getPrincipal()).getRole();
+    }
+
     @GetMapping
-    public ResponseEntity<List<PastYearPaperResponse>> getAll() {
-        return ResponseEntity.ok(pastYearPaperService.getAll());
+    public ResponseEntity<List<PastYearPaperResponse>> getAll(Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.getAll(emailOf(auth), roleOf(auth)));
     }
 
     @PostMapping("/upload")
     public ResponseEntity<PastYearPaperResponse> upload(
             @RequestParam String title,
-            @RequestParam MultipartFile file) {
-        return ResponseEntity.ok(pastYearPaperService.uploadPaper(title, file));
+            @RequestParam String subject,
+            @RequestParam MultipartFile file,
+            Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.uploadPaper(title, file, subject, emailOf(auth), roleOf(auth)));
     }
 
     @PostMapping("/{pypId}/process")
-    public ResponseEntity<PastYearPaperResponse> process(@PathVariable UUID pypId) {
-        return ResponseEntity.ok(pastYearPaperService.triggerProcessing(pypId));
+    public ResponseEntity<PastYearPaperResponse> process(@PathVariable UUID pypId, Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.triggerProcessing(pypId, emailOf(auth), roleOf(auth)));
     }
 
     @GetMapping("/{pypId}/progress")
-    public ResponseEntity<Map<String, Object>> progress(@PathVariable UUID pypId) {
-        return ResponseEntity.ok(pastYearPaperService.getProgress(pypId));
+    public ResponseEntity<Map<String, Object>> progress(@PathVariable UUID pypId, Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.getProgress(pypId, emailOf(auth), roleOf(auth)));
     }
 
     @PostMapping("/{pypId}/generate-solutions")
-    public ResponseEntity<Map<String, Object>> generateSolutions(@PathVariable UUID pypId) {
-        return ResponseEntity.ok(pastYearPaperService.generateSolutions(pypId));
+    public ResponseEntity<Map<String, Object>> generateSolutions(@PathVariable UUID pypId, Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.generateSolutions(pypId, emailOf(auth), roleOf(auth)));
     }
 
     @PostMapping("/questions/{questionId}/generate-solution")
-    public ResponseEntity<Map<String, Object>> generateSingleSolution(@PathVariable UUID questionId) {
-        return ResponseEntity.ok(pastYearPaperService.generateSingleSolution(questionId));
+    public ResponseEntity<Map<String, Object>> generateSingleSolution(@PathVariable UUID questionId, Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.generateSingleSolution(questionId, emailOf(auth), roleOf(auth)));
     }
 
     @GetMapping("/{pypId}/solutions")
-    public ResponseEntity<List<Map<String, Object>>> getSolutions(@PathVariable UUID pypId) {
-        return ResponseEntity.ok(pastYearPaperService.getSolutions(pypId));
+    public ResponseEntity<List<Map<String, Object>>> getSolutions(@PathVariable UUID pypId, Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.getSolutions(pypId, emailOf(auth), roleOf(auth)));
     }
 
     @DeleteMapping("/{pypId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID pypId) {
-        pastYearPaperService.deletePaper(pypId);
+    public ResponseEntity<Void> delete(@PathVariable UUID pypId, Authentication auth) {
+        pastYearPaperService.deletePaper(pypId, emailOf(auth), roleOf(auth));
         return ResponseEntity.noContent().build();
     }
 }

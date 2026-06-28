@@ -1,6 +1,7 @@
 package com.intellbank.controller;
 
 import com.intellbank.dto.GradeResult;
+import com.intellbank.dto.SubmissionQueueItem;
 import com.intellbank.dto.SubmissionReview;
 import com.intellbank.entity.Document;
 import com.intellbank.entity.Question;
@@ -41,6 +42,10 @@ public class VerificationController {
      */
     private static String emailOf(Authentication auth) {
         return ((User) auth.getPrincipal()).getEmail();
+    }
+
+    private static String roleOf(Authentication auth) {
+        return ((User) auth.getPrincipal()).getRole();
     }
 
     // ── AI-solution verification ──────────────────────────────────────────────
@@ -88,11 +93,20 @@ public class VerificationController {
     }
 
     /**
+     * Enriched queue for the Verification list — PENDING/GRADED/RETURNED with student
+     * name, derived subject and submitted date, so the UI can search/filter/sort.
+     */
+    @GetMapping("/submissions/queue")
+    public ResponseEntity<List<SubmissionQueueItem>> getSubmissionQueue(Authentication auth) {
+        return ResponseEntity.ok(verificationService.getSubmissionQueue(emailOf(auth), roleOf(auth)));
+    }
+
+    /**
      * Full review payload (answered doc + questions + topics) for one submission.
      */
     @GetMapping("/submissions/{submissionId}")
-    public ResponseEntity<SubmissionReview> reviewSubmission(@PathVariable UUID submissionId) {
-        return ResponseEntity.ok(verificationService.getSubmissionReview(submissionId));
+    public ResponseEntity<SubmissionReview> reviewSubmission(@PathVariable UUID submissionId, Authentication auth) {
+        return ResponseEntity.ok(verificationService.getSubmissionReview(submissionId, emailOf(auth), roleOf(auth)));
     }
 
     /**
@@ -118,13 +132,14 @@ public class VerificationController {
                 e -> e.getValue() == null ? "" : e.getValue().toString()));
 
         return ResponseEntity.ok(
-                verificationService.gradeSubmission(submissionId, questionMarks, topicComments, emailOf(auth)));
+                verificationService.gradeSubmission(submissionId, questionMarks, topicComments, emailOf(auth), roleOf(auth)));
     }
 
     /** Return a graded submission to the student (frees their submission slot). */
     @PutMapping("/submissions/{submissionId}/return")
-    public ResponseEntity<Map<String, Object>> returnSubmission(@PathVariable UUID submissionId) {
-        return ResponseEntity.ok(toSubmissionDto(verificationService.returnSubmission(submissionId)));
+    public ResponseEntity<Map<String, Object>> returnSubmission(@PathVariable UUID submissionId, Authentication auth) {
+        return ResponseEntity.ok(toSubmissionDto(
+                verificationService.returnSubmission(submissionId, emailOf(auth), roleOf(auth))));
     }
 
     // ── DTO mappers (avoid serialising lazy JPA proxies) ──────────────────────

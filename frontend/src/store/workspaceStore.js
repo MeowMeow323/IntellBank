@@ -319,7 +319,7 @@ const useWorkspaceStore = create((set, get) => ({
     set((state) => ({
       tabs: (state.tabs || []).map((tab) =>
         tab.documentId === documentId
-          ? { ...tab, localDraftContent: newContent, storageUrl: newContent }
+          ? { ...tab, localDraftContent: newContent, storageUrl: newContent, updatedAt: new Date().toISOString() }
           : tab
       )
     }))
@@ -360,6 +360,24 @@ const useWorkspaceStore = create((set, get) => ({
         console.error('Cloud auto-save deferred:', err)
         throw err
       }
+    }
+  },
+
+  // Rename a document — persists the new title to the DB, then updates the tab in place.
+  renameTab: async (documentId, title) => {
+    const next = (title || '').trim()
+    if (!next) return
+    try {
+      await DocumentService.rename(documentId, next)
+      set((state) => ({
+        tabs: (state.tabs || []).map((t) =>
+          t.documentId === documentId ? { ...t, title: next } : t
+        ),
+        error: null,
+      }))
+    } catch (err) {
+      console.error('Failed to rename document:', err)
+      set({ error: 'Failed to rename document' })
     }
   },
 

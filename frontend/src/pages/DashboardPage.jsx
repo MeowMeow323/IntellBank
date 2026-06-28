@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Folder, Trash2, FolderKanban, ClipboardList, Send, BarChart3,
+  Plus, Folder, Trash2, Pencil, FolderKanban, ClipboardList, Send, BarChart3,
   CheckSquare, FileText, Tags, AlertTriangle,
 } from 'lucide-react'
 import useAuthStore from '../store/authStore'
@@ -25,6 +25,24 @@ const DashboardPage = () => {
   const [newProject, setNewProject] = useState({ projectName: '', description: '', subject: '' })
   const [creating, setCreating] = useState(false)
   const [stats, setStats] = useState({ questions: '—', submissions: '—', mastery: '—' })
+
+  // Inline project rename
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameCancel = useRef(false)
+
+  const commitProjectRename = async (project) => {
+    const val = renameValue.trim()
+    setRenamingId(null)
+    if (!val || val === project.projectName) return
+    try {
+      await ProjectService.update(project.projectId, { projectName: val })
+      setProjects((prev) => prev.map((p) =>
+        p.projectId === project.projectId ? { ...p, projectName: val } : p))
+    } catch (err) {
+      console.error('Failed to rename project:', err)
+    }
+  }
 
   useEffect(() => {
     if (!isEducator) { loadProjects(); loadStats() }
@@ -296,20 +314,52 @@ const DashboardPage = () => {
                     <div className="project-card-icon" style={{ marginBottom: 0 }}>
                       <Folder size={20} />
                     </div>
-                    <button
-                      type="button"
-                      className="card-delete"
-                      title="Delete Project"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setProjectToDelete(project);
-                      }}
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      <button
+                        type="button"
+                        className="card-delete"
+                        title="Rename Project"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenamingId(project.projectId);
+                          setRenameValue(project.projectName || '');
+                        }}
+                      >
+                        <Pencil size={17} />
+                      </button>
+                      <button
+                        type="button"
+                        className="card-delete"
+                        title="Delete Project"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProjectToDelete(project);
+                        }}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
 
-                  <h3 className="project-card-title">{project.projectName}</h3>
+                  {renamingId === project.projectId ? (
+                    <input
+                      autoFocus
+                      className="project-rename-input"
+                      value={renameValue}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() }
+                        else if (e.key === 'Escape') { renameCancel.current = true; e.currentTarget.blur() }
+                      }}
+                      onBlur={() => {
+                        if (renameCancel.current) { renameCancel.current = false; setRenamingId(null); return }
+                        commitProjectRename(project)
+                      }}
+                    />
+                  ) : (
+                    <h3 className="project-card-title">{project.projectName}</h3>
+                  )}
 
                   {project.subject && (
                     <div className="flex">

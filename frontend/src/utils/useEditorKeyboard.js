@@ -14,6 +14,8 @@ export function useEditorKeyboard({
     recalcStats,
     setShowFind,
     focusedPage,
+    onUndo,
+    onRedo,
 }) {
     const focusPage = useCallback((pageIdx) => {
         setTimeout(() => {
@@ -52,16 +54,25 @@ export function useEditorKeyboard({
             return
         }
 
+        // ── Ctrl+Shift+Z → redo (common alternative) ──────────────────────────
+        if (ctrl && shift && key.toLowerCase() === 'z') {
+            e.preventDefault()
+            onRedo?.()
+            return
+        }
+
         // ── Ctrl shortcuts ────────────────────────────────────────────────────
         if (ctrl && !shift) {
             switch (key.toLowerCase()) {
                 case 'z':
+                    // Document-level snapshot undo (native execCommand undo is wiped
+                    // whenever the app reprograms innerHTML during pagination).
                     e.preventDefault()
-                    document.execCommand('undo')
+                    onUndo?.()
                     return
                 case 'y':
                     e.preventDefault()
-                    document.execCommand('redo')
+                    onRedo?.()
                     return
                 case 'b':
                     e.preventDefault()
@@ -190,7 +201,7 @@ export function useEditorKeyboard({
     }, [
         contentH, pagesLength, pageRefs, setPages,
         reflowPage, triggerSave, recalcStats,
-        setShowFind, focusedPage, focusPage,
+        setShowFind, focusedPage, focusPage, onUndo, onRedo,
     ])
 
     return { makeOnKeyDown }

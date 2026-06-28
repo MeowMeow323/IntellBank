@@ -76,8 +76,6 @@ export const AuthService = {
   resetPassword: (token, password) =>
     api.post('/api/auth/reset-password', { token, password }),
 
-  getMe: () => api.get('/api/auth/me'),
-
   logout: () => tokenStorage.clear(),
 
   getLocalUser: () => {
@@ -101,7 +99,6 @@ export const AuthService = {
 export const ProjectService = {
   getAll: () => api.get('/api/projects'),
   create: (data) => api.post('/api/projects', data),
-  getById: (projectId) => api.get(`/api/projects/${projectId}`),
   update: (projectId, data) => api.put(`/api/projects/${projectId}`, data),
   delete: (projectId) => api.delete(`/api/projects/${projectId}`),
 }
@@ -109,7 +106,6 @@ export const ProjectService = {
 // ── Document Service ──────────────────────────────────────────────────────────
 export const DocumentService = {
   getByProject: (projectId) => api.get(`/api/documents/by-project/${projectId}`),
-  getById: (documentId) => api.get(`/api/documents/${documentId}`),
   upload: (projectId, title, type = "Raw Document", file = null) => {
     const fd = new FormData()
     fd.append('projectId', projectId)
@@ -120,6 +116,7 @@ export const DocumentService = {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
+  rename: (documentId, title) => api.put(`/api/documents/${documentId}/rename`, { title }),
   delete: (documentId, email) => api.delete(`/api/documents/${documentId}`, { params: { email } }),
   process: (documentId) => api.post(`/api/documents/${documentId}/process`),
   openPastYearPaper: (pypId, projectId) => api.post('/api/documents/open-past-year-paper', { pypId, projectId }),
@@ -128,26 +125,17 @@ export const DocumentService = {
 // ── Exam Service ──────────────────────────────────────────────────────────────
 export const ExamService = {
   generate: (data) => api.post('/api/exams/generate', data),
-  getById: (examId) => api.get(`/api/exams/${examId}`),
-  getByUser: (userId) => api.get(`/api/exams/user/${userId}`),
   submit: (examId, answers) => api.post(`/api/exams/${examId}/submit`, { answers }),
 }
 
 // ── Submission Service ────────────────────────────────────────────────────────
 export const SubmissionService = {
   // Student submits an answered "AI Generated Exam" (one active submission at a time)
-  // Student submits an answered "AI Generated Exam" (one active submission at a time)
   submit: (documentId) => api.post('/api/submissions', { documentId }),
   // Student withdraws their own PENDING submission (frees the slot)
   unsubmit: (id) => api.post(`/api/submissions/${id}/unsubmit`),
   // The logged-in student's full submission history (Submissions page)
   getMine: () => api.get('/api/submissions/mine'),
-  // Student withdraws their own PENDING submission (frees the slot)
-  unsubmit: (id) => api.post(`/api/submissions/${id}/unsubmit`),
-  // The logged-in student's full submission history (Submissions page)
-  getMine: () => api.get('/api/submissions/mine'),
-  getByDocument: (documentId) => api.get(`/api/submissions/by-document/${documentId}`),
-  getById: (id) => api.get(`/api/submissions/${id}`),
   // The student's own reviewed answers (educator /verification routes are educator-only)
   reviewMine: (id) => api.get(`/api/submissions/${id}/review`),
 }
@@ -155,28 +143,24 @@ export const SubmissionService = {
 // ── Question Service ──────────────────────────────────────────────────────────
 export const QuestionService = {
   getAll: (params) => api.get('/api/questions', { params }),
-  getById: (questionId) => api.get(`/api/questions/${questionId}`),
   create: (data) => api.post('/api/questions', data),
   update: (questionId, data) => api.put(`/api/questions/${questionId}`, data),
   delete: (questionId) => api.delete(`/api/questions/${questionId}`),
-  getByTopic: (topic) => api.get('/api/questions/by-topic', { params: { topic } }),
-  getBySubject: (subject) => api.get('/api/questions/by-subject', { params: { subject } }),
   getByPyp: (pypId) => api.get(`/api/questions/by-pyp/${pypId}`),
-  getByDocument: (docId) => api.get(`/api/questions/by-document/${docId}`),
 }
 
 // ── Verification Service ──────────────────────────────────────────────────────
 export const VerificationService = {
   // AI-solution verification (HITL)
-  // AI-solution verification (HITL)
   getPending: () => api.get('/api/verification/pending'),
-  getById: (id) => api.get(`/api/verification/${id}`),
   approve: (id) => api.put(`/api/verification/${id}/approve`),
   reject: (id, reason) => api.put(`/api/verification/${id}/reject`, { reason }),
   edit: (id, data) => api.put(`/api/verification/${id}/edit`, data),
 
   // Student-submission grading (per-question marks → topic marks → weakness)
   getPendingSubmissions: () => api.get('/api/verification/submissions/pending'),
+  // Enriched queue for the Verification list (all statuses + subject/student/date)
+  getSubmissionQueue: () => api.get('/api/verification/submissions/queue'),
   reviewSubmission: (id) => api.get(`/api/verification/submissions/${id}`),
   // marks: { "<questionId>": <awardedMarks>, ... }; comments: { "<topicName>": "<feedback>", ... }
   gradeSubmission: (id, marks, comments = {}) =>
@@ -184,20 +168,10 @@ export const VerificationService = {
   returnSubmission: (id) => api.put(`/api/verification/submissions/${id}/return`),
 }
 
-// ── Workspace Service ─────────────────────────────────────────────────────────
-export const WorkspaceService = {
-  getTabs: (projectId) => api.get(`/api/workspace/${projectId}/tabs`),
-  createTab: (data) => api.post('/api/workspace/tabs', data),
-  updateTab: (tabId, data) => api.put(`/api/workspace/tabs/${tabId}`, data),
-  deleteTab: (tabId) => api.delete(`/api/workspace/tabs/${tabId}`),
-  setActiveTab: (tabId) => api.put(`/api/workspace/tabs/${tabId}/active`),
-}
-
 // ── Analytics Service ─────────────────────────────────────────────────────────
 export const AnalyticsService = {
   // Personal per-topic mastery (heatmap) + weaknesses (<50%) from StudentPerformance
   getMyMastery: () => api.get('/api/analytics/my-mastery'),
-  getMyWeaknesses: () => api.get('/api/analytics/my-weaknesses'),
   // All subject names in the DB — for the subject selector
   getSubjects: () => api.get('/api/analytics/subjects'),
   // Subjects that actually have trained topic-prediction data
@@ -216,9 +190,10 @@ export const AnalyticsService = {
 // ── Past Year Paper Service ───────────────────────────────────────────────────
 export const PastYearPaperService = {
   getAll: () => api.get('/api/past-year-papers'),
-  upload: (title, file, onProgress) => {
+  upload: (title, subject, file, onProgress) => {
     const fd = new FormData()
     fd.append('title', title)
+    fd.append('subject', subject)
     fd.append('file', file)
     return api.post('/api/past-year-papers/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -245,13 +220,20 @@ export const MetadataService = {
   deleteTopic: (topicId) => api.delete(`/api/metadata/topics/${topicId}`),
 }
 
+// ── Specialization Service (admin only) ───────────────────────────────────────
+export const SpecializationService = {
+  // Every educator with the subject ids they're currently assigned to
+  getEducators: () => api.get('/api/admin/specializations/educators'),
+  // All subjects — the assignable options
+  getSubjects: () => api.get('/api/admin/specializations/subjects'),
+  // Replace an educator's specialization set
+  setForEducator: (educatorId, subjectIds) =>
+    api.put(`/api/admin/specializations/educators/${educatorId}`, { subjectIds }),
+}
+
 // ── AI Gateway Service ────────────────────────────────────────────────────────
 export const AIService = {
-  generateQuestions: (data) => api.post('/api/ai/generate/question', data),
-  generateSolution: (data) => api.post('/api/ai/generate/solution', data),
-  classifyQuestion: (data) => api.post('/api/ai/classify/question', data),
-  predictTopics: (data) => api.post('/api/ai/predict/topics', data),
-  generatePaper: (data) => api.post('/api/ai/generate/paper', data),  // new
+  generatePaper: (data) => api.post('/api/ai/generate/paper', data),
 }
 // Default export is the Axios client instance
 export default api

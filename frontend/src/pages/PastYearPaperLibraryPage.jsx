@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PastYearPaperService } from '../services/api'
+import { PastYearPaperService, MetadataService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 import '../styles/document-upload.css'
 import '../styles/modals.css'
@@ -135,6 +135,8 @@ const PastYearPaperLibraryPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [dragActive, setDragActive] = useState(false)
   const [title, setTitle] = useState('')
+  const [subject, setSubject] = useState('')
+  const [subjects, setSubjects] = useState([])
   const [selectedFiles, setSelectedFiles] = useState([])
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
 
@@ -169,12 +171,18 @@ const PastYearPaperLibraryPage = () => {
     setUploadProgress(0)
     setErrorMessage('')
     setTitle('')
+    setSubject('')
     setSelectedFiles([])
   }
 
-  const openUploadModal = () => {
+  const openUploadModal = async () => {
     resetModalState()
     setIsUploadModalOpen(true)
+    // Subjects the current user may upload to (educators get only their specialized ones).
+    try {
+      const res = await MetadataService.getSubjects()
+      setSubjects(res.data || [])
+    } catch { setSubjects([]) }
   }
 
   const closeUploadModal = () => {
@@ -236,6 +244,7 @@ const PastYearPaperLibraryPage = () => {
 
   const handleUploadSubmit = async () => {
     if (selectedFiles.length === 0) return
+    if (!subject) { setErrorMessage('Please choose a subject.'); setStage('error'); return }
     setStage('uploading')
     setUploadProgress(0)
     try {
@@ -243,7 +252,7 @@ const PastYearPaperLibraryPage = () => {
       for (let i = 0; i < total; i++) {
         const file = selectedFiles[i]
         const effectiveTitle = (total === 1 && title.trim()) || file.name.replace(/\.pdf$/i, '')
-        const res = await PastYearPaperService.upload(effectiveTitle, file, (pct) => {
+        const res = await PastYearPaperService.upload(effectiveTitle, subject, file, (pct) => {
           setUploadProgress(Math.round(((i + pct / 100) / total) * 100))
         })
         // Queue processing immediately — don't wait for it to finish.
@@ -318,6 +327,17 @@ const PastYearPaperLibraryPage = () => {
                     />
                   )}
 
+                  <select
+                    className="input form-input"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                  >
+                    <option value="">Select subject…{subjects.length === 0 ? ' (none assigned to you)' : ''}</option>
+                    {subjects.map((s) => (
+                      <option key={s.subjectId} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+
                   <div
                     id="pyp-drop-zone"
                     className={`drop-zone ${dragActive ? 'active' : ''}`}
@@ -344,7 +364,7 @@ const PastYearPaperLibraryPage = () => {
 
                   <div className="modal-actions">
                     <button className="btn btn-secondary" onClick={closeUploadModal}>Cancel</button>
-                    <button className="btn btn-primary" onClick={handleUploadSubmit} disabled={selectedFiles.length === 0}>
+                    <button className="btn btn-primary" onClick={handleUploadSubmit} disabled={selectedFiles.length === 0 || !subject}>
                       {selectedFiles.length > 1 ? `Upload ${selectedFiles.length} files` : 'Upload'}
                     </button>
                   </div>

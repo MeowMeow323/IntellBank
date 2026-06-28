@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3, Send, LogOut,
-  CheckSquare, FileText, Tags, Users,
+  CheckSquare, FileText, Tags, Users, ShieldCheck,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import '../../styles/sidebar.css'
@@ -24,6 +24,10 @@ const EDUCATOR_ITEMS = [
   { path: '/class-analysis', label: 'Class Analysis', Icon: Users },
   { path: '/past-year-papers', label: 'Past Year Papers', Icon: FileText },
   { path: '/subjects-topics', label: 'Subjects & Topics', Icon: Tags },
+]
+
+const ADMIN_ITEMS = [
+  { path: '/admin/specializations', label: 'Specializations', Icon: ShieldCheck },
 ]
 
 const Sidebar = () => {
@@ -93,6 +97,23 @@ const Sidebar = () => {
           <>
             <div className="sidebar-nav-section">EDUCATOR</div>
             {EDUCATOR_ITEMS.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                id={`nav-${item.label.toLowerCase()}`}
+                className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+              >
+                <span className="sidebar-nav-icon"><item.Icon size={ICON_SIZE} /></span>
+                {item.label}
+              </NavLink>
+            ))}
+          </>
+        )}
+
+        {user?.role === 'ADMIN' && (
+          <>
+            <div className="sidebar-nav-section">ADMIN</div>
+            {ADMIN_ITEMS.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}

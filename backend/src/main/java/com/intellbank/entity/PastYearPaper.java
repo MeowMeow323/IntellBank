@@ -24,6 +24,14 @@ public class PastYearPaper {
     @Column(nullable = false, length = 500)
     private String title;
 
+    /**
+     * Subject the educator assigned at upload time — drives specialization gating
+     * (an educator may only upload/handle papers in subjects they're assigned to).
+     * Nullable for legacy rows uploaded before this column existed.
+     */
+    @Column(name = "subject", length = 255)
+    private String subject;
+
     @CreationTimestamp
     @Column(name = "upload_date", updatable = false)
     private OffsetDateTime uploadDate;

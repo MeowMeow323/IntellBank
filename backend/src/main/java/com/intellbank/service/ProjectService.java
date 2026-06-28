@@ -21,6 +21,9 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final StudentRepository studentRepository;
     private final UserRepository userRepository;
+    private final DocumentRepository documentRepository;
+    private final SubmissionRepository submissionRepository;
+    private final DocumentQuestionRepository documentQuestionRepository;
 
     public List<Project> getProjectsForStudent(String email) {
         log.info("Getting projects for student with email: {}", email);
@@ -73,7 +76,19 @@ public class ProjectService {
         log.info("Deleting project with ID: {} for user: {}", projectId, email);
         Project project = getById(projectId);
         verifyOwner(project, email);
-        projectRepository.deleteById(projectId);
+
+        // Documents cascade-delete with the project, but their grandchildren —
+        // submissions and document_questions — have FK columns with no cascade, so the
+        // DB rejects the document delete (this is what was throwing the 500). Clear those
+        // child rows for every document first, then let the project cascade remove the
+        // documents themselves.
+        for (Document doc : documentRepository.findByProjectProjectId(projectId)) {
+            UUID documentId = doc.getDocumentId();
+            submissionRepository.deleteByDocumentDocumentId(documentId);
+            documentQuestionRepository.deleteByDocumentDocumentId(documentId);
+        }
+
+        projectRepository.delete(project);
         log.info("Project deleted: {}", projectId);
     }
 

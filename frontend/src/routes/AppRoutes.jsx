@@ -18,6 +18,7 @@ import PastYearPaperQuestionsPage from '../pages/PastYearPaperQuestionsPage.jsx'
 import SubjectTopicManagementPage from '../pages/SubjectTopicManagementPage.jsx'
 import SubmissionsPage from '../pages/SubmissionsPage.jsx'
 import EducatorAnalysisPage from '../pages/EducatorAnalysisPage.jsx'
+import AdminSpecializationsPage from '../pages/AdminSpecializationsPage.jsx'
 
 /**
  * ProtectedRoute – redirects to /login if the user is not authenticated.
@@ -153,6 +154,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
             <EducatorAnalysisPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/specializations"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <AdminSpecializationsPage />
           </ProtectedRoute>
         }
       />

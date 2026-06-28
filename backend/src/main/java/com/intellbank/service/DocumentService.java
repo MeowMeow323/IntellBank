@@ -3,6 +3,7 @@ package com.intellbank.service;
 import com.intellbank.entity.*;
 import com.intellbank.exception.AppException;
 import com.intellbank.repository.*;
+import com.intellbank.util.QuestionGrouper;
 import com.intellbank.util.QuestionHtmlFormatter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -96,11 +97,16 @@ public class DocumentService {
 
         List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
 
+        // Stored questions are individual sub-part fragments ([QPART:N:part]); regroup them
+        // back into full questions so the paper shows N questions (25 marks each, sub-parts
+        // a/b/c inside) instead of one "question" per fragment.
+        List<QuestionGrouper.Composite> composites = QuestionGrouper.group(questions);
+
         // Always rebuild HTML so formatting changes in QuestionHtmlFormatter take effect immediately.
         final String PAGE_BREAK = "<!--PAGE-->";
         StringBuilder html = new StringBuilder();
 
-        if (questions.isEmpty()) {
+        if (composites.isEmpty()) {
             html.append("<div style=\"text-align:center;\">")
                 .append("<h1 style=\"font-family:Georgia,serif;\">").append(pyp.getTitle()).append("</h1>")
                 .append("</div>")
@@ -108,7 +114,7 @@ public class DocumentService {
         } else {
             // ── Extract scenario from Q1 content (stored as [SCENARIO]...[/SCENARIO]) ────
             String scenarioHtml = "";
-            String q1Raw = questions.get(0).getContent();
+            String q1Raw = composites.get(0).content();
             if (q1Raw != null && q1Raw.contains("[SCENARIO]")) {
                 int sStart = q1Raw.indexOf("[SCENARIO]") + 10;
                 int sEnd   = q1Raw.indexOf("[/SCENARIO]");
@@ -129,20 +135,19 @@ public class DocumentService {
                 .append("<h1 style=\"font-family:Georgia,serif;font-size:1.4rem;font-weight:bold;margin-bottom:0.25rem;\">")
                 .append(pyp.getTitle()).append("</h1>")
                 .append("<hr style=\"border:none;border-top:2px solid #334155;width:60%;margin:0.75rem auto;\">")
-                .append("<p style=\"margin:0.5rem 0;\"><strong>Total Marks: ").append(questions.size() * 25)
-                .append(" &nbsp;|&nbsp; Answer ALL ").append(questions.size()).append(" questions (25 marks each)</strong></p>")
+                .append("<p style=\"margin:0.5rem 0;\"><strong>Total Marks: ").append(composites.size() * 25)
+                .append(" &nbsp;|&nbsp; Answer ALL ").append(composites.size()).append(" questions (25 marks each)</strong></p>")
                 .append("</div>")
                 .append(scenarioHtml);
 
             // ── Questions — one per page ─────────────────────────────────────────────────
-            for (int i = 0; i < questions.size(); i++) {
-                Question q = questions.get(i);
+            for (int i = 0; i < composites.size(); i++) {
                 html.append(PAGE_BREAK);
 
                 html.append("<h2 style=\"font-size:1.2rem;font-weight:bold;border-bottom:2px solid #334155;padding-bottom:0.4rem;margin-bottom:1.25rem;\">")
                     .append("Question ").append(i + 1).append(" &nbsp; [25 Marks]</h2>");
 
-                String content = q.getContent();
+                String content = composites.get(i).content();
 
                 // Strip [SCENARIO] from Q1 — it's now on the cover page
                 if (content != null && content.contains("[SCENARIO]")) {
@@ -263,6 +268,18 @@ public class DocumentService {
         }
         log.info("Saved {} AI-generated questions (subject='{}') for document {}",
                 questionData.size(), subject, documentId);
+    }
+
+    /** Rename a document — persists the new title to the database. */
+    @Transactional
+    public Document rename(UUID documentId, String title) {
+        if (title == null || title.isBlank()) {
+            throw new AppException("Title is required", HttpStatus.BAD_REQUEST);
+        }
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new AppException("Document not found", HttpStatus.NOT_FOUND));
+        document.setTitle(title.trim());
+        return documentRepository.save(document);
     }
 
     @Transactional

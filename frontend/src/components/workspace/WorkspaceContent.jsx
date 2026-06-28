@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import useWorkspaceStore from '../../store/workspaceStore'
 import S from '../../utils/workspaceStyles'
 import { useEditorKeyboard } from '../../utils/useEditorKeyboard'
@@ -150,6 +150,13 @@ const WorkspaceContent = () => {
   const isInjecting = useRef(false)
   // Tracks last page-length fingerprint we redistributed to prevent infinite loops
   const lastDistKey = useRef('')
+  // Scroll container + a pending scrollTop to restore after a repagination re-render
+  const canvasRef = useRef(null)
+  const pendingScroll = useRef(null)
+  // Document-level undo/redo history (snapshots of every page's HTML)
+  const history = useRef({ stack: [], index: -1 })
+  const restoring = useRef(false)
+  const histTimer = useRef(null)
 
   const dim = PAGE_SIZES[pageSetup.paperSize] || PAGE_SIZES.letter
   const isLandscape = pageSetup.orientation === 'landscape'
@@ -189,11 +196,119 @@ const WorkspaceContent = () => {
     }, 1200)
   }, [activeTabId, updateTabContent])
 
+  // Export ONLY the document pages (not the app chrome) to a clean print/PDF window.
+  const handleExportPdf = useCallback(() => {
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const pagesHtml = (pageRefs.current || [])
+      .map(r => r?.current?.innerHTML || '')
+      .filter(h => h.trim() && h.trim() !== '<p><br></p>')
+    if (pagesHtml.length === 0) { alert('Nothing to export yet.'); return }
+
+    const title  = activeTab?.title || 'Document'
+    const header = (pageSetup.headerText || '').trim()
+    const footer = (pageSetup.footerText || '').trim()
+
+    const body = pagesHtml.map(h =>
+      `<section class="pp">${header ? `<div class="hf">${esc(header)}</div>` : ''}` +
+      `<div class="pc">${h}</div>` +
+      `${footer ? `<div class="hf ft">${esc(footer)}</div>` : ''}</section>`
+    ).join('')
+
+    const win = window.open('', '_blank', 'width=920,height=1000')
+    if (!win) { alert('Please allow pop-ups to export the document as PDF.'); return }
+    win.document.write(
+      `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>` +
+        `@page { size: ${isLandscape ? 'landscape' : 'portrait'}; margin: 16mm; }` +
+        `*{box-sizing:border-box;} body{font-family:Inter,Arial,sans-serif;color:#1a1e27;margin:0;}` +
+        `.pp{page-break-after:always;} .pp:last-child{page-break-after:auto;}` +
+        `.pc{line-height:1.6;}` +
+        `.hf{font-size:0.78rem;color:#6b7280;} .ft{margin-top:14px;text-align:center;}` +
+        `table{border-collapse:collapse;width:100%;} td,th{border:1px solid #cbd5e1;padding:6px;}` +
+        `img{max-width:100%;}` +
+      `</style></head><body>${body}</body></html>`
+    )
+    win.document.close()
+    win.focus()
+    setTimeout(() => { try { win.print() } catch { /* user can print manually */ } }, 350)
+  }, [activeTab, pageSetup.headerText, pageSetup.footerText, isLandscape])
+
   const cmd = useCallback((command, value = null) => {
     document.execCommand(command, false, value)
     recalcStats()
     triggerSave()
   }, [triggerSave, recalcStats])
+
+  // ── Undo / redo: whole-document snapshot history ───────────────────────────
+  // The browser's native undo lives per-contentEditable element and is wiped every
+  // time the app reprograms innerHTML (injection / pagination), which is why Ctrl+Z
+  // was unreliable. We keep our own debounced snapshots of all pages instead.
+  const captureSnapshot = useCallback(
+    () => pageRefs.current.map((r) => r.current?.innerHTML ?? '<p><br></p>'),
+    []
+  )
+
+  const recordHistory = useCallback(() => {
+    if (restoring.current) return
+    const snap = captureSnapshot()
+    const h = history.current
+    const top = h.stack[h.index]
+    if (top && top.length === snap.length && top.every((v, i) => v === snap[i])) return
+    h.stack = h.stack.slice(0, h.index + 1)
+    h.stack.push(snap)
+    if (h.stack.length > 80) h.stack.shift()
+    h.index = h.stack.length - 1
+  }, [captureSnapshot])
+
+  const scheduleHistory = useCallback(() => {
+    clearTimeout(histTimer.current)
+    histTimer.current = setTimeout(recordHistory, 500)
+  }, [recordHistory])
+
+  const applySnapshot = useCallback((snap) => {
+    restoring.current = true
+    isInjecting.current = true
+    pendingScroll.current = canvasRef.current?.scrollTop ?? null
+    setPages(snap.map((h) => h || '<p><br></p>'))
+    requestAnimationFrame(() => {
+      snap.forEach((html, i) => {
+        const el = pageRefs.current[i]?.current
+        if (el && el.innerHTML !== html) el.innerHTML = html || '<p><br></p>'
+      })
+      // Put the caret at the end of the last page so typing can continue naturally.
+      const li = snap.length - 1
+      const el = pageRefs.current[li]?.current
+      if (el) {
+        el.focus()
+        try {
+          const r = document.createRange()
+          r.selectNodeContents(el); r.collapse(false)
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r)
+        } catch { /* ignore caret placement failure */ }
+        focusedPage.current = li
+      }
+      // Mark this layout as already-distributed so Effect 4 doesn't re-paginate it.
+      lastDistKey.current = snap.map((p) => (p || '').length).join('-')
+      isInjecting.current = false
+      restoring.current = false
+      recalcStats(); triggerSave()
+    })
+  }, [recalcStats, triggerSave])
+
+  const undo = useCallback(() => {
+    clearTimeout(histTimer.current)
+    recordHistory()                 // commit any un-snapshotted edits first
+    const h = history.current
+    if (h.index <= 0) return
+    h.index -= 1
+    applySnapshot(h.stack[h.index])
+  }, [recordHistory, applySnapshot])
+
+  const redo = useCallback(() => {
+    const h = history.current
+    if (h.index >= h.stack.length - 1) return
+    h.index += 1
+    applySnapshot(h.stack[h.index])
+  }, [applySnapshot])
 
   // ── Effect 1: Load content on tab switch ─────────────────────────────────
   // Splits saved HTML by PAGE_BREAK_MARKER into pages array.
@@ -246,8 +361,27 @@ const WorkspaceContent = () => {
     }))
   }, [activeTabId, activeTab?.localDraftContent]) // eslint-disable-line
 
-  // Reset fingerprint whenever the active tab changes so Effect 4 re-runs on each load
-  useEffect(() => { lastDistKey.current = '' }, [activeTabId])
+  // Reset fingerprint + undo history whenever the active tab changes
+  useEffect(() => {
+    lastDistKey.current = ''
+    history.current = { stack: [], index: -1 }
+  }, [activeTabId])
+
+  // After any repagination re-render, restore the scroll position we captured so the
+  // view doesn't jump up/down while content is redistributed across pages.
+  useLayoutEffect(() => {
+    if (pendingScroll.current != null && canvasRef.current) {
+      canvasRef.current.scrollTop = pendingScroll.current
+      pendingScroll.current = null
+    }
+  }, [pages])
+
+  // Seed the first history entry once the page content is in the DOM.
+  useEffect(() => {
+    if (history.current.stack.length === 0) {
+      requestAnimationFrame(() => recordHistory())
+    }
+  }, [pages]) // eslint-disable-line
 
   // ── Effect 4: per-page overflow fix for pre-split multi-page docs ─────────
   // Effect 3 only redistributes single-page AI dumps. This handles each
@@ -262,6 +396,12 @@ const WorkspaceContent = () => {
     if (key === lastDistKey.current) return
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
+      // Don't re-paginate the page the user is actively editing — that's what causes
+      // the cursor/scroll to jump mid-typing. Overflow while typing is handled by
+      // reflowOnType; this pass runs for load-time / non-focused content.
+      const active = document.activeElement
+      if (active && pageRefs.current.some((r) => r.current === active)) return
+
       let changed = false
       const newPages = [...pages]
 
@@ -310,7 +450,10 @@ const WorkspaceContent = () => {
       }
 
       lastDistKey.current = key
-      if (changed) setPages(newPages)
+      if (changed) {
+        pendingScroll.current = canvasRef.current?.scrollTop ?? null
+        setPages(newPages)
+      }
     }))
   }, [pages, contentH]) // eslint-disable-line
 
@@ -419,6 +562,7 @@ const WorkspaceContent = () => {
     pageRefs, contentH, pagesLength: pages.length,
     setPages, reflowPage: reflowOnType,
     triggerSave, recalcStats, setShowFind, focusedPage,
+    onUndo: undo, onRedo: redo,
   })
 
   const makeOnInput = useCallback((pageIdx) => () => {
@@ -426,7 +570,8 @@ const WorkspaceContent = () => {
     reflowOnType(pageIdx)
     recalcStats()
     triggerSave()
-  }, [reflowOnType, recalcStats, triggerSave])
+    scheduleHistory()
+  }, [reflowOnType, recalcStats, triggerSave, scheduleHistory])
 
   const makeOnPaste = useCallback((pageIdx) => (e) => {
     e.preventDefault()
@@ -495,7 +640,7 @@ const WorkspaceContent = () => {
   const menus = [
     {
       key: 'file', label: 'File', items: [
-        { label: '🖨️ Export PDF', action: () => window.print() },
+        { label: '🖨️ Export PDF', action: () => handleExportPdf() },
         { label: '💾 Save now', action: () => triggerSave() },
       ]
     },
@@ -569,8 +714,8 @@ const WorkspaceContent = () => {
 
       {/* ── Toolbar ── */}
       <div style={S.toolbar} onClick={e => e.stopPropagation()}>
-        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('undo') }}>↩</button>
-        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); cmd('redo') }}>↪</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); undo() }}>↩</button>
+        <button style={S.tbBtn} onMouseDown={e => { e.preventDefault(); redo() }}>↪</button>
         <div style={S.div} />
         <select style={S.tbSel} value={zoomScale} onChange={e => setZoomScale(+e.target.value)}>
           {[50, 75, 90, 100, 125, 150].map(z => <option key={z} value={z}>{z}%</option>)}
@@ -622,7 +767,7 @@ const WorkspaceContent = () => {
           )}
         </div>
         <button style={{ ...S.tbBtn, background: 'var(--accent)', color: '#fff', marginLeft: 'auto', padding: '4px 14px', borderRadius: '4px' }}
-          onClick={() => window.print()}>🖨️ Export PDF</button>
+          onClick={handleExportPdf}>🖨️ Export PDF</button>
       </div>
 
       {/* ── Find & Replace ── */}
@@ -638,7 +783,7 @@ const WorkspaceContent = () => {
 
       {/* ── Body ── */}
       <div style={S.body}>
-        <div style={S.canvas} onClick={() => setEditingHF(false)}>
+        <div ref={canvasRef} style={S.canvas} onClick={() => setEditingHF(false)}>
           <div style={{
             display: 'flex', flexDirection: 'column', gap: '28px', alignItems: 'center',
             transform: `scale(${zoomScale / 100})`,
@@ -665,33 +810,6 @@ const WorkspaceContent = () => {
                 isExam={isGeneratedExam}
               />
             ))}
-          </div>
-        </div>
-
-        {/* ── Page Setup Sidebar ── */}
-        <div style={S.sidebar} onClick={e => e.stopPropagation()}>
-          <div style={S.sideHdr}>⚙️ Page Setup</div>
-          <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <div style={S.label}>Orientation</div>
-              <div style={{ display: 'flex', gap: '16px', fontSize: '0.82rem' }}>
-                {['portrait', 'landscape'].map(o => (
-                  <label key={o} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                    <input type="radio" name="orientation" checked={pageSetup.orientation === o}
-                      onChange={() => setPageSetup(p => ({ ...p, orientation: o }))} />
-                    {o.charAt(0).toUpperCase() + o.slice(1)}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div style={S.label}>Paper size</div>
-              <select style={S.sideSel} value={pageSetup.paperSize}
-                onChange={e => setPageSetup(p => ({ ...p, paperSize: e.target.value }))}>
-                <option value="letter">Letter (8.5" × 11")</option>
-                <option value="a4">A4 (210mm × 297mm)</option>
-              </select>
-            </div>
           </div>
         </div>
       </div>

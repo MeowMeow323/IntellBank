@@ -500,6 +500,12 @@ a:hover {
 .project-card-title {
   font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 0.4rem;
 }
+.project-rename-input {
+  width: 100%; font-family: inherit; font-size: 1rem; font-weight: 600;
+  padding: 4px 8px; margin-bottom: 0.4rem; color: var(--text);
+  background: var(--bg-surface); border: 1px solid var(--accent); border-radius: var(--radius-sm);
+}
+.project-rename-input:focus { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .project-card-desc {
   font-size: 0.85rem; color: var(--text-muted); flex: 1; margin-bottom: 0.5rem;
 }

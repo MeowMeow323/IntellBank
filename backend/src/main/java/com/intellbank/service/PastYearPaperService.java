@@ -40,26 +40,69 @@ public class PastYearPaperService {
     private final SolutionHistoryRepository solutionHistoryRepository;
     private final SupabaseStorageService supabaseStorageService;
     private final AiClientService aiClientService;
+    private final SpecializationService specializationService;
 
-    public List<PastYearPaperResponse> getAll() {
+    private static final String ROLE_EDUCATOR = "EDUCATOR";
+
+    /** Educators see only papers in their specialized subjects; admins see all. */
+    public List<PastYearPaperResponse> getAll(String email, String role) {
+        boolean educator = ROLE_EDUCATOR.equals(role);
+        Set<String> allowed = educator ? specializationService.subjectNamesForEducator(email) : null;
         return pastYearPaperRepository.findAll().stream()
-                .map(this::toResponse)
+                .map(this::toEnrichedResponse)
+                .filter(r -> !educator || (r.subject() != null && allowed.contains(r.subject())))
                 .collect(Collectors.toList());
     }
 
+    /** List response enriched with the paper's subject and grouped (full) question count. */
+    private PastYearPaperResponse toEnrichedResponse(PastYearPaper paper) {
+        List<Question> questions = questionRepository.findByPastYearPaperPypId(paper.getPypId());
+        String subject = paper.getSubject();   // stored at upload (preferred)
+        Integer questionCount = null;
+        if (!questions.isEmpty()) {
+            questionCount = com.intellbank.util.QuestionGrouper.group(questions).size();
+            if (subject == null) subject = deriveSubjectFromQuestions(questions);   // legacy rows
+        }
+        return new PastYearPaperResponse(
+                paper.getPypId(), paper.getTitle(), paper.getUploadDate(), paper.getStatus(),
+                supabaseStorageService.getPublicUrl(paper.getStorageUrl()),
+                null, null, subject, questionCount);
+    }
+
+    private String deriveSubjectFromQuestions(List<Question> questions) {
+        for (Question q : questions) {
+            List<QuestionTopic> qts = questionTopicRepository.findByQuestionQuestionId(q.getQuestionId());
+            if (!qts.isEmpty()) return qts.get(0).getTopic().getSubject().getName();
+        }
+        return null;
+    }
+
+    /** The paper's effective subject (stored, falling back to derived) for gating. */
+    private String paperSubject(PastYearPaper paper) {
+        if (paper.getSubject() != null) return paper.getSubject();
+        return deriveSubjectFromQuestions(questionRepository.findByPastYearPaperPypId(paper.getPypId()));
+    }
+
     @Transactional
-    public PastYearPaperResponse uploadPaper(String title, MultipartFile file) {
+    public PastYearPaperResponse uploadPaper(String title, MultipartFile file, String subject,
+            String email, String role) {
         if (file == null || file.isEmpty()) {
             throw new AppException("A PDF file is required", HttpStatus.BAD_REQUEST);
         }
         if (title == null || title.isBlank()) {
             throw new AppException("Title is required", HttpStatus.BAD_REQUEST);
         }
+        if (subject == null || subject.isBlank()) {
+            throw new AppException("Subject is required", HttpStatus.BAD_REQUEST);
+        }
+        // Educator may only upload papers in a subject they're assigned to (admin bypasses).
+        specializationService.assertCanHandleSubjectName(email, role, subject.trim());
 
         String storagePath = supabaseStorageService.uploadPdf(file);
 
         PastYearPaper paper = PastYearPaper.builder()
                 .title(title.trim())
+                .subject(subject.trim())
                 .storageUrl(storagePath)
                 .status("UPLOADED")
                 .build();
@@ -70,9 +113,10 @@ public class PastYearPaperService {
     }
 
     @Transactional
-    public PastYearPaperResponse triggerProcessing(UUID pypId) {
+    public PastYearPaperResponse triggerProcessing(UUID pypId, String email, String role) {
         PastYearPaper paper = pastYearPaperRepository.findById(pypId)
                 .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        specializationService.assertCanHandleSubjectName(email, role, paperSubject(paper));
 
         // The AI service now queues the job and returns immediately (see
         // job_queue_service.py) — this no longer blocks for the whole OCR
@@ -93,7 +137,10 @@ public class PastYearPaperService {
         }
     }
 
-    public Map<String, Object> getProgress(UUID pypId) {
+    public Map<String, Object> getProgress(UUID pypId, String email, String role) {
+        PastYearPaper paper = pastYearPaperRepository.findById(pypId)
+                .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        specializationService.assertCanHandleSubjectName(email, role, paperSubject(paper));
         return aiClientService.getProcessingProgress(pypId);
     }
 
@@ -102,13 +149,14 @@ public class PastYearPaperService {
      * Replaces any existing solution so the educator gets a fresh attempt.
      */
     @Transactional
-    public Map<String, Object> generateSingleSolution(UUID questionId) {
+    public Map<String, Object> generateSingleSolution(UUID questionId, String email, String role) {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new AppException("Question not found", HttpStatus.NOT_FOUND));
 
         List<QuestionTopic> topics = questionTopicRepository.findByQuestionQuestionId(questionId);
         String subject = topics.isEmpty() ? "General" : topics.get(0).getTopic().getSubject().getName();
         String topic   = topics.isEmpty() ? "General" : topics.get(0).getTopic().getName();
+        specializationService.assertCanHandleSubjectName(email, role, subject);
         String text    = question.getContent() != null
                 ? question.getContent().replaceAll("(?i)^\\[QPART:[^\\]]+\\]\\n?", "").strip()
                 : "";
@@ -159,9 +207,10 @@ public class PastYearPaperService {
      * solutions table with is_verified=false, ready for educator review.
      */
     @Transactional
-    public Map<String, Object> generateSolutions(UUID pypId) {
+    public Map<String, Object> generateSolutions(UUID pypId, String email, String role) {
         PastYearPaper paper = pastYearPaperRepository.findById(pypId)
                 .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        specializationService.assertCanHandleSubjectName(email, role, paperSubject(paper));
 
         if (!"PROCESSED".equals(paper.getStatus())) {
             throw new AppException("Paper must be PROCESSED before generating solutions", HttpStatus.BAD_REQUEST);
@@ -247,7 +296,10 @@ public class PastYearPaperService {
      * on the PastYearPaperQuestionsPage.
      */
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public List<Map<String, Object>> getSolutions(UUID pypId) {
+    public List<Map<String, Object>> getSolutions(UUID pypId, String email, String role) {
+        PastYearPaper paper = pastYearPaperRepository.findById(pypId)
+                .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        specializationService.assertCanHandleSubjectName(email, role, paperSubject(paper));
         List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
         if (questions.isEmpty()) return List.of();
 
@@ -275,9 +327,10 @@ public class PastYearPaperService {
      * paper_processing_service.delete_existing_questions()).
      */
     @Transactional
-    public void deletePaper(UUID pypId) {
+    public void deletePaper(UUID pypId, String email, String role) {
         PastYearPaper paper = pastYearPaperRepository.findById(pypId)
                 .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        specializationService.assertCanHandleSubjectName(email, role, paperSubject(paper));
 
         List<Question> questions = questionRepository.findByPastYearPaperPypId(pypId);
         List<UUID> questionIds = questions.stream().map(Question::getQuestionId).collect(Collectors.toList());
@@ -315,7 +368,9 @@ public class PastYearPaperService {
                 paper.getStatus(),
                 supabaseStorageService.getPublicUrl(paper.getStorageUrl()),
                 questionsInserted,
-                error
+                error,
+                null,
+                null
         );
     }
 }

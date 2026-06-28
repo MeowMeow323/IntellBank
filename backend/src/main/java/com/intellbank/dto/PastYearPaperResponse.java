@@ -17,5 +17,7 @@ public record PastYearPaperResponse(
         String status,
         String fileUrl,
         Integer questionsInserted,
-        String error
+        String error,
+        String subject,        // derived from the paper's questions' topics (null until processed)
+        Integer questionCount  // number of FULL questions after grouping fragments (e.g. 4)
 ) {}

@@ -12,6 +12,9 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     void deleteByDocumentDocumentId(UUID documentId);
 
+    /** Educator queue: submissions in any of the given statuses. */
+    List<Submission> findByStatusIn(java.util.Collection<String> statuses);
+
     /**
      * Every submission belonging to one student (resolved via Document → Project →
      * Student → User.email).

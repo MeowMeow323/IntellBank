@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS difficulties (
 CREATE TABLE IF NOT EXISTS past_year_papers (
     pyp_id      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     title       VARCHAR(500) NOT NULL,
+    subject     VARCHAR(255),  -- educator-assigned subject (drives specialization gating)
     upload_date TIMESTAMPTZ  NOT NULL DEFAULT now(),
     storage_url TEXT,
     status      VARCHAR(100) NOT NULL DEFAULT 'UPLOADED'

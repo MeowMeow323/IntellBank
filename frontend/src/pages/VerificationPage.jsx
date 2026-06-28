@@ -31,14 +31,34 @@ export default function VerificationPage() {
 }
 
 /* ─────────────────────────── Submission Grading ─────────────────────────── */
+// Status → badge class + label for the queue list.
+const SUB_STATUS = {
+  PENDING:  { cls: 'badge-amber', label: 'Pending' },
+  GRADED:   { cls: 'badge-green', label: 'Graded' },
+  RETURNED: { cls: 'badge-gray',  label: 'Returned' },
+}
+
+const fmtSubDate = (iso) => {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) }
+  catch { return '—' }
+}
+
 function SubmissionGrading() {
   const [queue, setQueue] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('list')       // 'list' | 'grade'
   const [activeId, setActiveId] = useState(null)
   const [review, setReview] = useState(null)
-  const [marks, setMarks] = useState({})        // { questionId: number }
-  const [comments, setComments] = useState({})  // { topicName: feedback }
+  const [marks, setMarks] = useState({})         // { questionId: number }
+  const [comments, setComments] = useState({})   // { topicName: feedback }
   const [result, setResult] = useState(null)     // GradeResult after grading
-  const [loading, setLoading] = useState(true)
+
+  // List controls
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [subjectFilter, setSubjectFilter] = useState('ALL')
+  const [sortDir, setSortDir] = useState('desc') // by submitted date
 
   useEffect(() => { loadQueue() }, [])
 
@@ -48,13 +68,13 @@ function SubmissionGrading() {
   const loadQueue = async () => {
     setLoading(true)
     try {
-      const res = await VerificationService.getPendingSubmissions()
+      const res = await VerificationService.getSubmissionQueue()
       setQueue(res.data || [])
     } catch { /* ignore */ } finally { setLoading(false) }
   }
 
   const openSubmission = async (id) => {
-    setActiveId(id); setReview(null); setResult(null); setMarks({}); setComments({})
+    setActiveId(id); setReview(null); setResult(null); setMarks({}); setComments({}); setView('grade')
     try {
       const res = await VerificationService.reviewSubmission(id)
       setReview(res.data)
@@ -68,7 +88,12 @@ function SubmissionGrading() {
           if (tf.comment) initComments[tf.topicName] = tf.comment
         })
       setComments(initComments)
-    } catch { alert('Failed to load submission.') }
+    } catch { alert('Failed to load submission.'); setView('list') }
+  }
+
+  const backToList = () => {
+    setView('list'); setActiveId(null); setReview(null); setResult(null)
+    loadQueue()
   }
 
   const setComment = (topicName, value) =>
@@ -95,43 +120,45 @@ function SubmissionGrading() {
   const returnToStudent = async () => {
     try {
       await VerificationService.returnSubmission(activeId)
-      setActiveId(null); setReview(null); setResult(null)
-      loadQueue()
+      backToList()
     } catch { alert('Failed to return submission.') }
   }
 
-  return (
-    <div className="vf-layout">
-      {/* Pending queue */}
-      <div className="vf-queue">
-        {loading ? <p className="vf-empty">Loading…</p>
-          : queue.length === 0 ? <p className="vf-empty">✓ No submissions awaiting grading.</p>
-            : queue.map((s) => (
-              <button key={s.submissionId}
-                className={`vf-queue-item ${activeId === s.submissionId ? 'active' : ''}`}
-                onClick={() => openSubmission(s.submissionId)}>
-                <div className="vf-queue-title">{s.document?.title || 'Untitled paper'}</div>
-                <div className="vf-queue-sub">Status: {s.status}</div>
-              </button>
-            ))}
-      </div>
+  // ── Derived list: subject options + filtered/searched/sorted rows ──
+  const subjects = [...new Set(queue.map((s) => s.subject).filter(Boolean))].sort()
+  const visible = queue
+    .filter((s) => statusFilter === 'ALL' || s.status === statusFilter)
+    .filter((s) => subjectFilter === 'ALL' || s.subject === subjectFilter)
+    .filter((s) => {
+      const q = search.trim().toLowerCase()
+      if (!q) return true
+      return (s.title || '').toLowerCase().includes(q) || (s.studentName || '').toLowerCase().includes(q)
+    })
+    .sort((a, b) => {
+      const av = a.submittedAt || '', bv = b.submittedAt || ''
+      if (av === bv) return 0
+      return sortDir === 'desc' ? (av < bv ? 1 : -1) : (av < bv ? -1 : 1)
+    })
 
-      {/* Grading workspace */}
+  // ── Grading view ──────────────────────────────────────────────────────────
+  if (view === 'grade') {
+    return (
       <div className="card">
+        <button className="vf-back" onClick={backToList}>← Back to submissions</button>
         {!review ? (
-          <p className="vf-empty">Select a submission from the queue to grade.</p>
+          <p className="vf-empty">Loading submission…</p>
         ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-              {/* Source: the student's answered paper */}
-              <div>
-                <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Answered Paper — {review.studentName}</h3>
-                <div className="vf-source" dangerouslySetInnerHTML={{ __html: review.documentContent || '' }} />
-              </div>
+          <div className="vf-grade-grid">
+            {/* Source: the student's answered paper */}
+            <div className="vf-pane">
+              <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Answered Paper — {review.studentName}</h3>
+              <div className="vf-source" dangerouslySetInnerHTML={{ __html: review.documentContent || '' }} />
+            </div>
 
-              {/* Marks per question */}
-              <div>
-                <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Award Marks</h3>
+            {/* Marks per question */}
+            <div className="vf-pane">
+              <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Award Marks</h3>
+              <div className="vf-pane-scroll">
                 {review.questions.map((q, i) => (
                   <div key={q.questionId} className="vf-grade-q">
                     <div className="vf-q-head">
@@ -205,11 +232,81 @@ function SubmissionGrading() {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </div>
-          </>
         )}
       </div>
+    )
+  }
+
+  // ── List view ───────────────────────────────────────────────────────────
+  return (
+    <div className="card">
+      <div className="vf-toolbar">
+        <input
+          className="vf-search"
+          placeholder="Search by paper or student…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select className="vf-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="ALL">All statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="GRADED">Graded</option>
+          <option value="RETURNED">Returned</option>
+        </select>
+        <select className="vf-filter" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+          <option value="ALL">All subjects</option>
+          {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <button className="vf-sort" onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}>
+          Submitted {sortDir === 'desc' ? '↓' : '↑'}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="vf-empty">Loading…</p>
+      ) : visible.length === 0 ? (
+        <p className="vf-empty">{queue.length === 0 ? '✓ No submissions yet.' : 'No submissions match your filters.'}</p>
+      ) : (
+        <table className="vf-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Student</th>
+              <th>Subject</th>
+              <th>Status</th>
+              <th style={{ textAlign: 'center' }}>Score</th>
+              <th>Submitted</th>
+              <th aria-label="actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((s) => {
+              const meta = SUB_STATUS[s.status] || { cls: 'badge-gray', label: s.status }
+              return (
+                <tr key={s.submissionId} className="vf-row" onClick={() => openSubmission(s.submissionId)}>
+                  <td><div className="vf-row-title">{s.title || 'Untitled paper'}</div></td>
+                  <td>{s.studentName || '—'}</td>
+                  <td>{s.subject || '—'}</td>
+                  <td><span className={`badge ${meta.cls}`}>{meta.label}</span></td>
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                    {s.status === 'GRADED' || s.status === 'RETURNED' ? (s.marks ?? 0) : '—'}
+                  </td>
+                  <td>{fmtSubDate(s.submittedAt)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="vf-btn vf-btn-grade"
+                      onClick={(e) => { e.stopPropagation(); openSubmission(s.submissionId) }}>
+                      {s.status === 'PENDING' ? 'Grade' : 'Review'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

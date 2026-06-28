@@ -5,7 +5,36 @@
   padding: 0.5rem 1.1rem; font-weight: 600; font-size: 0.88rem; cursor: pointer;
 }
 .vf-tab.active { background: var(--gradient-primary); color: #fff; border-color: transparent; }
-.vf-layout { display: grid; grid-template-columns: 300px 1fr; gap: 1.25rem; }
+.vf-layout { display: grid; grid-template-columns: 200px 1fr; gap: 1.25rem; align-items: start; }
+
+/* ── Submission list (redesigned Verification queue) ─────────────────────── */
+.vf-toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1.1rem; }
+.vf-search {
+  flex: 1 1 240px; min-width: 0; padding: 0.55rem 0.85rem; font-size: 0.9rem;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-bg-secondary); color: var(--color-text-primary);
+}
+.vf-search:focus { outline: none; border-color: var(--accent); }
+.vf-filter, .vf-sort {
+  padding: 0.55rem 0.75rem; font-size: 0.85rem; cursor: pointer;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-bg-secondary); color: var(--color-text-primary);
+}
+.vf-sort { font-weight: 600; white-space: nowrap; }
+.vf-table { width: 100%; border-collapse: collapse; }
+.vf-table th {
+  text-align: left; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-text-muted); padding: 0 0.75rem 0.75rem; border-bottom: 1px solid var(--color-border);
+}
+.vf-table td { padding: 0.85rem 0.75rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; font-size: 0.9rem; }
+.vf-row { cursor: pointer; transition: background 0.12s; }
+.vf-row:hover { background: var(--color-bg-secondary); }
+.vf-row-title { font-weight: 600; font-size: 0.95rem; }
+.vf-back {
+  background: none; border: none; cursor: pointer; color: var(--accent);
+  font-weight: 600; font-size: 0.88rem; padding: 0 0 0.9rem; margin: 0;
+}
+.vf-back:hover { text-decoration: underline; }
 .vf-queue { display: flex; flex-direction: column; gap: 0.6rem; }
 .vf-queue-item {
   text-align: left; width: 100%; background: var(--color-bg-secondary);
@@ -47,9 +76,23 @@
   border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 1rem;
 }
 .vf-bd-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.88rem; }
+/* Two-pane grading area: wider paper on the left, marks on the right. Each pane is its
+   own viewport-capped scroll box, so ALL pages stay the same width and the page never
+   grows (keeps the sidebar/logout in place). min-width:0 stops a wide element on a later
+   page from forcing the whole column wider. */
+.vf-grade-grid { display: grid; grid-template-columns: 1.7fr 1fr; gap: 1.25rem; align-items: start; }
+.vf-pane { min-width: 0; }
 .vf-source {
   background: #fff; color: #1e293b; border-radius: var(--radius-md);
-  padding: 1.25rem; max-height: 70vh; overflow-y: auto; line-height: 1.6;
+  padding: 1.5rem; line-height: 1.7; font-size: 0.95rem;
+  max-height: calc(100vh - 250px); min-height: 320px; overflow: auto;
+}
+.vf-source table { max-width: 100%; }
+.vf-pane-scroll { max-height: calc(100vh - 250px); overflow-y: auto; padding-right: 6px; }
+@media (max-width: 980px) {
+  .vf-grade-grid { grid-template-columns: 1fr; }
+  .vf-source { max-height: 60vh; }
+  .vf-pane-scroll { max-height: none; overflow: visible; }
 }
 .vf-topic-comments {
   margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--color-border);

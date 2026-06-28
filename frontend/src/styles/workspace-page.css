@@ -214,3 +214,36 @@
   height: calc(100% - 6rem);
   overflow: hidden;
 }
+
+/* ── Past-year-paper picker modal (.pyp-*) ──────────────────────────────── */
+.pyp-picker { max-width: 560px; }
+.pyp-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.pyp-search {
+  flex: 1 1 180px; min-width: 0; padding: 0.5rem 0.75rem; font-size: 0.88rem;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-surface-2); color: var(--text);
+}
+.pyp-select {
+  padding: 0.5rem 0.6rem; font-size: 0.85rem; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-surface); color: var(--text);
+}
+.pyp-search:focus, .pyp-select:focus { outline: none; border-color: var(--accent); }
+.pyp-empty { color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1.5rem 0; }
+.pyp-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 360px; overflow-y: auto; margin-bottom: 1.25rem; padding-right: 2px; }
+.pyp-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left;
+  padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-surface); cursor: pointer; transition: border-color 0.12s, background 0.12s;
+}
+.pyp-row:hover { border-color: var(--accent); background: var(--bg-surface-2); }
+.pyp-row-title { font-weight: 600; font-size: 0.9rem; color: var(--text); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pyp-row-meta { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem; flex-wrap: wrap; }
+.pyp-chip { font-size: 0.7rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--bg-surface-2); color: var(--text-muted); font-weight: 600; }
+.pyp-q { font-size: 0.72rem; color: var(--text-subtle); }
+.pyp-open { font-size: 0.8rem; color: var(--accent); font-weight: 600; white-space: nowrap; }
+.pyp-confirm-card { background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.9rem 1rem; margin-bottom: 1.25rem; }
+.pyp-confirm-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.6rem; }
+.pyp-confirm-rows { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
+.pyp-confirm-rows > div { display: flex; justify-content: space-between; gap: 1rem; }
+.pyp-confirm-rows span { color: var(--text-muted); }
