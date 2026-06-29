@@ -3,6 +3,7 @@ import useWorkspaceStore from '../../store/workspaceStore'
 import S from '../../utils/workspaceStyles'
 import { useEditorKeyboard } from '../../utils/useEditorKeyboard'
 import { SubmissionService } from '../../services/api'
+import { toast } from '../../store/toastStore'
 import '../../styles/workspace-editor.css'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -111,12 +112,10 @@ const WorkspaceContent = () => {
   const [submitState, setSubmitState] = useState('idle') // idle | submitting | done | error
   const [submitMsg, setSubmitMsg] = useState('')
 
-  const handleSubmitForReview = async () => {
+  // Confirmed from the submit modal (replaces the old window.confirm popup).
+  const confirmSubmit = async () => {
     if (!activeTab) return
-    if (!window.confirm(
-      'Submit this paper to an educator for review?\n\n' +
-      'You can hold only one active submission at a time — it must be returned before you submit another.'
-    )) return
+    setShowSubmitModal(false)
     setSubmitState('submitting'); setSubmitMsg('')
     try {
       await SubmissionService.submit(activeTab.documentId)
@@ -139,6 +138,11 @@ const WorkspaceContent = () => {
   const [replaceText, setReplaceText] = useState('')
   const [activeMenu, setActiveMenu] = useState(null)
   const [editingHF, setEditingHF] = useState(false)
+  const [showTableModal, setShowTableModal] = useState(false)
+  const [tableHover, setTableHover] = useState({ r: 0, c: 0 })
+  const [showSubmitModal, setShowSubmitModal] = useState(false)
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
   const [pageSetup, setPageSetup] = useState({
     orientation: 'portrait', paperSize: 'letter',
     headerText: '', footerText: '',
@@ -157,6 +161,8 @@ const WorkspaceContent = () => {
   const history = useRef({ stack: [], index: -1 })
   const restoring = useRef(false)
   const histTimer = useRef(null)
+  // Saved caret range so a modal (insert table) can insert back at the cursor
+  const savedRange = useRef(null)
 
   const dim = PAGE_SIZES[pageSetup.paperSize] || PAGE_SIZES.letter
   const isLandscape = pageSetup.orientation === 'landscape'
@@ -202,7 +208,7 @@ const WorkspaceContent = () => {
     const pagesHtml = (pageRefs.current || [])
       .map(r => r?.current?.innerHTML || '')
       .filter(h => h.trim() && h.trim() !== '<p><br></p>')
-    if (pagesHtml.length === 0) { alert('Nothing to export yet.'); return }
+    if (pagesHtml.length === 0) { toast('Nothing to export yet.', 'info'); return }
 
     const title  = activeTab?.title || 'Document'
     const header = (pageSetup.headerText || '').trim()
@@ -215,7 +221,7 @@ const WorkspaceContent = () => {
     ).join('')
 
     const win = window.open('', '_blank', 'width=920,height=1000')
-    if (!win) { alert('Please allow pop-ups to export the document as PDF.'); return }
+    if (!win) { toast('Please allow pop-ups to export the document as PDF.', 'error'); return }
     win.document.write(
       `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>` +
         `@page { size: ${isLandscape ? 'landscape' : 'portrait'}; margin: 16mm; }` +
@@ -601,20 +607,67 @@ const WorkspaceContent = () => {
     triggerSave()
   }
 
-  const insertTable = () => {
-    const r = parseInt(prompt('Rows:', '3') || '0')
-    const c = parseInt(prompt('Columns:', '3') || '0')
-    if (r <= 0 || c <= 0) return
+  // Open the table picker. Capture the current caret first so we can insert there
+  // after the user picks a size in the modal (the modal click loses the selection).
+  const openTableModal = () => {
+    const active = document.activeElement
+    const idx = pageRefs.current.findIndex((r) => r.current === active)
+    if (idx >= 0) focusedPage.current = idx
+    const sel = window.getSelection()
+    savedRange.current = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null
+    setShowMoreMenu(false)
+    setActiveMenu(null)
+    setTableHover({ r: 0, c: 0 })
+    setShowTableModal(true)
+  }
+
+  const insertTableSize = (rows, cols) => {
+    setShowTableModal(false)
+    const el = pageRefs.current[focusedPage.current]?.current
+    if (el) el.focus()
+    if (savedRange.current) {
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(savedRange.current)
+    }
     let html = `<table style="width:100%;border-collapse:collapse;margin:8px 0"><tbody>`
-    for (let i = 0; i < r; i++) {
+    for (let i = 0; i < rows; i++) {
       html += '<tr>'
-      for (let j = 0; j < c; j++)
+      for (let j = 0; j < cols; j++)
         html += `<td style="border:1px solid #c4c7c5;padding:6px 8px;min-width:40px">&nbsp;</td>`
       html += '</tr>'
     }
     html += '</tbody></table><p><br></p>'
     document.execCommand('insertHTML', false, html)
+    recalcStats()
+    triggerSave()
+  }
+
+  // Hyperlink — same caret-save pattern as the table picker.
+  const openLinkModal = () => {
+    const active = document.activeElement
+    const idx = pageRefs.current.findIndex((r) => r.current === active)
+    if (idx >= 0) focusedPage.current = idx
+    const sel = window.getSelection()
+    savedRange.current = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null
     setShowMoreMenu(false)
+    setActiveMenu(null)
+    setLinkUrl('')
+    setShowLinkModal(true)
+  }
+
+  const insertLink = () => {
+    const url = linkUrl.trim()
+    setShowLinkModal(false)
+    if (!url) return
+    const el = pageRefs.current[focusedPage.current]?.current
+    if (el) el.focus()
+    if (savedRange.current) {
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(savedRange.current)
+    }
+    cmd('createLink', url)
   }
 
   const doFindReplace = (all) => {
@@ -646,8 +699,8 @@ const WorkspaceContent = () => {
     },
     {
       key: 'insert', label: 'Insert', items: [
-        { label: '📊 Table…', action: insertTable },
-        { label: '🔗 Hyperlink…', action: () => { const u = prompt('URL:'); if (u) cmd('createLink', u) } },
+        { label: '📊 Table…', action: openTableModal },
+        { label: '🔗 Hyperlink…', action: openLinkModal },
         { label: '➖ Horizontal rule', action: () => cmd('insertHorizontalRule') },
       ]
     },
@@ -657,6 +710,12 @@ const WorkspaceContent = () => {
       ]
     },
   ]
+
+  // Small inline modal styles (this component is styled with inline objects).
+  const modalOverlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
+  const modalCard = { background: '#fff', borderRadius: 10, padding: '20px 22px', width: 'min(380px, 92vw)', boxShadow: '0 10px 40px rgba(0,0,0,0.25)' }
+  const mBtnPrimary = { background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontWeight: 600, cursor: 'pointer' }
+  const mBtnSecondary = { background: 'transparent', color: '#3c4043', border: '1px solid #c4c7c5', borderRadius: 6, padding: '7px 16px', fontWeight: 600, cursor: 'pointer' }
 
   return (
     <div style={S.root} onClick={() => setEditingHF(false)}>
@@ -694,7 +753,7 @@ const WorkspaceContent = () => {
                 <span style={{ color: submitState === 'error' ? '#842029' : '#146c43' }}>{submitMsg}</span>
               )}
               <button
-                onClick={handleSubmitForReview}
+                onClick={() => setShowSubmitModal(true)}
                 disabled={submitState === 'submitting' || submitState === 'done'}
                 style={{
                   background: submitState === 'done' ? '#9aa0a6' : '#16a34a',
@@ -757,7 +816,7 @@ const WorkspaceContent = () => {
           {showMoreMenu && (
             <div style={S.dropdown} onClick={e => e.stopPropagation()}>
               <button style={S.dropdownItem} onMouseDown={e => { e.preventDefault(); cmd('removeFormat'); setShowMoreMenu(false) }}>✕ Clear formatting</button>
-              <button style={S.dropdownItem} onMouseDown={e => { e.preventDefault(); insertTable() }}>📊 Insert table…</button>
+              <button style={S.dropdownItem} onMouseDown={e => { e.preventDefault(); openTableModal() }}>📊 Insert table…</button>
               <div style={{ padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                 <span>Highlight</span>
                 <input type="color" onChange={e => cmd('hiliteColor', e.target.value)} defaultValue="#ffffff"
@@ -821,6 +880,85 @@ const WorkspaceContent = () => {
         <span>🔤 {charCount} chars</span>
         <span style={{ marginLeft: 'auto', color: '#9aa0a6', fontSize: '0.72rem' }}>Double-click header/footer to edit</span>
       </div>
+
+      {/* ── Insert-table picker (Google-Docs style grid) ── */}
+      {showTableModal && (
+        <div style={modalOverlay} onMouseDown={() => setShowTableModal(false)}>
+          <div style={modalCard} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 4px', fontSize: '1rem' }}>Insert table</h3>
+            <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: '#5f6368' }}>Hover to choose a size, then click to insert.</p>
+            <div onMouseLeave={() => setTableHover({ r: 0, c: 0 })}>
+              {Array.from({ length: 8 }).map((_, ri) => (
+                <div key={ri} style={{ display: 'flex' }}>
+                  {Array.from({ length: 8 }).map((_, ci) => {
+                    const on = ri <= tableHover.r && ci <= tableHover.c
+                    return (
+                      <div
+                        key={ci}
+                        onMouseEnter={() => setTableHover({ r: ri, c: ci })}
+                        onClick={() => insertTableSize(ri + 1, ci + 1)}
+                        style={{
+                          width: 20, height: 20, margin: 2, borderRadius: 3,
+                          border: '1px solid #c4c7c5',
+                          background: on ? 'var(--accent)' : '#fff', cursor: 'pointer',
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontWeight: 600, fontSize: '0.85rem' }}>
+              {tableHover.c + 1} × {tableHover.r + 1}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+              <button style={mBtnSecondary} onClick={() => setShowTableModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Submit-for-review confirmation ── */}
+      {showSubmitModal && (
+        <div style={modalOverlay} onMouseDown={() => setShowSubmitModal(false)}>
+          <div style={modalCard} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '1rem' }}>📤 Submit for review?</h3>
+            <p style={{ margin: '0 0 16px', fontSize: '0.88rem', color: '#3c4043', lineHeight: 1.5 }}>
+              This sends the paper to an educator for grading. You can hold only one active
+              submission at a time — it must be returned before you can submit another.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button style={mBtnSecondary} onClick={() => setShowSubmitModal(false)}>Cancel</button>
+              <button style={mBtnPrimary} onClick={confirmSubmit}>Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Hyperlink modal ── */}
+      {showLinkModal && (
+        <div style={modalOverlay} onMouseDown={() => setShowLinkModal(false)}>
+          <div style={modalCard} onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '1rem' }}>🔗 Insert link</h3>
+            <p style={{ margin: '0 0 10px', fontSize: '0.8rem', color: '#5f6368' }}>
+              Select text first to turn it into a link, then enter the URL.
+            </p>
+            <input
+              type="url"
+              autoFocus
+              placeholder="https://example.com"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') insertLink() }}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #c4c7c5', fontSize: '0.9rem' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button style={mBtnSecondary} onClick={() => setShowLinkModal(false)}>Cancel</button>
+              <button style={mBtnPrimary} onClick={insertLink}>Insert</button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

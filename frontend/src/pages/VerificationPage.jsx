@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { VerificationService } from '../services/api'
+import { toast } from '../store/toastStore'
 import Sidebar from '../components/layout/Sidebar.jsx'
 import SolutionContent from '../components/SolutionContent.jsx'
 import Paginator from '../components/Paginator.jsx'
@@ -92,7 +93,7 @@ function SubmissionGrading() {
           if (tf.comment) initComments[tf.topicName] = tf.comment
         })
       setComments(initComments)
-    } catch { alert('Failed to load submission.'); setView('list') }
+    } catch { toast('Failed to load submission.', 'error'); setView('list') }
   }
 
   const backToList = () => {
@@ -118,14 +119,14 @@ function SubmissionGrading() {
       const res = await VerificationService.gradeSubmission(activeId, marks, comments)
       setResult(res.data)
       loadQueue()
-    } catch { alert('Failed to save grade.') }
+    } catch { toast('Failed to save grade.', 'error') }
   }
 
   const returnToStudent = async () => {
     try {
       await VerificationService.returnSubmission(activeId)
       backToList()
-    } catch { alert('Failed to return submission.') }
+    } catch { toast('Failed to return submission.', 'error') }
   }
 
   // ── Derived list: subject options + filtered/searched/sorted rows ──
@@ -170,6 +171,7 @@ function SubmissionGrading() {
                       <div className="vf-mark-box">
                         <input type="number" className="vf-mark-input" min={0} max={q.marks}
                           value={marks[q.questionId] ?? 0}
+                          disabled={review.status === 'RETURNED'}
                           onChange={(e) => setMark(q.questionId, e.target.value, q.marks)} />
                         <span style={{ color: 'var(--color-text-muted)' }}>/ {q.marks}</span>
                       </div>
@@ -197,6 +199,7 @@ function SubmissionGrading() {
                           className="vf-textarea"
                           placeholder={`Feedback on "${t}"…`}
                           value={comments[t] ?? ''}
+                          disabled={review.status === 'RETURNED'}
                           onChange={(e) => setComment(t, e.target.value)}
                         />
                       </div>
@@ -210,9 +213,17 @@ function SubmissionGrading() {
                 </div>
 
                 <div className="vf-actions">
-                  <button className="vf-btn vf-btn-grade" onClick={saveGrade}>Save Grade</button>
-                  {review.status === 'GRADED' && (
-                    <button className="vf-btn vf-btn-return" onClick={returnToStudent}>Return to Student</button>
+                  {review.status === 'RETURNED' ? (
+                    <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                      ↩ Returned to the student — this submission is final and can no longer be graded.
+                    </span>
+                  ) : (
+                    <>
+                      <button className="vf-btn vf-btn-grade" onClick={saveGrade}>Save Grade</button>
+                      {review.status === 'GRADED' && (
+                        <button className="vf-btn vf-btn-return" onClick={returnToStudent}>Return to Student</button>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -323,6 +334,8 @@ function SolutionVerification() {
   const [editContent, setEditContent] = useState('')
   const [editExplanation, setEditExplanation] = useState('')
   const [page, setPage] = useState(1)
+  const [rejectId, setRejectId] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   useEffect(() => { fetchPending() }, [])
 
@@ -335,20 +348,26 @@ function SolutionVerification() {
   }
 
   const approve = async (id) => {
-    try { await VerificationService.approve(id); setSolutions((s) => s.filter((x) => x.solutionId !== id)) }
-    catch { alert('Failed to approve.') }
+    try { await VerificationService.approve(id); setSolutions((s) => s.filter((x) => x.solutionId !== id)); toast('Solution approved.', 'success') }
+    catch { toast('Failed to approve.', 'error') }
   }
 
-  const reject = async (id) => {
-    const reason = prompt('Enter reason for rejection:') || 'Does not meet verification standards'
-    try { await VerificationService.reject(id, reason); fetchPending() } catch { alert('Failed to reject.') }
+  const openReject = (id) => { setRejectId(id); setRejectReason('') }
+  const confirmReject = async () => {
+    const reason = rejectReason.trim() || 'Does not meet verification standards'
+    try {
+      await VerificationService.reject(rejectId, reason)
+      setRejectId(null)
+      fetchPending()
+      toast('Solution rejected.', 'success')
+    } catch { toast('Failed to reject.', 'error') }
   }
 
   const startEdit = (sol) => { setEditId(sol.solutionId); setEditContent(sol.content); setEditExplanation(sol.explanation || '') }
 
   const saveEdit = async (id) => {
     try { await VerificationService.edit(id, { content: editContent, explanation: editExplanation }); setEditId(null); fetchPending() }
-    catch { alert('Failed to save edit.') }
+    catch { toast('Failed to save edit.', 'error') }
   }
 
   if (loading) return <p className="vf-empty">Loading pending solutions…</p>
@@ -393,7 +412,7 @@ function SolutionVerification() {
               )}
               <div className="vf-actions">
                 <button className="vf-btn vf-btn-approve" onClick={() => approve(sol.solutionId)}>Approve</button>
-                <button className="vf-btn vf-btn-reject" onClick={() => reject(sol.solutionId)}>Reject</button>
+                <button className="vf-btn vf-btn-reject" onClick={() => openReject(sol.solutionId)}>Reject</button>
                 <button className="vf-btn vf-btn-edit" onClick={() => startEdit(sol)}>Edit</button>
               </div>
             </>
@@ -401,6 +420,29 @@ function SolutionVerification() {
         </div>
       ))}
       <Paginator page={page} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo(0, 0) }} />
+
+      {/* ── Reject-reason modal ──────────────────────────────────────────── */}
+      {rejectId && (
+        <div className="sub-modal-overlay" onClick={() => setRejectId(null)}>
+          <div className="sub-modal" style={{ width: 'min(460px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ margin: '0 0 0.5rem' }}>Reject solution</h2>
+            <p style={{ color: 'var(--color-text-muted)', margin: '0 0 0.75rem', lineHeight: 1.5 }}>
+              Optionally give a reason (saved for audit). Leave blank to use the default.
+            </p>
+            <textarea
+              rows={3}
+              className="vf-textarea"
+              placeholder="Reason for rejection…"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.75rem' }}>
+              <button className="vf-btn vf-btn-return" onClick={() => setRejectId(null)}>Cancel</button>
+              <button className="vf-btn vf-btn-reject" onClick={confirmReject}>Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

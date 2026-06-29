@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { SubmissionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import { toast } from '../store/toastStore'
 import '../styles/submissions.css'
 
 // Status → badge styling + human label
@@ -22,6 +23,8 @@ const SubmissionsPage = () => {
   const [error, setError] = useState(null)
   const [review, setReview] = useState(null)       // SubmissionReview shown in modal
   const [reviewLoading, setReviewLoading] = useState(false)
+  const [withdrawTarget, setWithdrawTarget] = useState(null)  // submissionId pending withdraw confirm
+  const [withdrawing, setWithdrawing] = useState(false)
 
   useEffect(() => { loadSubmissions() }, [])
 
@@ -38,14 +41,19 @@ const SubmissionsPage = () => {
     }
   }
 
-  // Withdraw a still-pending submission (frees the one-active-submission slot)
-  const handleUnsubmit = async (id) => {
-    if (!window.confirm('Withdraw this submission? This frees you to submit another paper.')) return
+  // Withdraw a still-pending submission (frees the one-active-submission slot).
+  // Opens a confirm modal first; confirmWithdraw does the actual call.
+  const confirmWithdraw = async () => {
+    if (!withdrawTarget) return
+    setWithdrawing(true)
     try {
-      await SubmissionService.unsubmit(id)
+      await SubmissionService.unsubmit(withdrawTarget)
+      setWithdrawTarget(null)
       await loadSubmissions()
     } catch (err) {
-      alert(err?.response?.data?.message || 'Could not withdraw this submission.')
+      toast(err?.response?.data?.message || 'Could not withdraw this submission.', 'error')
+    } finally {
+      setWithdrawing(false)
     }
   }
 
@@ -58,7 +66,7 @@ const SubmissionsPage = () => {
       setReview(res.data)
     } catch {
       setReview(null)
-      alert('Could not load the reviewed answers.')
+      toast('Could not load the reviewed answers.', 'error')
     } finally {
       setReviewLoading(false)
     }
@@ -126,7 +134,7 @@ const SubmissionsPage = () => {
                           </button>
                         )}
                         {s.status === 'PENDING' && (
-                          <button className="sub-btn sub-btn-undo" onClick={() => handleUnsubmit(s.submissionId)}>
+                          <button className="sub-btn sub-btn-undo" onClick={() => setWithdrawTarget(s.submissionId)}>
                             Withdraw
                           </button>
                         )}
@@ -198,6 +206,24 @@ const SubmissionsPage = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Withdraw confirmation modal ────────────────────────────────────── */}
+      {withdrawTarget && (
+        <div className="sub-modal-overlay" onClick={() => !withdrawing && setWithdrawTarget(null)}>
+          <div className="sub-modal" style={{ width: 'min(440px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ margin: '0 0 0.5rem' }}>Withdraw submission?</h2>
+            <p style={{ color: 'var(--color-text-muted)', margin: '0 0 1.25rem', lineHeight: 1.5 }}>
+              This removes the paper from the educator's queue and frees you to submit another. You can re-submit it later.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+              <button className="sub-btn sub-btn-view" disabled={withdrawing} onClick={() => setWithdrawTarget(null)}>Cancel</button>
+              <button className="sub-btn sub-btn-undo" disabled={withdrawing} onClick={confirmWithdraw}>
+                {withdrawing ? 'Withdrawing…' : 'Withdraw'}
+              </button>
+            </div>
           </div>
         </div>
       )}

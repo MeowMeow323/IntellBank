@@ -146,7 +146,8 @@ public class PastYearPaperService {
             paper.setSubject(newSubject.trim());
         }
 
-        return toEnrichedResponse(pastYearPaperRepository.save(paper));
+        PastYearPaper saved = pastYearPaperRepository.save(paper);
+        return toEnrichedResponse(saved, questionRepository.findByPastYearPaperPypId(saved.getPypId()));
     }
 
     @Transactional

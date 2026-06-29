@@ -55,8 +55,6 @@ public class ExamService {
         List<Question> selectedQuestions = new ArrayList<>();
         List<Question> allQuestions = questionRepository.findAll();
 
-        // TODO: Implement proper question selection by topic/subject/difficulty
-        //       For now, take a random sample from the bank
         Collections.shuffle(allQuestions);
         selectedQuestions = allQuestions.stream().limit(questionCount).toList();
 

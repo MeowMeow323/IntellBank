@@ -252,6 +252,12 @@ public class VerificationService {
             Map<String, String> topicComments, String educatorEmail, String role) {
         Submission submission = getSubmission(submissionId);
         specializationService.assertCanHandleSubjectName(educatorEmail, role, deriveSubject(submission.getDocument()));
+        // Once a submission has been returned to the student it is final — no re-grading.
+        if (STATUS_RETURNED.equals(submission.getStatus())) {
+            throw new AppException(
+                    "This submission has been returned to the student and can no longer be graded.",
+                    HttpStatus.CONFLICT);
+        }
         Educator educator = resolveEducator(educatorEmail);
         Student student = submission.getDocument().getProject().getStudent();
         if (topicComments == null)

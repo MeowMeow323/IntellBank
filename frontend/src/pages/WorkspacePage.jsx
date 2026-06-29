@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom' 
 import useWorkspaceStore from '../store/workspaceStore'
+import { toast } from '../store/toastStore'
 import WorkspaceContent from '../components/workspace/WorkspaceContent'
 
 // ── CONNECT DESIGN SYSTEM LAYERS ──────────────────────────────────────
@@ -144,7 +145,7 @@ const WorkspacePage = () => {
     const available = subjectTopicsMap[paperConfig.subject] || []
     const minNeeded = Math.min(MIN_TOPICS, available.length)
     if (paperConfig.topics.length < minNeeded) {
-      alert(`Please select at least ${minNeeded} topic${minNeeded === 1 ? '' : 's'} so there are enough questions to fill the paper.`)
+      toast(`Please select at least ${minNeeded} topic${minNeeded === 1 ? '' : 's'} so there are enough questions to fill the paper.`, 'error')
       return
     }
     setIsGenerating(true)
@@ -158,7 +159,7 @@ const WorkspacePage = () => {
       if (!result) {
         // generateTabWithAI returns null on failure and records the reason in the store.
         const msg = useWorkspaceStore.getState().error || 'Paper generation failed. Please try again.'
-        alert(msg)
+        toast(msg, 'error')
         return
       }
       setIsModalOpen(false)
@@ -166,7 +167,7 @@ const WorkspacePage = () => {
       setPaperConfig({ subject: subjects.length > 0 ? subjects[0] : '', topics: [], totalMarks: 100 })
     } catch (error) {
       console.error("Error generating paper:", error)
-      alert('Paper generation failed. Please try again.')
+      toast('Paper generation failed. Please try again.', 'error')
     } finally {
       setIsGenerating(false)
     }

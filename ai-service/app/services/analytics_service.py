@@ -101,7 +101,7 @@ _OVERVIEW_FILTERED_SQL = """
 _TREND_ALL_SQL = """
     SELECT
         COALESCE(
-            (regexp_match(pyp.exam_session, '(\d{4})'))[1]::int,
+            (regexp_match(pyp.exam_session, '(\\d{4})'))[1]::int,
             EXTRACT(YEAR FROM pyp.upload_date)::int
         )                                        AS year,
         t.topic_id,
@@ -119,7 +119,7 @@ _TREND_ALL_SQL = """
 _TREND_FILTERED_SQL = """
     SELECT
         COALESCE(
-            (regexp_match(pyp.exam_session, '(\d{4})'))[1]::int,
+            (regexp_match(pyp.exam_session, '(\\d{4})'))[1]::int,
             EXTRACT(YEAR FROM pyp.upload_date)::int
         )                                        AS year,
         t.topic_id,
