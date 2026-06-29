@@ -1,9 +1,11 @@
 package com.intellbank.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.UUID;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "subjects")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
