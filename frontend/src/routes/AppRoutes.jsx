@@ -18,6 +18,7 @@ import PastYearPaperQuestionsPage from '../pages/PastYearPaperQuestionsPage.jsx'
 import SubjectTopicManagementPage from '../pages/SubjectTopicManagementPage.jsx'
 import SubmissionsPage from '../pages/SubmissionsPage.jsx'
 import EducatorAnalysisPage from '../pages/EducatorAnalysisPage.jsx'
+import SubjectAnalysisPage from '../pages/SubjectAnalysisPage.jsx'
 import AdminSpecializationsPage from '../pages/AdminSpecializationsPage.jsx'
 
 /**
@@ -154,6 +155,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
             <EducatorAnalysisPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/subject-analysis"
+        element={
+          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+            <SubjectAnalysisPage />
           </ProtectedRoute>
         }
       />

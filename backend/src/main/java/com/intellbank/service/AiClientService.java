@@ -11,6 +11,10 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * AiClientService – the ONLY class in Spring Boot that communicates with the Python FastAPI AI service.
@@ -32,6 +36,31 @@ public class AiClientService {
 
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
             new ParameterizedTypeReference<>() {};
+
+    /**
+     * OCR only the cover page of a PDF and return extracted metadata
+     * (course code, course name, exam session) for pre-filling the upload dialog.
+     * POST /ai/ocr/preview
+     */
+    public Map<String, Object> previewPaper(MultipartFile file) {
+        String url = aiBaseUrl + "/ai/ocr/preview";
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            byte[] bytes = file.getBytes();
+            String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.pdf";
+            body.add("file", new ByteArrayResource(bytes) {
+                @Override public String getFilename() { return filename; }
+            });
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url, HttpMethod.POST, new HttpEntity<>(body, headers), MAP_TYPE);
+            return response.getBody() != null ? response.getBody() : Map.of();
+        } catch (Exception e) {
+            log.warn("Preview OCR unavailable: {}", e.getMessage());
+            return Map.of();
+        }
+    }
 
     /**
      * Extract text from a document via OCR.
@@ -257,6 +286,47 @@ public class AiClientService {
         } catch (Exception e) {
             log.error("Process-paper progress service error: {}", e.getMessage());
             throw new RuntimeException("AI OCR progress service unavailable: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Per-topic question count and difficulty distribution for a subject.
+     * GET /ai/analytics/topic-frequency?subject=...&limit=N
+     * limit=null → all questions; limit=N → restrict to N most recently uploaded papers.
+     */
+    public Map<String, Object> topicFrequency(String subject, Integer limit) {
+        String url = limit != null
+                ? aiBaseUrl + "/ai/analytics/topic-frequency?subject={subject}&limit={limit}"
+                : aiBaseUrl + "/ai/analytics/topic-frequency?subject={subject}";
+        try {
+            ResponseEntity<Map<String, Object>> response = limit != null
+                    ? restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE, subject, limit)
+                    : restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE, subject);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Topic frequency service error: {}", e.getMessage());
+            return Map.of("error", "Analytics service unavailable: " + e.getMessage(), "topics", List.of());
+        }
+    }
+
+    /**
+     * Year-by-year topic coverage for a subject from past-year-paper upload dates.
+     * GET /ai/analytics/subject-trend?subject=...&limit=N
+     */
+    public Map<String, Object> subjectTrend(String subject, Integer limit) {
+        String url = limit != null
+                ? aiBaseUrl + "/ai/analytics/subject-trend?subject={subject}&limit={limit}"
+                : aiBaseUrl + "/ai/analytics/subject-trend?subject={subject}";
+        try {
+            ResponseEntity<Map<String, Object>> response = limit != null
+                    ? restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE, subject, limit)
+                    : restTemplate.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, MAP_TYPE, subject);
+            Map<String, Object> responseBody = response.getBody();
+            return responseBody != null ? responseBody : Map.of();
+        } catch (Exception e) {
+            log.error("Subject trend service error: {}", e.getMessage());
+            return Map.of("error", "Analytics service unavailable: " + e.getMessage(), "years", List.of());
         }
     }
 

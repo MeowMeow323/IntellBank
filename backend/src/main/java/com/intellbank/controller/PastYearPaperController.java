@@ -34,13 +34,23 @@ public class PastYearPaperController {
         return ResponseEntity.ok(pastYearPaperService.getAll(emailOf(auth), roleOf(auth)));
     }
 
+    @PostMapping("/preview")
+    public ResponseEntity<Map<String, Object>> preview(
+            @RequestParam MultipartFile file,
+            Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.previewPaper(file));
+    }
+
     @PostMapping("/upload")
     public ResponseEntity<PastYearPaperResponse> upload(
             @RequestParam String title,
             @RequestParam String subject,
+            @RequestParam(required = false) String courseCode,
+            @RequestParam(required = false) String examSession,
             @RequestParam MultipartFile file,
             Authentication auth) {
-        return ResponseEntity.ok(pastYearPaperService.uploadPaper(title, file, subject, emailOf(auth), roleOf(auth)));
+        return ResponseEntity.ok(pastYearPaperService.uploadPaper(
+                title, file, subject, courseCode, examSession, emailOf(auth), roleOf(auth)));
     }
 
     @PostMapping("/{pypId}/process")
@@ -66,6 +76,14 @@ public class PastYearPaperController {
     @GetMapping("/{pypId}/solutions")
     public ResponseEntity<List<Map<String, Object>>> getSolutions(@PathVariable UUID pypId, Authentication auth) {
         return ResponseEntity.ok(pastYearPaperService.getSolutions(pypId, emailOf(auth), roleOf(auth)));
+    }
+
+    @PatchMapping("/{pypId}")
+    public ResponseEntity<PastYearPaperResponse> update(
+            @PathVariable UUID pypId,
+            @RequestBody Map<String, String> updates,
+            Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.updatePaper(pypId, updates, emailOf(auth), roleOf(auth)));
     }
 
     @DeleteMapping("/{pypId}")

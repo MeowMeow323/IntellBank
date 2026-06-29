@@ -41,7 +41,7 @@ def fetch_paper_by_id(conn, pyp_id: str) -> dict | None:
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT pyp_id, title, storage_url, upload_date
+            SELECT pyp_id, title, storage_url, upload_date, subject, course_code
             FROM past_year_papers
             WHERE pyp_id = %s
             """,
@@ -50,8 +50,11 @@ def fetch_paper_by_id(conn, pyp_id: str) -> dict | None:
         row = cur.fetchone()
         if not row:
             return None
-        return {'pyp_id': str(row[0]), 'title': row[1],
-                'storage_url': row[2], 'upload_date': row[3]}
+        return {
+            'pyp_id': str(row[0]), 'title': row[1],
+            'storage_url': row[2], 'upload_date': row[3],
+            'subject': row[4], 'course_code': row[5],
+        }
 
 
 def upsert_subject(conn, name: str) -> str:
@@ -187,6 +190,25 @@ def update_status(conn, pyp_id: str, status: str):
     print(f"  Status updated → '{status}' for {pyp_id}")
 
 
+def update_paper_metadata(conn, pyp_id: str, course_code: str | None, exam_session: str | None):
+    """
+    Writes OCR-extracted course_code and exam_session back to the paper row.
+    Uses COALESCE so a user-provided value at upload time is only overwritten
+    if the OCR found something more specific (both fields are nullable).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE past_year_papers
+               SET course_code  = COALESCE(%s, course_code),
+                   exam_session = COALESCE(%s, exam_session)
+             WHERE pyp_id = %s
+            """,
+            (course_code, exam_session, pyp_id),
+        )
+    conn.commit()
+
+
 # =============================================================================
 # Per-paper pipeline
 # =============================================================================
@@ -216,7 +238,10 @@ def process_paper(conn, paper: dict, config: dict, env: dict, on_progress=None) 
     pyp_id      = paper['pyp_id']
     title       = paper['title']
     storage_url = paper['storage_url']
-    subject     = config['default_subject']
+    # Educator-selected subject (e.g. "BACS2163 Software Engineering") is the
+    # authoritative classification target.  Only fall back to the config default
+    # when the paper somehow has no subject stored.
+    subject     = paper.get('subject') or config['default_subject']
 
     pdf_url = ocr_service.build_url(
         config['supabase_project_url'],
@@ -268,11 +293,25 @@ def process_paper(conn, paper: dict, config: dict, env: dict, on_progress=None) 
     rest_text = ocr_service.strip_trailing_appendix(rest_text)
 
     detected = ocr_service.detect_subject_from_text(page1_text)
+    course_code_detected = None
     if detected:
-        course_code, subject = detected
-        print(f"  [3/4] Detected subject from header: {course_code} {subject}")
+        course_code_detected, ocr_subject_name = detected
+        print(f"  [3/4] Detected from cover page: {course_code_detected} {ocr_subject_name}")
+        if not paper.get('subject'):
+            # No subject was stored at upload time — use the OCR-detected name as fallback.
+            subject = ocr_subject_name
+            print(f"  [3/4] No stored subject; using OCR-detected name '{subject}'")
+        else:
+            print(f"  [3/4] Keeping stored subject '{subject}' (ignoring OCR bare name '{ocr_subject_name}')")
     else:
-        print(f"  [3/4] No course-code header detected — falling back to default_subject='{subject}'")
+        print(f"  [3/4] No course-code header detected — using subject='{subject}'")
+
+    exam_session_detected = ocr_service.detect_exam_session_from_text(page1_text)
+    if exam_session_detected:
+        print(f"  [3/4] Detected exam session: {exam_session_detected}")
+
+    if course_code_detected or exam_session_detected:
+        update_paper_metadata(conn, pyp_id, course_code_detected, exam_session_detected)
 
     preamble = ocr_service.clean_preamble(ocr_service.extract_preamble(rest_text))
     blocks   = ocr_service.deduplicate_blocks(ocr_service.split_blocks(rest_text))

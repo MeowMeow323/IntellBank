@@ -76,6 +76,22 @@ public class AnalyticsService {
     }
 
     /**
+     * Per-topic question count and difficulty distribution for a subject.
+     * limit=null → all questions; limit=N → restrict to N most recently uploaded papers.
+     */
+    public Map<String, Object> getTopicFrequency(String subject, Integer limit) {
+        return aiClientService.topicFrequency(subject, limit);
+    }
+
+    /**
+     * Year-by-year topic coverage for a subject, from past-year-paper upload dates.
+     * limit=null → all papers; limit=N → restrict to N most recently uploaded papers.
+     */
+    public Map<String, Object> getSubjectTrend(String subject, Integer limit) {
+        return aiClientService.subjectTrend(subject, limit);
+    }
+
+    /**
      * Topics × Students mastery matrix for the educator Class Analysis heat map.
      * Rows are topics, columns are students; each cell is that student's score on the topic.
      */

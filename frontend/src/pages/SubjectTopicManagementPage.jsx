@@ -51,12 +51,17 @@ const SubjectTopicManagementPage = () => {
 
   const handleCreateSubject = async (e) => {
     e.preventDefault()
-    if (!newSubjectName.trim()) return
+    const names = newSubjectName.split(',').map((n) => n.trim()).filter(Boolean)
+    if (names.length === 0) return
     try {
-      const res = await MetadataService.createSubject(newSubjectName.trim())
+      let lastId
+      for (const name of names) {
+        const res = await MetadataService.createSubject(name)
+        lastId = res.data.subjectId
+      }
       setNewSubjectName('')
       await loadSubjects()
-      setSelectedSubjectId(res.data.subjectId)
+      setSelectedSubjectId(lastId)
     } catch {
       // TODO: handle error
     }
@@ -64,9 +69,13 @@ const SubjectTopicManagementPage = () => {
 
   const handleCreateTopic = async (e) => {
     e.preventDefault()
-    if (!newTopicName.trim() || !selectedSubjectId) return
+    if (!selectedSubjectId) return
+    const names = newTopicName.split(',').map((n) => n.trim()).filter(Boolean)
+    if (names.length === 0) return
     try {
-      await MetadataService.createTopic(selectedSubjectId, newTopicName.trim())
+      for (const name of names) {
+        await MetadataService.createTopic(selectedSubjectId, name)
+      }
       setNewTopicName('')
       await loadTopics(selectedSubjectId)
     } catch {
@@ -103,10 +112,10 @@ const SubjectTopicManagementPage = () => {
           <input
             type="text"
             className="input"
-            placeholder="New subject name (e.g. Calculus)"
+            placeholder="Subject name(s), comma-separated (e.g. Calculus, Physics)"
             value={newSubjectName}
             onChange={(e) => setNewSubjectName(e.target.value)}
-            style={{ maxWidth: '320px' }}
+            style={{ maxWidth: '480px' }}
           />
           <button type="submit" className="btn btn-secondary">Add Subject</button>
         </form>
@@ -140,10 +149,10 @@ const SubjectTopicManagementPage = () => {
               <input
                 type="text"
                 className="input"
-                placeholder="New topic name (e.g. Integration by Parts)"
+                placeholder="Topic name(s), comma-separated (e.g. Integration by Parts, Limits)"
                 value={newTopicName}
                 onChange={(e) => setNewTopicName(e.target.value)}
-                style={{ maxWidth: '320px' }}
+                style={{ maxWidth: '480px' }}
                 disabled={!selectedSubjectId}
               />
               <button type="submit" className="btn btn-secondary" disabled={!selectedSubjectId}>

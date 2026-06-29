@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
 
@@ -25,6 +25,73 @@ class ProcessPaperResponse(BaseModel):
     status: str
     questions_inserted: int
     error: Optional[str] = None
+
+
+def _to_title_case(s: str) -> str:
+    """Title-case an ALL-CAPS string (typical for exam paper headers)."""
+    LOWER_WORDS = {'of', 'and', 'the', 'in', 'to', 'for', 'a', 'an', 'with', 'at', 'by', 'or'}
+    words = s.lower().split()
+    return ' '.join(
+        w if (i > 0 and w in LOWER_WORDS) else w.capitalize()
+        for i, w in enumerate(words)
+    )
+
+
+@router.post("/preview")
+async def preview_paper_metadata(file: UploadFile = File(...)):
+    """
+    Lightweight OCR on cover page only — extracts course code, course name,
+    and exam session for pre-filling the upload confirmation dialog.
+    Uses Tesseract directly (much faster than the full MinerU pipeline) since
+    we only need the structured header text, not equations or tables.
+    Requires: Tesseract on PATH + pdf2image/Poppler installed.
+    """
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Preview OCR dependencies missing ({e}). Run: pip install pdf2image pytesseract"
+        )
+
+    # Windows: Tesseract installer puts the binary here; set explicitly so the
+    # AI service doesn't depend on the process-level PATH being up to date.
+    import platform
+    if platform.system() == "Windows":
+        import os as _os
+        _win_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        if _os.path.exists(_win_path):
+            pytesseract.pytesseract.tesseract_cmd = _win_path
+
+    try:
+        pdf_bytes = await file.read()
+        images = convert_from_bytes(pdf_bytes, first_page=1, last_page=1, dpi=200)
+        if not images:
+            return {"course_code": None, "course_name": None, "exam_session": None}
+
+        raw_text = pytesseract.image_to_string(images[0])
+
+        course_code, course_name, exam_session = None, None, None
+
+        detected = ocr_service.detect_subject_from_text(raw_text)
+        if detected:
+            course_code, raw_name = detected
+            course_name = _to_title_case(raw_name) if raw_name == raw_name.upper() else raw_name
+
+        session = ocr_service.detect_exam_session_from_text(raw_text)
+        if session:
+            exam_session = session
+
+        return {
+            "course_code": course_code,
+            "course_name": course_name,
+            "exam_session": exam_session,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview OCR failed: {str(e)}")
 
 
 @router.post("/extract", response_model=ExtractResponse)

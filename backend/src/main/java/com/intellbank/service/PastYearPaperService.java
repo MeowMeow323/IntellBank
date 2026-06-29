@@ -44,13 +44,10 @@ public class PastYearPaperService {
 
     private static final String ROLE_EDUCATOR = "EDUCATOR";
 
-    /** Educators see only papers in their specialized subjects; admins see all. */
+    /** All authenticated users see all papers. */
     public List<PastYearPaperResponse> getAll(String email, String role) {
-        boolean educator = ROLE_EDUCATOR.equals(role);
-        Set<String> allowed = educator ? specializationService.subjectNamesForEducator(email) : null;
         return pastYearPaperRepository.findAll().stream()
                 .map(this::toEnrichedResponse)
-                .filter(r -> !educator || (r.subject() != null && allowed.contains(r.subject())))
                 .collect(Collectors.toList());
     }
 
@@ -66,7 +63,8 @@ public class PastYearPaperService {
         return new PastYearPaperResponse(
                 paper.getPypId(), paper.getTitle(), paper.getUploadDate(), paper.getStatus(),
                 supabaseStorageService.getPublicUrl(paper.getStorageUrl()),
-                null, null, subject, questionCount);
+                null, null, subject, questionCount,
+                paper.getCourseCode(), paper.getExamSession());
     }
 
     private String deriveSubjectFromQuestions(List<Question> questions) {
@@ -83,9 +81,42 @@ public class PastYearPaperService {
         return deriveSubjectFromQuestions(questionRepository.findByPastYearPaperPypId(paper.getPypId()));
     }
 
+    /** Proxy to the AI service cover-page OCR preview — no DB side effects. */
+    public Map<String, Object> previewPaper(MultipartFile file) {
+        return aiClientService.previewPaper(file);
+    }
+
+    /** Update editable metadata (title, examSession, courseCode, subject) on an existing paper. */
+    @Transactional
+    public PastYearPaperResponse updatePaper(UUID pypId, Map<String, String> updates, String email, String role) {
+        PastYearPaper paper = pastYearPaperRepository.findById(pypId)
+                .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        specializationService.assertCanHandleSubjectName(email, role, paperSubject(paper));
+
+        String newTitle = updates.get("title");
+        if (newTitle != null && !newTitle.isBlank()) paper.setTitle(newTitle.trim());
+
+        if (updates.containsKey("examSession")) {
+            String v = updates.get("examSession");
+            paper.setExamSession(v != null && !v.isBlank() ? v.trim() : null);
+        }
+        if (updates.containsKey("courseCode")) {
+            String v = updates.get("courseCode");
+            paper.setCourseCode(v != null && !v.isBlank() ? v.trim() : null);
+        }
+
+        String newSubject = updates.get("subject");
+        if (newSubject != null && !newSubject.isBlank()) {
+            specializationService.assertCanHandleSubjectName(email, role, newSubject.trim());
+            paper.setSubject(newSubject.trim());
+        }
+
+        return toEnrichedResponse(pastYearPaperRepository.save(paper));
+    }
+
     @Transactional
     public PastYearPaperResponse uploadPaper(String title, MultipartFile file, String subject,
-            String email, String role) {
+            String courseCode, String examSession, String email, String role) {
         if (file == null || file.isEmpty()) {
             throw new AppException("A PDF file is required", HttpStatus.BAD_REQUEST);
         }
@@ -103,6 +134,8 @@ public class PastYearPaperService {
         PastYearPaper paper = PastYearPaper.builder()
                 .title(title.trim())
                 .subject(subject.trim())
+                .courseCode(courseCode != null ? courseCode.trim() : null)
+                .examSession(examSession != null ? examSession.trim() : null)
                 .storageUrl(storagePath)
                 .status("UPLOADED")
                 .build();
@@ -370,7 +403,9 @@ public class PastYearPaperService {
                 questionsInserted,
                 error,
                 null,
-                null
+                null,
+                paper.getCourseCode(),
+                paper.getExamSession()
         );
     }
 }

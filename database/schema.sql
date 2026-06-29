@@ -70,14 +70,20 @@ CREATE TABLE IF NOT EXISTS difficulties (
 --  PAST YEAR PAPERS  (raw academic source uploaded by educator / admin)
 -- ════════════════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS past_year_papers (
-    pyp_id      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    title       VARCHAR(500) NOT NULL,
-    subject     VARCHAR(255),  -- educator-assigned subject (drives specialization gating)
-    upload_date TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    storage_url TEXT,
-    status      VARCHAR(100) NOT NULL DEFAULT 'UPLOADED'
+    pyp_id       UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    title        VARCHAR(500) NOT NULL,
+    subject      VARCHAR(255),  -- educator-assigned subject (drives specialization gating)
+    course_code  VARCHAR(50),   -- e.g. BITU3013 (auto-extracted from filename or OCR cover page)
+    exam_session VARCHAR(100),  -- e.g. "May 2024/2025" (user-provided or OCR-extracted)
+    upload_date  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    storage_url  TEXT,
+    status       VARCHAR(100) NOT NULL DEFAULT 'UPLOADED'
         -- UPLOADED | PROCESSING | PROCESSED | FAILED
 );
+
+-- Migration: add columns to existing databases that were created before these columns existed
+ALTER TABLE past_year_papers ADD COLUMN IF NOT EXISTS course_code  VARCHAR(50);
+ALTER TABLE past_year_papers ADD COLUMN IF NOT EXISTS exam_session VARCHAR(100);
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  QUESTIONS

@@ -185,16 +185,31 @@ export const AnalyticsService = {
   // Topics × Students mastery matrix for the educator class heat map
   getClassMatrix: (subject) =>
     api.get('/api/analytics/class-matrix', { params: { subject } }),
+  // Per-topic question count + difficulty breakdown (limit = N latest papers, omit for all)
+  getTopicFrequency: (subject, limit) =>
+    api.get('/api/analytics/topic-frequency', { params: limit ? { subject, limit } : { subject } }),
+  // Year-by-year topic coverage from past-year-paper upload dates
+  getSubjectTrend: (subject, limit) =>
+    api.get('/api/analytics/subject-trend', { params: limit ? { subject, limit } : { subject } }),
 }
 
 // ── Past Year Paper Service ───────────────────────────────────────────────────
 export const PastYearPaperService = {
   getAll: () => api.get('/api/past-year-papers'),
-  upload: (title, subject, file, onProgress) => {
+  preview: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/api/past-year-papers/preview', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  upload: (title, subject, file, { courseCode, examSession } = {}, onProgress) => {
     const fd = new FormData()
     fd.append('title', title)
     fd.append('subject', subject)
     fd.append('file', file)
+    if (courseCode) fd.append('courseCode', courseCode)
+    if (examSession) fd.append('examSession', examSession)
     return api.post('/api/past-year-papers/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: onProgress
@@ -207,6 +222,7 @@ export const PastYearPaperService = {
   generateSolutions: (pypId) => api.post(`/api/past-year-papers/${pypId}/generate-solutions`),
   generateSingleSolution: (questionId) => api.post(`/api/past-year-papers/questions/${questionId}/generate-solution`),
   getSolutions: (pypId) => api.get(`/api/past-year-papers/${pypId}/solutions`),
+  update: (pypId, data) => api.patch(`/api/past-year-papers/${pypId}`, data),
   delete: (pypId) => api.delete(`/api/past-year-papers/${pypId}`),
 }
 

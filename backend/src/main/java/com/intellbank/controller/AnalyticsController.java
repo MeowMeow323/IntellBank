@@ -93,4 +93,32 @@ public class AnalyticsController {
             specializationService.assertCanHandleSubjectName(emailOf(auth), roleOf(auth), subject);
         return ResponseEntity.ok(analyticsService.getClassMatrix(subject));
     }
+
+    /**
+     * GET /api/analytics/topic-frequency?subject=...&limit=N
+     * limit is optional — omit for all questions; set to N to restrict to N most recently uploaded papers.
+     */
+    @GetMapping("/topic-frequency")
+    public ResponseEntity<Map<String, Object>> topicFrequency(
+            @RequestParam String subject,
+            @RequestParam(required = false) Integer limit,
+            Authentication auth) {
+        if (ROLE_EDUCATOR.equals(roleOf(auth)))
+            specializationService.assertCanHandleSubjectName(emailOf(auth), roleOf(auth), subject);
+        return ResponseEntity.ok(analyticsService.getTopicFrequency(subject, limit));
+    }
+
+    /**
+     * GET /api/analytics/subject-trend?subject=...&limit=N
+     * limit is optional — omit for all papers; set to N to restrict to N most recently uploaded papers.
+     */
+    @GetMapping("/subject-trend")
+    public ResponseEntity<Map<String, Object>> subjectTrend(
+            @RequestParam String subject,
+            @RequestParam(required = false) Integer limit,
+            Authentication auth) {
+        if (ROLE_EDUCATOR.equals(roleOf(auth)))
+            specializationService.assertCanHandleSubjectName(emailOf(auth), roleOf(auth), subject);
+        return ResponseEntity.ok(analyticsService.getSubjectTrend(subject, limit));
+    }
 }

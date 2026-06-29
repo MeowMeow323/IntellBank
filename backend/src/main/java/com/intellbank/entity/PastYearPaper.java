@@ -36,6 +36,14 @@ public class PastYearPaper {
     @Column(name = "upload_date", updatable = false)
     private OffsetDateTime uploadDate;
 
+    /** e.g. "BITU3013" — extracted from filename or OCR cover page */
+    @Column(name = "course_code", length = 50)
+    private String courseCode;
+
+    /** e.g. "May 2024/2025" — provided at upload or refined by OCR pipeline */
+    @Column(name = "exam_session", length = 100)
+    private String examSession;
+
     @Column(name = "storage_url", columnDefinition = "TEXT")
     private String storageUrl;
 

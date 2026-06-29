@@ -17,6 +17,11 @@ psycopg2-binary==2.9.12
 # Lightweight dictionary-based spellcheck (no model inference)
 pyspellchecker
 
+# Lightweight OCR for one-page cover-page preview (Tesseract must be on PATH)
+pdf2image
+pytesseract
+python-multipart
+
 # Cloud LLM — PYP solution generation
 google-genai>=1.0.0
 

@@ -257,6 +257,57 @@ def detect_subject_from_text(text: str) -> tuple[str, str] | None:
     return m.group(1).strip(), m.group(2).strip()
 
 
+_SESSION_LABEL_RE = re.compile(
+    r'(?i)\b(January|February|March|April|May|June|July|August|September|October|November|December'
+    r'|Semester\s*[12])\b'
+)
+_ACADEMIC_YEAR_RE = re.compile(r'(\d{4})\s*/\s*(\d{4})')
+
+
+def detect_exam_session_from_text(text: str) -> str | None:
+    """
+    Scans the cover page (first 25 lines) for an exam session.
+    Handles the common Malaysian university layout where the month/semester
+    keyword and the academic year appear on SEPARATE lines, e.g.:
+        ACADEMIC YEAR 2024/2025
+        JANUARY EXAMINATION
+    Finds each independently and combines them.
+    Returns a normalised string like "January 2024/2025" or "Semester 1 2024/2025",
+    or None if nothing is found.
+    """
+    head = '\n'.join(text.split('\n')[:25])
+
+    # Find academic year (e.g. 2024/2025)
+    year_m = _ACADEMIC_YEAR_RE.search(head)
+    if not year_m:
+        return None
+    academic_year = f"{year_m.group(1)}/{year_m.group(2)}"
+
+    # Find session label — scan line by line to skip date strings like "8 JANUARY 2025"
+    label = None
+    for line in head.split('\n'):
+        m = _SESSION_LABEL_RE.search(line)
+        if not m:
+            continue
+        # Skip if the match is preceded by a digit (e.g. "8 JANUARY")
+        before = line[:m.start()].rstrip()
+        if before and before[-1].isdigit():
+            continue
+        label = re.sub(r'\s+', ' ', m.group(1)).strip()
+        break
+
+    if not label:
+        return None
+
+    # Normalise capitalisation
+    if re.match(r'^semester', label, re.IGNORECASE):
+        label = re.sub(r'^semester\s*', 'Semester ', label, flags=re.IGNORECASE)
+    else:
+        label = label.capitalize()
+
+    return f"{label} {academic_year}"
+
+
 def extract_preamble(text: str) -> str:
     """Returns scenario/intro text before the first question marker, or '' if too short."""
     matches = list(QUESTION_RE.finditer(text))

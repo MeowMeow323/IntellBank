@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3, Send, LogOut,
-  CheckSquare, FileText, Tags, Users, ShieldCheck,
+  CheckSquare, FileText, Tags, Users, ShieldCheck, TrendingUp,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import '../../styles/sidebar.css'
@@ -20,10 +20,11 @@ const STUDENT_ONLY_ITEMS = [
 ]
 
 const EDUCATOR_ITEMS = [
-  { path: '/verification', label: 'Verification', Icon: CheckSquare },
-  { path: '/class-analysis', label: 'Class Analysis', Icon: Users },
+  { path: '/verification',     label: 'Verification',     Icon: CheckSquare },
+  { path: '/class-analysis',   label: 'Class Analysis',   Icon: Users },
+  { path: '/subject-analysis', label: 'Subject Analysis', Icon: TrendingUp },
   { path: '/past-year-papers', label: 'Past Year Papers', Icon: FileText },
-  { path: '/subjects-topics', label: 'Subjects & Topics', Icon: Tags },
+  { path: '/subjects-topics',  label: 'Subjects & Topics', Icon: Tags },
 ]
 
 const ADMIN_ITEMS = [
