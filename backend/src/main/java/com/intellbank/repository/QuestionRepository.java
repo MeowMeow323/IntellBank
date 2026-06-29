@@ -15,5 +15,9 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
     @Query("SELECT q FROM Question q JOIN FETCH q.pastYearPaper p WHERE p.pypId IN :pypIds")
     List<Question> findByPapersIn(@Param("pypIds") Collection<UUID> pypIds);
 
+    /** Row count per paper — fast, no content loaded. Returns [pypId, count] pairs. */
+    @Query("SELECT q.pastYearPaper.pypId, COUNT(q) FROM Question q WHERE q.pastYearPaper.pypId IN :pypIds GROUP BY q.pastYearPaper.pypId")
+    List<Object[]> countByPapersIn(@Param("pypIds") Collection<UUID> pypIds);
+
     void deleteByPastYearPaperPypId(UUID pypId);
 }

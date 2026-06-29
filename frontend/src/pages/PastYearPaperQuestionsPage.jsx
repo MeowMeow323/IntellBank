@@ -99,30 +99,20 @@ const PastYearPaperQuestionsPage = () => {
   const loadAll = async () => {
     setIsLoading(true)
     try {
-      const [papersRes, questionsRes] = await Promise.all([
-        PastYearPaperService.getAll(),
+      const [paperRes, questionsRes, solutionsRes] = await Promise.all([
+        PastYearPaperService.getById(pypId),
         QuestionService.getByPyp(pypId),
+        PastYearPaperService.getSolutions(pypId).catch(() => ({ data: [] })),
       ])
-      setPaper(papersRes.data.find((p) => p.pypId === pypId) || null)
+      setPaper(paperRes.data)
       setQuestions(questionsRes.data)
-      await loadSolutions()
+      const map = {}
+      for (const s of solutionsRes.data) map[s.questionId] = s
+      setSolutions(map)
     } catch {
       // TODO: handle error
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const loadSolutions = async () => {
-    try {
-      const res = await PastYearPaperService.getSolutions(pypId)
-      const map = {}
-      for (const s of res.data) {
-        map[s.questionId] = s
-      }
-      setSolutions(map)
-    } catch {
-      // non-fatal — page still works without solutions
     }
   }
 
@@ -145,7 +135,11 @@ const PastYearPaperQuestionsPage = () => {
   // Reload solutions when generation finishes so they appear inline immediately
   useEffect(() => {
     if (!isGeneratingThis && generateResult && !generateResult.error) {
-      loadSolutions()
+      PastYearPaperService.getSolutions(pypId).then(res => {
+        const map = {}
+        for (const s of res.data) map[s.questionId] = s
+        setSolutions(map)
+      }).catch(() => {})
     }
   }, [isGeneratingThis])
 

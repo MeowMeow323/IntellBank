@@ -34,6 +34,11 @@ public class PastYearPaperController {
         return ResponseEntity.ok(pastYearPaperService.getAll(emailOf(auth), roleOf(auth)));
     }
 
+    @GetMapping("/{pypId}")
+    public ResponseEntity<PastYearPaperResponse> getById(@PathVariable UUID pypId, Authentication auth) {
+        return ResponseEntity.ok(pastYearPaperService.getById(pypId, emailOf(auth), roleOf(auth)));
+    }
+
     @PostMapping("/preview")
     public ResponseEntity<Map<String, Object>> preview(
             @RequestParam MultipartFile file,

@@ -196,6 +196,7 @@ export const AnalyticsService = {
 // ── Past Year Paper Service ───────────────────────────────────────────────────
 export const PastYearPaperService = {
   getAll: () => api.get('/api/past-year-papers'),
+  getById: (pypId) => api.get(`/api/past-year-papers/${pypId}`),
   preview: (file) => {
     const fd = new FormData()
     fd.append('file', file)

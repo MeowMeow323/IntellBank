@@ -179,20 +179,29 @@ const PastYearPaperLibraryPage = () => {
   const [dragActive, setDragActive] = useState(false)
   const [subjects, setSubjects] = useState([])
 
-  // Sort / filter / pagination state
-  const [searchTerm,    setSearchTerm]    = useState('')
-  const [statusFilter,  setStatusFilter]  = useState('')
-  const [subjectFilter, setSubjectFilter] = useState('')
-  const [sessionFilter, setSessionFilter] = useState('')
-  const [sortField,     setSortField]     = useState('uploadDate')
-  const [sortDir,       setSortDir]       = useState('desc')
-  const [page,          setPage]          = useState(1)
+  // Sort / filter / pagination state — persisted in sessionStorage so navigating to a paper
+  // and pressing Back restores the exact view the user was on.
+  const _saved = (() => { try { return JSON.parse(sessionStorage.getItem('pypLibFilters') || '{}') } catch { return {} } })()
+  const [searchTerm,    setSearchTerm]    = useState(_saved.searchTerm    ?? '')
+  const [statusFilter,  setStatusFilter]  = useState(_saved.statusFilter  ?? '')
+  const [subjectFilter, setSubjectFilter] = useState(_saved.subjectFilter ?? '')
+  const [sessionFilter, setSessionFilter] = useState(_saved.sessionFilter ?? '')
+  const [sortField,     setSortField]     = useState(_saved.sortField     ?? 'uploadDate')
+  const [sortDir,       setSortDir]       = useState(_saved.sortDir       ?? 'desc')
+  const [page,          setPage]          = useState(_saved.page          ?? 1)
 
   // Inline edit state
   const [editingId,   setEditingId]   = useState(null)
   const [editValues,  setEditValues]  = useState({})
   const [isSaving,    setIsSaving]    = useState(false)
   const [saveError,   setSaveError]   = useState('')
+
+  // Persist filters so navigating back restores the same view
+  useEffect(() => {
+    sessionStorage.setItem('pypLibFilters', JSON.stringify(
+      { searchTerm, statusFilter, subjectFilter, sessionFilter, sortField, sortDir, page }
+    ))
+  }, [searchTerm, statusFilter, subjectFilter, sessionFilter, sortField, sortDir, page])
 
   // Upload modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)

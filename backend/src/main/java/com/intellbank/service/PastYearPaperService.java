@@ -44,20 +44,47 @@ public class PastYearPaperService {
 
     private static final String ROLE_EDUCATOR = "EDUCATOR";
 
-    /** All authenticated users see all papers. */
+    /** All authenticated users see all papers. Uses lightweight count queries — no question content loaded. */
     public List<PastYearPaperResponse> getAll(String email, String role) {
         List<PastYearPaper> papers = pastYearPaperRepository.findAll();
         if (papers.isEmpty()) return List.of();
 
-        // Fetch all questions for all papers in one JOIN query, then group by paper.
         List<UUID> pypIds = papers.stream().map(PastYearPaper::getPypId).collect(Collectors.toList());
-        Map<UUID, List<Question>> questionsByPaper = questionRepository
-                .findByPapersIn(pypIds).stream()
-                .collect(Collectors.groupingBy(q -> q.getPastYearPaper().getPypId()));
 
-        return papers.stream()
-                .map(p -> toEnrichedResponse(p, questionsByPaper.getOrDefault(p.getPypId(), List.of())))
-                .collect(Collectors.toList());
+        // Row count per paper — no question content transferred.
+        Map<UUID, Integer> countMap = questionRepository.countByPapersIn(pypIds).stream()
+                .collect(Collectors.toMap(r -> (UUID) r[0], r -> ((Long) r[1]).intValue()));
+
+        // Batch-derive subject for papers where it isn't stored yet (one query).
+        Set<UUID> noSubject = papers.stream()
+                .filter(p -> p.getSubject() == null || p.getSubject().isBlank())
+                .map(PastYearPaper::getPypId)
+                .collect(Collectors.toSet());
+        Map<UUID, String> derivedSubject = noSubject.isEmpty() ? Map.of()
+                : questionTopicRepository.findFirstSubjectByPaperIds(new ArrayList<>(noSubject)).stream()
+                        .collect(Collectors.toMap(r -> (UUID) r[0], r -> (String) r[1]));
+
+        return papers.stream().map(p -> {
+            String subject = (p.getSubject() != null && !p.getSubject().isBlank())
+                    ? p.getSubject() : derivedSubject.get(p.getPypId());
+            Integer count = countMap.get(p.getPypId());
+            return new PastYearPaperResponse(
+                    p.getPypId(), p.getTitle(), p.getUploadDate(), p.getStatus(),
+                    supabaseStorageService.getPublicUrl(p.getStorageUrl()),
+                    null, null, subject, count,
+                    p.getCourseCode(), p.getExamSession());
+        }).collect(Collectors.toList());
+    }
+
+    /** Single-paper lookup — used by the questions page so it doesn't fetch all papers. */
+    public PastYearPaperResponse getById(UUID pypId, String email, String role) {
+        PastYearPaper p = pastYearPaperRepository.findById(pypId)
+                .orElseThrow(() -> new AppException("Past year paper not found", HttpStatus.NOT_FOUND));
+        return new PastYearPaperResponse(
+                p.getPypId(), p.getTitle(), p.getUploadDate(), p.getStatus(),
+                supabaseStorageService.getPublicUrl(p.getStorageUrl()),
+                null, null, p.getSubject(), null,
+                p.getCourseCode(), p.getExamSession());
     }
 
     /** List response enriched with the paper's subject and grouped (full) question count. */
