@@ -31,7 +31,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SpecializationService {
 
-    public static final String ROLE_ADMIN = "ADMIN";
+    public static final String ROLE_ADMIN   = "ADMIN";
+    public static final String ROLE_STUDENT = "STUDENT";
 
     private final SpecializationRepository specializationRepository;
     private final EducatorRepository educatorRepository;
@@ -51,9 +52,9 @@ public class SpecializationService {
         return subjectsForEducator(email).stream().map(Subject::getName).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    /** ADMIN → true always; EDUCATOR → only if assigned to the (non-null) subject. */
+    /** ADMIN/STUDENT → true always; EDUCATOR → only if assigned to the (non-null) subject. */
     public boolean canHandleSubjectName(String email, String role, String subjectName) {
-        if (ROLE_ADMIN.equals(role)) return true;
+        if (ROLE_ADMIN.equals(role) || ROLE_STUDENT.equals(role)) return true;
         return subjectName != null && !subjectName.isBlank()
                 && subjectNamesForEducator(email).contains(subjectName);
     }

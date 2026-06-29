@@ -150,7 +150,10 @@ def _resolve_subject(cur, subject: str):
 
 def _fetch_papers(cur, sid, limit: Optional[int] = None) -> List[Dict]:
     """Return all (or latest N) papers for the subject, newest-first."""
-    cur.execute(_PAPERS_SQL, (sid,))
+    if limit and limit > 0:
+        cur.execute(_PAPERS_SQL + " LIMIT %s", (sid, limit))
+    else:
+        cur.execute(_PAPERS_SQL, (sid,))
     rows = cur.fetchall()
     papers = [
         {
@@ -161,8 +164,6 @@ def _fetch_papers(cur, sid, limit: Optional[int] = None) -> List[Dict]:
         }
         for r in rows
     ]
-    if limit and limit > 0:
-        papers = papers[:limit]
     return papers
 
 

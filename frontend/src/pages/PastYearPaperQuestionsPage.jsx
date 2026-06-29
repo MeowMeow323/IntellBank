@@ -6,6 +6,7 @@ import EditableQuestionContent from '../components/EditableQuestionContent.jsx'
 import QuestionContent from '../components/QuestionContent.jsx'
 import SolutionContent from '../components/SolutionContent.jsx'
 import useSolutionGenerationStore from '../store/solutionGenerationStore.js'
+import useAuthStore from '../store/authStore'
 import '../styles/document-upload.css'
 
 const STATUS_COLORS = {
@@ -76,6 +77,8 @@ const SolutionPanel = ({ solution }) => {
 const PastYearPaperQuestionsPage = () => {
   const { pypId } = useParams()
   const navigate = useNavigate()
+  const { isEducatorOrAdmin } = useAuthStore()
+  const canEdit = isEducatorOrAdmin()
 
   const [paper, setPaper] = useState(null)
   const [questions, setQuestions] = useState([])
@@ -214,18 +217,22 @@ const PastYearPaperQuestionsPage = () => {
                 View Original File
               </a>
             )}
-            <button className="btn btn-secondary" onClick={handleReprocess} disabled={isReprocessing}>
-              {isReprocessing ? 'Processing...' : 'Reprocess'}
-            </button>
-            {paper?.status === 'PROCESSED' && (
-              <button
-                className="btn btn-primary"
-                onClick={handleGenerateSolutions}
-                disabled={!canGenerate}
-                id="generate-solutions-btn"
-              >
-                {isGeneratingThis ? 'Generating...' : 'Generate Solutions'}
-              </button>
+            {canEdit && (
+              <>
+                <button className="btn btn-secondary" onClick={handleReprocess} disabled={isReprocessing}>
+                  {isReprocessing ? 'Processing...' : 'Reprocess'}
+                </button>
+                {paper?.status === 'PROCESSED' && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleGenerateSolutions}
+                    disabled={!canGenerate}
+                    id="generate-solutions-btn"
+                  >
+                    {isGeneratingThis ? 'Generating...' : 'Generate Solutions'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -312,26 +319,29 @@ const PastYearPaperQuestionsPage = () => {
                           marks={q.marks}
                           originalFileUrl={paper?.fileUrl}
                           onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
+                          readOnly={!canEdit}
                         />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
-                            disabled={questionGenerating[q.questionId] === 'loading'}
-                            onClick={() => handleGenerateSingleSolution(q.questionId)}
-                          >
-                            {questionGenerating[q.questionId] === 'loading'
-                              ? 'Generating...'
-                              : solutions[q.questionId]
-                                ? 'Regenerate Solution'
-                                : 'Generate Solution'}
-                          </button>
-                          {questionGenerating[q.questionId] === 'error' && (
-                            <span style={{ fontSize: '0.78rem', color: 'var(--color-danger, #dc2626)' }}>
-                              Failed — check terminal for error
-                            </span>
-                          )}
-                        </div>
+                        {canEdit && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+                              disabled={questionGenerating[q.questionId] === 'loading'}
+                              onClick={() => handleGenerateSingleSolution(q.questionId)}
+                            >
+                              {questionGenerating[q.questionId] === 'loading'
+                                ? 'Generating...'
+                                : solutions[q.questionId]
+                                  ? 'Regenerate Solution'
+                                  : 'Generate Solution'}
+                            </button>
+                            {questionGenerating[q.questionId] === 'error' && (
+                              <span style={{ fontSize: '0.78rem', color: 'var(--color-danger, #dc2626)' }}>
+                                Failed — check terminal for error
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <SolutionPanel solution={solutions[q.questionId]} />
                       </div>
                     ))}

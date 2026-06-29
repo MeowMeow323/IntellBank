@@ -111,9 +111,10 @@ export default function SubjectAnalysisPage() {
   const loadTrend = useCallback((subj, limit) => {
     if (!subj) return
     setTrendLoading(true)
+    setTrend(null)
     AnalyticsService.getSubjectTrend(subj, limit)
       .then(res => setTrend(res.data))
-      .catch(() => setTrend(null))
+      .catch(() => {})
       .finally(() => setTrendLoading(false))
   }, [])
 
@@ -145,7 +146,7 @@ export default function SubjectAnalysisPage() {
     hard_pct: t.hard_pct, untagged_pct: t.untagged_pct,
   }))
 
-  const papersIncluded = freq?.papers_included || trend?.papers_included || []
+  const papersIncluded = freq?.papers_included ?? []
 
   return (
     <div className="page-layout">

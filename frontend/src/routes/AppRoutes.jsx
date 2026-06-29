@@ -129,7 +129,7 @@ const AppRoutes = () => {
       <Route
         path="/past-year-papers"
         element={
-          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+          <ProtectedRoute allowedRoles={['STUDENT', 'EDUCATOR', 'ADMIN']}>
             <PastYearPaperLibraryPage />
           </ProtectedRoute>
         }
@@ -137,7 +137,7 @@ const AppRoutes = () => {
       <Route
         path="/past-year-papers/:pypId/questions"
         element={
-          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+          <ProtectedRoute allowedRoles={['STUDENT', 'EDUCATOR', 'ADMIN']}>
             <PastYearPaperQuestionsPage />
           </ProtectedRoute>
         }
@@ -161,7 +161,7 @@ const AppRoutes = () => {
       <Route
         path="/subject-analysis"
         element={
-          <ProtectedRoute allowedRoles={['EDUCATOR', 'ADMIN']}>
+          <ProtectedRoute allowedRoles={['STUDENT', 'EDUCATOR', 'ADMIN']}>
             <SubjectAnalysisPage />
           </ProtectedRoute>
         }

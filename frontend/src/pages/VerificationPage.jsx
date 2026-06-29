@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { VerificationService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import SolutionContent from '../components/SolutionContent.jsx'
+import Paginator from '../components/Paginator.jsx'
 import '../styles/verification.css'
+
+const SOL_PAGE_SIZE = 10
 
 export default function VerificationPage() {
   const [tab, setTab] = useState('submissions') // 'submissions' | 'solutions'
@@ -318,6 +322,7 @@ function SolutionVerification() {
   const [editId, setEditId] = useState(null)
   const [editContent, setEditContent] = useState('')
   const [editExplanation, setEditExplanation] = useState('')
+  const [page, setPage] = useState(1)
 
   useEffect(() => { fetchPending() }, [])
 
@@ -349,10 +354,18 @@ function SolutionVerification() {
   if (loading) return <p className="vf-empty">Loading pending solutions…</p>
   if (solutions.length === 0) return <p className="vf-empty">✓ No solutions pending verification.</p>
 
+  const totalPages  = Math.max(1, Math.ceil(solutions.length / SOL_PAGE_SIZE))
+  const pagedSols   = solutions.slice((page - 1) * SOL_PAGE_SIZE, page * SOL_PAGE_SIZE)
+
   return (
     <div className="card">
-      {solutions.map((sol) => (
-        <div key={sol.solutionId} className="vf-sol">
+      {solutions.length > SOL_PAGE_SIZE && (
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+          Showing {(page - 1) * SOL_PAGE_SIZE + 1}–{Math.min(page * SOL_PAGE_SIZE, solutions.length)} of {solutions.length}
+        </p>
+      )}
+      {pagedSols.map((sol) => (
+        <div key={sol.solutionId} className="vf-sol" >
           <div className="vf-queue-title" style={{ marginBottom: '0.5rem' }}>
             Question: {stripHtml(sol.question?.content || sol.question?.questionId || '')}
           </div>
@@ -368,8 +381,16 @@ function SolutionVerification() {
             </>
           ) : (
             <>
-              <p><strong>Content:</strong> {sol.content}</p>
-              {sol.explanation && <p><strong>Explanation:</strong> {sol.explanation}</p>}
+              <div className="vf-sol-section">
+                <span className="vf-sol-label">Content</span>
+                <SolutionContent content={sol.content} />
+              </div>
+              {sol.explanation && (
+                <div className="vf-sol-section">
+                  <span className="vf-sol-label">Explanation</span>
+                  <SolutionContent content={sol.explanation} />
+                </div>
+              )}
               <div className="vf-actions">
                 <button className="vf-btn vf-btn-approve" onClick={() => approve(sol.solutionId)}>Approve</button>
                 <button className="vf-btn vf-btn-reject" onClick={() => reject(sol.solutionId)}>Reject</button>
@@ -379,6 +400,7 @@ function SolutionVerification() {
           )}
         </div>
       ))}
+      <Paginator page={page} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo(0, 0) }} />
     </div>
   )
 }

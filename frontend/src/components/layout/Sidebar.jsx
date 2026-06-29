@@ -15,8 +15,10 @@ const SHARED_ITEMS = [
 ]
 
 const STUDENT_ONLY_ITEMS = [
-  { path: '/analytics', label: 'Analytics', Icon: BarChart3 },
-  { path: '/submissions', label: 'Submissions', Icon: Send },
+  { path: '/analytics',        label: 'Analytics',       Icon: BarChart3 },
+  { path: '/submissions',      label: 'Submissions',     Icon: Send },
+  { path: '/past-year-papers', label: 'Past Year Papers', Icon: FileText },
+  { path: '/subject-analysis', label: 'Subject Analysis', Icon: TrendingUp },
 ]
 
 const EDUCATOR_ITEMS = [

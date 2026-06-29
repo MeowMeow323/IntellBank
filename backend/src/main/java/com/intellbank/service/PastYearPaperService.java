@@ -46,19 +46,27 @@ public class PastYearPaperService {
 
     /** All authenticated users see all papers. */
     public List<PastYearPaperResponse> getAll(String email, String role) {
-        return pastYearPaperRepository.findAll().stream()
-                .map(this::toEnrichedResponse)
+        List<PastYearPaper> papers = pastYearPaperRepository.findAll();
+        if (papers.isEmpty()) return List.of();
+
+        // Fetch all questions for all papers in one JOIN query, then group by paper.
+        List<UUID> pypIds = papers.stream().map(PastYearPaper::getPypId).collect(Collectors.toList());
+        Map<UUID, List<Question>> questionsByPaper = questionRepository
+                .findByPapersIn(pypIds).stream()
+                .collect(Collectors.groupingBy(q -> q.getPastYearPaper().getPypId()));
+
+        return papers.stream()
+                .map(p -> toEnrichedResponse(p, questionsByPaper.getOrDefault(p.getPypId(), List.of())))
                 .collect(Collectors.toList());
     }
 
     /** List response enriched with the paper's subject and grouped (full) question count. */
-    private PastYearPaperResponse toEnrichedResponse(PastYearPaper paper) {
-        List<Question> questions = questionRepository.findByPastYearPaperPypId(paper.getPypId());
+    private PastYearPaperResponse toEnrichedResponse(PastYearPaper paper, List<Question> questions) {
         String subject = paper.getSubject();   // stored at upload (preferred)
         Integer questionCount = null;
         if (!questions.isEmpty()) {
             questionCount = com.intellbank.util.QuestionGrouper.group(questions).size();
-            if (subject == null) subject = deriveSubjectFromQuestions(questions);   // legacy rows
+            if (subject == null) subject = deriveSubjectFromQuestions(questions);
         }
         return new PastYearPaperResponse(
                 paper.getPypId(), paper.getTitle(), paper.getUploadDate(), paper.getStatus(),

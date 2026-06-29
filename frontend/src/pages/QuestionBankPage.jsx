@@ -2,7 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { QuestionService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 import EditableQuestionContent from '../components/EditableQuestionContent.jsx'
+import Paginator from '../components/Paginator.jsx'
+import useAuthStore from '../store/authStore'
 import '../styles/question-bank.css'
+
+const PAGE_SIZE = 10
 
 const DIFFICULTY_BADGE = { Easy: 'badge-green', Medium: 'badge-amber', Hard: 'badge-red' }
 
@@ -19,10 +23,13 @@ const parseQPart = (content) => {
 }
 
 const QuestionBankPage = () => {
+  const { isEducatorOrAdmin } = useAuthStore()
+  const canEdit = isEducatorOrAdmin()
   const [questions, setQuestions] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [subjectFilter, setSubjectFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     loadQuestions()
@@ -53,6 +60,14 @@ const QuestionBankPage = () => {
       return true
     })
   }, [questions, subjectFilter, search])
+
+  // Reset to page 1 when filters change
+  const prevFilterKey = React.useRef('')
+  const filterKey = `${subjectFilter}|${search}`
+  if (filterKey !== prevFilterKey.current) { prevFilterKey.current = filterKey; if (page !== 1) setPage(1) }
+
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedItems  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const handleSaveQuestion = async (questionId, newContent, newMarks) => {
     // Re-attach this row's [QPART:...] marker (if it had one) before saving
@@ -106,7 +121,8 @@ const QuestionBankPage = () => {
         </div>
 
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: '0 0 1rem' }}>
-          {filtered.length} of {questions.length} question(s)
+          {filtered.length} question{filtered.length !== 1 ? 's' : ''}
+          {filtered.length !== questions.length ? ` (filtered from ${questions.length})` : ''}
         </p>
 
         {/* Questions List */}
@@ -124,8 +140,9 @@ const QuestionBankPage = () => {
             </p>
           </div>
         ) : (
+          <>
           <div className="flex flex-col gap-3" id="questions-list">
-            {filtered.map((q) => {
+            {pagedItems.map((q) => {
               const { groupNum, label, stripped } = parseQPart(q.content)
               return (
                 <div key={q.questionId} className="card question-card" id={`question-${q.questionId}`}>
@@ -166,11 +183,14 @@ const QuestionBankPage = () => {
                     content={stripped}
                     marks={q.marks}
                     onSave={(newContent, newMarks) => handleSaveQuestion(q.questionId, newContent, newMarks)}
+                    readOnly={!canEdit}
                   />
                 </div>
               )
             })}
           </div>
+          <Paginator page={page} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo(0, 0) }} />
+          </>
         )}
       </main>
     </div>

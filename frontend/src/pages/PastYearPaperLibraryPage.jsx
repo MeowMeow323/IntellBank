@@ -2,8 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PastYearPaperService, MetadataService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
+import Paginator from '../components/Paginator.jsx'
+import useAuthStore from '../store/authStore'
 import '../styles/document-upload.css'
 import '../styles/modals.css'
+
+const PAGE_SIZE = 10
 
 const STATUS_COLORS = {
   UPLOADED: 'badge-blue',
@@ -60,7 +64,7 @@ const EditForm = ({ values, onChange, onSave, onCancel, isSaving, subjects }) =>
 // ── Library card: view or edit mode ───────────────────────────────────────
 const PaperRow = ({ paper, onProcess, onSettled, onDeleteRequest, navigate,
                     isEditing, editValues, onEditChange, onEditSave, onEditCancel, isSaving,
-                    subjects, onEditRequest }) => {
+                    subjects, onEditRequest, canEdit }) => {
   const [progress, setProgress] = useState(null)
   const isActive = ACTIVE_STATUSES.has(paper.status)
 
@@ -137,24 +141,28 @@ const PaperRow = ({ paper, onProcess, onSettled, onDeleteRequest, navigate,
           </button>
         )}
 
-        <button className="btn btn-secondary" onClick={() => onProcess(paper.pypId)}
-          disabled={isActive} id={`process-pyp-${paper.pypId}`}>
-          {isActive ? 'Processing…'
-            : paper.status === 'FAILED' ? 'Retry'
-            : paper.status === 'PROCESSED' ? 'Reprocess'
-            : 'Process'}
-        </button>
+        {canEdit && (
+          <>
+            <button className="btn btn-secondary" onClick={() => onProcess(paper.pypId)}
+              disabled={isActive} id={`process-pyp-${paper.pypId}`}>
+              {isActive ? 'Processing…'
+                : paper.status === 'FAILED' ? 'Retry'
+                : paper.status === 'PROCESSED' ? 'Reprocess'
+                : 'Process'}
+            </button>
 
-        <button className="btn btn-secondary" onClick={() => onEditRequest(paper)}
-          disabled={isActive} id={`edit-pyp-${paper.pypId}`}>
-          Edit
-        </button>
+            <button className="btn btn-secondary" onClick={() => onEditRequest(paper)}
+              disabled={isActive} id={`edit-pyp-${paper.pypId}`}>
+              Edit
+            </button>
 
-        <button className="btn btn-secondary" onClick={() => onDeleteRequest(paper)}
-          disabled={isActive} id={`delete-pyp-${paper.pypId}`}
-          title="Delete this paper, its extracted questions, and the original PDF">
-          Delete
-        </button>
+            <button className="btn btn-secondary" onClick={() => onDeleteRequest(paper)}
+              disabled={isActive} id={`delete-pyp-${paper.pypId}`}
+              title="Delete this paper, its extracted questions, and the original PDF">
+              Delete
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -163,19 +171,22 @@ const PaperRow = ({ paper, onProcess, onSettled, onDeleteRequest, navigate,
 // ── Main page ──────────────────────────────────────────────────────────────
 const PastYearPaperLibraryPage = () => {
   const navigate = useNavigate()
+  const { isEducatorOrAdmin } = useAuthStore()
+  const canEdit = isEducatorOrAdmin()
   const fileRef = useRef(null)
   const [papers, setPapers]   = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [dragActive, setDragActive] = useState(false)
   const [subjects, setSubjects] = useState([])
 
-  // Sort / filter state
+  // Sort / filter / pagination state
   const [searchTerm,    setSearchTerm]    = useState('')
   const [statusFilter,  setStatusFilter]  = useState('')
   const [subjectFilter, setSubjectFilter] = useState('')
   const [sessionFilter, setSessionFilter] = useState('')
   const [sortField,     setSortField]     = useState('uploadDate')
   const [sortDir,       setSortDir]       = useState('desc')
+  const [page,          setPage]          = useState(1)
 
   // Inline edit state
   const [editingId,   setEditingId]   = useState(null)
@@ -237,6 +248,12 @@ const PastYearPaperLibraryPage = () => {
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [papers, searchTerm, statusFilter, subjectFilter, sessionFilter, sortField, sortDir])
+
+  // Reset to page 1 whenever filters or sort change
+  useEffect(() => { setPage(1) }, [searchTerm, statusFilter, subjectFilter, sessionFilter, sortField, sortDir])
+
+  const totalPages  = Math.max(1, Math.ceil(displayedPapers.length / PAGE_SIZE))
+  const pagedPapers = displayedPapers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -403,9 +420,11 @@ const PastYearPaperLibraryPage = () => {
               Upload past year exam papers, then run OCR + classification to extract questions
             </p>
           </div>
-          <button className="btn btn-primary" id="open-upload-modal" onClick={openUploadModal}>
-            + Upload Paper
-          </button>
+          {canEdit && (
+            <button className="btn btn-primary" id="open-upload-modal" onClick={openUploadModal}>
+              + Upload Paper
+            </button>
+          )}
         </div>
 
         {/* ── Filter + Sort bar ─────────────────────────────────────────── */}
@@ -453,7 +472,8 @@ const PastYearPaperLibraryPage = () => {
               )
             })}
             <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-              {displayedPapers.length} of {papers.length} paper{papers.length !== 1 ? 's' : ''}
+              {displayedPapers.length} paper{displayedPapers.length !== 1 ? 's' : ''}
+              {displayedPapers.length !== papers.length ? ` (filtered from ${papers.length})` : ''}
             </span>
           </div>
         </div>
@@ -478,22 +498,27 @@ const PastYearPaperLibraryPage = () => {
             </button>
           </p>
         ) : (
-          <div className="flex flex-col gap-3">
-            {displayedPapers.map(paper => (
-              <PaperRow key={paper.pypId} paper={paper}
-                onProcess={triggerProcessing} onSettled={loadPapers}
-                onDeleteRequest={requestDelete} navigate={navigate}
-                isEditing={editingId === paper.pypId}
-                editValues={editValues}
-                onEditChange={handleEditChange}
-                onEditSave={saveEdit}
-                onEditCancel={cancelEdit}
-                isSaving={isSaving}
-                subjects={subjects}
-                onEditRequest={startEdit}
-              />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-col gap-3">
+              {pagedPapers.map(paper => (
+                <PaperRow key={paper.pypId} paper={paper}
+                  onProcess={triggerProcessing} onSettled={loadPapers}
+                  onDeleteRequest={requestDelete} navigate={navigate}
+                  isEditing={editingId === paper.pypId}
+                  editValues={editValues}
+                  onEditChange={handleEditChange}
+                  onEditSave={saveEdit}
+                  onEditCancel={cancelEdit}
+                  isSaving={isSaving}
+                  subjects={subjects}
+                  onEditRequest={startEdit}
+                  canEdit={canEdit}
+                />
+              ))}
+            </div>
+
+            <Paginator page={page} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo(0, 0) }} />
+          </>
         )}
 
         {/* ── Upload Modal ──────────────────────────────────────────────── */}

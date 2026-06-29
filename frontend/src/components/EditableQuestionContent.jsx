@@ -10,7 +10,7 @@ import '../styles/question-content.css'
  * (parent owns the actual API call + list-state update); this component
  * only owns the edit-mode UI and draft state.
  */
-const EditableQuestionContent = ({ content, marks, originalFileUrl, onSave }) => {
+const EditableQuestionContent = ({ content, marks, originalFileUrl, onSave, readOnly = false }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [draftContent, setDraftContent] = useState(content)
   const [draftMarks, setDraftMarks] = useState(marks ?? 1)
@@ -86,7 +86,7 @@ const EditableQuestionContent = ({ content, marks, originalFileUrl, onSave }) =>
           <span className="question-marks-card-value">{marks ?? 1}</span>
           <span className="question-marks-card-label">mark{marks !== 1 ? 's' : ''}</span>
         </div>
-        <button className="btn btn-secondary" onClick={startEdit}>Edit</button>
+        {!readOnly && <button className="btn btn-secondary" onClick={startEdit}>Edit</button>}
       </div>
     </>
   )
