@@ -14,8 +14,13 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
 
-  // Notice shown when the response interceptor bounced us here on token expiry.
-  const sessionExpired = new URLSearchParams(location.search).get('expired') === '1'
+  // Notice shown when we were bounced here on token expiry (interceptor) or after
+  // being signed out for inactivity (useSessionTimeout → ?expired=inactivity).
+  const expiredReason = new URLSearchParams(location.search).get('expired')
+  const sessionExpired = expiredReason === '1' || expiredReason === 'inactivity'
+  const expiredMessage = expiredReason === 'inactivity'
+    ? 'Your session has expired due to inactivity. Please log in again.'
+    : 'Your session expired. Please sign in again.'
 
   // Where to send the user after login: the page they were blocked from, or dashboard.
   const redirectTo = location.state?.from?.pathname || '/dashboard'
@@ -46,7 +51,7 @@ const LoginPage = () => {
 
         {sessionExpired && !error && (
           <div className="alert alert-info" id="login-expired">
-            Your session expired. Please sign in again.
+            {expiredMessage}
           </div>
         )}
 

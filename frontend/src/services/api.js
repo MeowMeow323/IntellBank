@@ -11,6 +11,10 @@ const api = axios.create({
 // Reads check both so the rest of the app doesn't care which was used.
 const TOKEN_KEY = 'intellbank_token'
 const USER_KEY = 'intellbank_user'
+// Timestamp of the user's last interaction — always in localStorage so every tab
+// shares one idle window. Seeded on login and cleared on logout so it stays in
+// lockstep with the token (consumed by useSessionTimeout for the 90-min timeout).
+const ACTIVITY_KEY = 'intellbank_last_activity'
 
 const tokenStorage = {
   getToken: () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY),
@@ -22,13 +26,25 @@ const tokenStorage = {
     store.setItem(USER_KEY, JSON.stringify(user))
     other.removeItem(TOKEN_KEY)
     other.removeItem(USER_KEY)
+    // Fresh login starts a fresh idle window.
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now()))
   },
   clear: () => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_KEY)
+    localStorage.removeItem(ACTIVITY_KEY)
   },
+}
+
+// ── Session Inactivity Tracking ─────────────────────────────────────────────────
+// Read/write helper for the shared "last activity" timestamp above. Used by
+// useSessionTimeout to enforce the 90-minute idle logout (NFR Security / UC_002).
+export const activityTracker = {
+  touch: () => { try { localStorage.setItem(ACTIVITY_KEY, String(Date.now())) } catch (e) { /* storage blocked */ } },
+  last: () => { const v = localStorage.getItem(ACTIVITY_KEY); return v ? Number(v) : null },
+  clear: () => { try { localStorage.removeItem(ACTIVITY_KEY) } catch (e) { /* ignore */ } },
 }
 
 // Attach JWT token to every outgoing request
