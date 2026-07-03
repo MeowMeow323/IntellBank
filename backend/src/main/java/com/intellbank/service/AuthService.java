@@ -4,6 +4,7 @@ import com.intellbank.entity.*;
 import com.intellbank.exception.AppException;
 import com.intellbank.repository.*;
 import com.intellbank.config.JwtUtil;
+import com.intellbank.util.PasswordPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,7 +66,7 @@ public class AuthService {
         if (email == null || email.isBlank()) {
             throw new AppException("Email is required", HttpStatus.BAD_REQUEST);
         }
-        validatePassword(password);
+        PasswordPolicy.validate(password);
 
         // Case-insensitive duplicate check
         if (userRepository.existsByEmailIgnoreCase(email)) {
@@ -173,7 +174,7 @@ public class AuthService {
         if (token == null || token.isBlank()) {
             throw new AppException("Reset token is required", HttpStatus.BAD_REQUEST);
         }
-        validatePassword(newPassword);
+        PasswordPolicy.validate(newPassword);
 
         PasswordResetToken prt = passwordResetTokenRepository.findByTokenHash(sha256Hex(token))
                 .orElseThrow(() -> new AppException(
@@ -206,19 +207,6 @@ public class AuthService {
             "fullName", user.getFullName() != null ? user.getFullName() : "",
             "role",     user.getRole()
         );
-    }
-
-    /** Password policy: at least 8 characters, containing a letter and a number. */
-    private void validatePassword(String password) {
-        if (password == null || password.length() < 8) {
-            throw new AppException("Password must be at least 8 characters", HttpStatus.BAD_REQUEST);
-        }
-        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
-        boolean hasDigit  = password.chars().anyMatch(Character::isDigit);
-        if (!hasLetter || !hasDigit) {
-            throw new AppException("Password must contain at least one letter and one number",
-                    HttpStatus.BAD_REQUEST);
-        }
     }
 
     private static String generateRawToken() {

@@ -264,6 +264,13 @@ export const SpecializationService = {
     api.put(`/api/admin/specializations/educators/${educatorId}`, { subjectIds }),
 }
 
+// ── Admin User Service (admin only) ───────────────────────────────────────────
+export const AdminUserService = {
+  getAll: () => api.get('/api/admin/users'),
+  create: (data) => api.post('/api/admin/users', data),
+  update: (userId, data) => api.put(`/api/admin/users/${userId}`, data),
+}
+
 // ── AI Gateway Service ────────────────────────────────────────────────────────
 export const AIService = {
   generatePaper: (data) => api.post('/api/ai/generate/paper', data),

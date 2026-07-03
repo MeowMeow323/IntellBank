@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3, Send, LogOut,
-  CheckSquare, FileText, Tags, Users, ShieldCheck, TrendingUp,
+  CheckSquare, FileText, Tags, Users, ShieldCheck, TrendingUp, UserCog,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import '../../styles/sidebar.css'
@@ -31,6 +31,7 @@ const EDUCATOR_ITEMS = [
 
 const ADMIN_ITEMS = [
   { path: '/admin/specializations', label: 'Specializations', Icon: ShieldCheck },
+  { path: '/admin/users', label: 'Admin Users', Icon: UserCog },
 ]
 
 const Sidebar = () => {

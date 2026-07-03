@@ -20,6 +20,7 @@ import SubmissionsPage from '../pages/SubmissionsPage.jsx'
 import EducatorAnalysisPage from '../pages/EducatorAnalysisPage.jsx'
 import SubjectAnalysisPage from '../pages/SubjectAnalysisPage.jsx'
 import AdminSpecializationsPage from '../pages/AdminSpecializationsPage.jsx'
+import AdminUsersPage from '../pages/AdminUsersPage.jsx'
 
 /**
  * ProtectedRoute – redirects to /login if the user is not authenticated.
@@ -171,6 +172,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <AdminSpecializationsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <AdminUsersPage />
           </ProtectedRoute>
         }
       />
