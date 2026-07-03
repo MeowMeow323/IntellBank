@@ -2,7 +2,14 @@
 
 .sidebar {
   width: 240px;
-  min-height: 100vh;
+  /* Pin to the viewport so a long page can't stretch the sidebar down with it.
+     align-self:flex-start stops the flex row from stretching it; sticky keeps it
+     in view while the page scrolls; its own overflow handles a tall nav. */
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  overflow-y: auto;
   background: var(--color-bg-secondary);
   border-right: 1px solid var(--color-border);
   display: flex;

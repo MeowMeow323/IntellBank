@@ -84,15 +84,6 @@
   .pa-subject-wrap { width: 100%; }
 }
 
-/* ── Educator Class Analysis page (.ea-*) ───────────────────────────────── */
-.ea-stack { display: flex; flex-direction: column; gap: 1.5rem; max-width: 860px; }
-.ea-subject-wrap { display: flex; flex-direction: column; gap: 0.3rem; min-width: 240px; }
-.ea-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-.ea-select {
-  padding: 0.5rem 0.85rem; border-radius: var(--radius-md); border: 1px solid var(--border);
-  background: var(--bg-surface); color: var(--text); font-size: 0.9rem; cursor: pointer;
-}
-
 /* ── Class Mastery Matrix heat map (.cm-*) ──────────────────────────────── */
 .cm-empty { color: var(--text-muted); font-size: 0.9rem; }
 .cm-axis { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-subtle); margin-bottom: 0.4rem; }
@@ -147,3 +138,25 @@
 .cw-topic { font-weight: 600; font-size: 0.88rem; color: var(--text); }
 .cw-sub { font-size: 0.76rem; color: var(--text-muted); margin-top: 0.15rem; }
 .cw-model { margin-top: 0.85rem; font-size: 0.72rem; color: var(--text-subtle); font-style: italic; }
+
+/* ── Shared analytics KPI stat row (student + educator/admin) ─────────────── */
+.an-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+.an-stat {
+  background: var(--color-bg-secondary); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 1rem 1.1rem;
+}
+.an-stat-value {
+  font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+  color: var(--color-text-primary); font-variant-numeric: tabular-nums;
+}
+.an-stat-label {
+  font-size: 0.72rem; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.4rem;
+}
+.an-stat-sub {
+  font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.15rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.1em;
+}
+/* Full-width chart card sits below the two-column grid on both pages. */
+.an-chart-card { margin-top: 1.5rem; }
+@media (max-width: 900px) { .an-stats { grid-template-columns: repeat(2, 1fr); } }
