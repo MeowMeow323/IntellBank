@@ -2,9 +2,10 @@ import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, ClipboardList, BarChart3, Send, LogOut,
-  CheckSquare, FileText, Tags, Users, ShieldCheck, TrendingUp, UserCog,
+  CheckSquare, FileText, Tags, Users, ShieldCheck, TrendingUp, UserCog, Sun, Moon,
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
+import useThemeStore from '../../store/themeStore'
 import '../../styles/sidebar.css'
 
 const ICON_SIZE = 18
@@ -37,6 +38,8 @@ const ADMIN_ITEMS = [
 const Sidebar = () => {
   const navigate = useNavigate()
   const { user, logout, isEducatorOrAdmin } = useAuthStore()
+  const theme = useThemeStore((s) => s.theme)
+  const toggleTheme = useThemeStore((s) => s.toggle)
 
   const handleLogout = () => {
     logout()
@@ -131,6 +134,18 @@ const Sidebar = () => {
           </>
         )}
       </nav>
+
+      {/* Theme toggle */}
+      <button
+        className="sidebar-theme"
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        <span className="sidebar-nav-icon">
+          {theme === 'dark' ? <Sun size={ICON_SIZE} /> : <Moon size={ICON_SIZE} />}
+        </span>
+        {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      </button>
 
       {/* Logout */}
       <button

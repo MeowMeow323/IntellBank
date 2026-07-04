@@ -98,6 +98,44 @@
 
   /* Signature easing for entrances (cubic ease-out) */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: light;
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────────
+   Redefine only the PRIMITIVE tokens; every alias built on var(--…) (surfaces,
+   --text, --border, the --color-* legacy names) updates automatically. Applied
+   via data-theme="dark" on <html>. The Workspace document sheet stays white by
+   design (like a print preview). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper:     #1B1F29;   /* cards / surfaces */
+  --desk:      #12151C;   /* page background */
+  --inset:     #232A38;   /* insets, tracks, hover fills */
+  --ink:       #E6EAF2;   /* primary text */
+  --ink-soft:  #9BA7BA;   /* secondary text */
+  --ink-faint: #6C7789;   /* tertiary / captions */
+  --rule:      #2B3341;   /* hairline borders */
+
+  /* Lift the accent so it reads on the dark surface */
+  --accent:           #5B8CFF;
+  --accent-secondary: #7BA0FF;
+  --accent-hover:     #7BA0FF;
+  --accent-soft:      rgba(91, 140, 255, 0.16);
+  --accent-border:    rgba(91, 140, 255, 0.42);
+
+  /* Status: brighter foregrounds + translucent tints for a dark surface */
+  --success: #4ADE80;  --success-soft: rgba(34, 197, 94, 0.18);
+  --warning: #FBBF24;  --warning-soft: rgba(245, 158, 11, 0.18);
+  --danger:  #F87171;  --danger-soft:  rgba(248, 113, 113, 0.18);
+  --info:    #38BDF8;  --info-soft:    rgba(56, 189, 248, 0.18);
+
+  /* Softer, deeper shadows read better on dark */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.50);
+  --shadow-xl: 0 20px 30px rgba(0, 0, 0, 0.55);
 }
 
 /* ---- Reset ---- */
