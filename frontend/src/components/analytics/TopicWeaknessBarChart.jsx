@@ -4,29 +4,34 @@ import {
   CartesianGrid, Tooltip, Legend, LabelList,
 } from 'recharts'
 import { AnalyticsService } from '../../services/api'
+import useThemeStore from '../../store/themeStore'
 
 /**
  * Topic-weakness comparison as a grouped horizontal bar chart, ranked weakest-first.
  * - With `mine` (an array of {topicName, score}) → two series: You vs Class average.
  * - Without `mine` (educator view) → a single Class-average series.
  *
- * Colours are validated colourblind-safe (see dataviz palette check):
- *   You  = #0052FF   Class = #C2410C
- * Identity is never colour-alone: a legend is always shown and every bar is
- * direct-labelled with its %.
+ * Colours are validated colourblind-safe and theme-aware. Identity is never
+ * colour-alone: a legend is always shown and every bar is direct-labelled with its %.
  */
-const YOU_COLOR = '#0052FF'
-const CLASS_COLOR = '#C2410C'
-const GRID = '#e6e8eb'
-const INK = '#1e293b'
-const MUTED = '#64748b'
-
 const label = (name) => (name === 'you' ? 'You' : 'Class avg')
 
 export default function TopicWeaknessBarChart({ subject, mine }) {
   const showMine = Array.isArray(mine)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const dark = useThemeStore((s) => s.theme) === 'dark'
+
+  // Theme-aware chart colours (series colours stay contrast-safe on both surfaces).
+  const YOU_COLOR = dark ? '#5B8CFF' : '#0052FF'
+  const CLASS_COLOR = dark ? '#F97316' : '#C2410C'
+  const GRID = dark ? '#2B3341' : '#e6e8eb'
+  const INK = dark ? '#E6EAF2' : '#1e293b'
+  const MUTED = dark ? '#9BA7BA' : '#64748b'
+  const tooltipStyle = {
+    background: dark ? '#1B1F29' : '#ffffff',
+    border: `1px solid ${GRID}`, borderRadius: 8, color: INK,
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -102,7 +107,10 @@ export default function TopicWeaknessBarChart({ subject, mine }) {
             tick={{ fill: INK, fontSize: 12 }} axisLine={false} tickLine={false}
           />
           <Tooltip
-            cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+            cursor={{ fill: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}
+            contentStyle={tooltipStyle}
+            labelStyle={{ color: INK }}
+            itemStyle={{ color: INK }}
             formatter={(v, n) => [v == null ? '—' : `${v}%`, label(n)]}
           />
           <Legend formatter={(v) => label(v)} />
