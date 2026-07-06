@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Search } from 'lucide-react'
 import { SpecializationService } from '../services/api'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
@@ -15,6 +16,8 @@ export default function AdminSpecializationsPage() {
   const [checked, setChecked] = useState(() => new Set())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [educatorQuery, setEducatorQuery] = useState('')
+  const [subjectQuery, setSubjectQuery] = useState('')
 
   useEffect(() => { load() }, [])
 
@@ -34,6 +37,20 @@ export default function AdminSpecializationsPage() {
     () => educators.find((e) => e.educatorId === activeId) || null,
     [educators, activeId]
   )
+
+  const filteredEducators = useMemo(() => {
+    const q = educatorQuery.trim().toLowerCase()
+    if (!q) return educators
+    return educators.filter((e) =>
+      (e.fullName || '').toLowerCase().includes(q) ||
+      (e.email || '').toLowerCase().includes(q))
+  }, [educators, educatorQuery])
+
+  const filteredSubjects = useMemo(() => {
+    const q = subjectQuery.trim().toLowerCase()
+    if (!q) return subjects
+    return subjects.filter((s) => s.name.toLowerCase().includes(q))
+  }, [subjects, subjectQuery])
 
   const selectEducator = (e) => {
     setActiveId(e.educatorId)
@@ -80,21 +97,36 @@ export default function AdminSpecializationsPage() {
         ) : (
           <div className="spec-grid">
             {/* Educator list */}
-            <div className="card spec-list">
-              {educators.length === 0
-                ? <p style={{ color: 'var(--color-text-muted)' }}>No educators found.</p>
-                : educators.map((e) => (
-                  <button
-                    key={e.educatorId}
-                    className={`spec-edu ${activeId === e.educatorId ? 'active' : ''}`}
-                    onClick={() => selectEducator(e)}
-                  >
-                    <div className="spec-edu-name">{e.fullName || e.email || 'Educator'}</div>
-                    <div className="spec-edu-sub">
-                      {e.email} · {(e.subjectIds?.length || 0)} subject{(e.subjectIds?.length || 0) !== 1 ? 's' : ''}
-                    </div>
-                  </button>
-                ))}
+            <div className="card spec-col">
+              <div className="spec-search">
+                <Search size={15} />
+                <input
+                  type="text"
+                  placeholder="Search educators…"
+                  value={educatorQuery}
+                  onChange={(e) => setEducatorQuery(e.target.value)}
+                />
+              </div>
+              <div className="spec-list">
+                {educators.length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)' }}>No educators found.</p>
+                ) : filteredEducators.length === 0 ? (
+                  <p style={{ color: 'var(--color-text-muted)' }}>No educators match "{educatorQuery}".</p>
+                ) : (
+                  filteredEducators.map((e) => (
+                    <button
+                      key={e.educatorId}
+                      className={`spec-edu ${activeId === e.educatorId ? 'active' : ''}`}
+                      onClick={() => selectEducator(e)}
+                    >
+                      <div className="spec-edu-name">{e.fullName || e.email || 'Educator'}</div>
+                      <div className="spec-edu-sub">
+                        {e.email} · {(e.subjectIds?.length || 0)} subject{(e.subjectIds?.length || 0) !== 1 ? 's' : ''}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Subject assignment */}
@@ -108,11 +140,23 @@ export default function AdminSpecializationsPage() {
                     Tick the subjects this educator is responsible for.
                   </p>
 
+                  <div className="spec-search" style={{ marginBottom: '0.85rem' }}>
+                    <Search size={15} />
+                    <input
+                      type="text"
+                      placeholder="Search subjects…"
+                      value={subjectQuery}
+                      onChange={(e) => setSubjectQuery(e.target.value)}
+                    />
+                  </div>
+
                   {subjects.length === 0 ? (
                     <p style={{ color: 'var(--color-text-muted)' }}>No subjects exist yet.</p>
+                  ) : filteredSubjects.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)' }}>No subjects match "{subjectQuery}".</p>
                   ) : (
                     <div className="spec-checks">
-                      {subjects.map((s) => (
+                      {filteredSubjects.map((s) => (
                         <label key={s.subjectId} className="spec-check">
                           <input
                             type="checkbox"
@@ -140,7 +184,17 @@ export default function AdminSpecializationsPage() {
 
       <style>{`
         .spec-grid { display: grid; grid-template-columns: 280px 1fr; gap: 1.25rem; align-items: start; }
-        .spec-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: calc(100vh - 220px); overflow-y: auto; }
+        .spec-col { display: flex; flex-direction: column; gap: 0.75rem; }
+        .spec-search {
+          display: flex; align-items: center; gap: 0.5rem;
+          border: 1px solid var(--color-border); border-radius: var(--radius-md);
+          padding: 0.45rem 0.75rem; color: var(--color-text-muted);
+        }
+        .spec-search input {
+          border: none; outline: none; background: transparent; width: 100%;
+          font-family: inherit; font-size: 0.85rem; color: var(--color-text-primary);
+        }
+        .spec-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: calc(100vh - 280px); overflow-y: auto; }
         .spec-edu {
           text-align: left; width: 100%; background: var(--color-bg-secondary);
           border: 1px solid var(--color-border); border-radius: var(--radius-md);

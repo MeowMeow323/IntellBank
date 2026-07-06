@@ -10,7 +10,6 @@ import ResetPasswordPage from '../pages/ResetPasswordPage.jsx'
 import DashboardPage from '../pages/DashboardPage.jsx'
 import WorkspacePage from '../pages/WorkspacePage.jsx'
 import DocumentUploadPage from '../pages/DocumentUploadPage.jsx'
-import QuestionBankPage from '../pages/QuestionBankPage.jsx'
 import VerificationPage from '../pages/VerificationPage.jsx'
 import PredictiveAnalyticsPage from '../pages/PredictiveAnalyticsPage.jsx'
 import PastYearPaperLibraryPage from '../pages/PastYearPaperLibraryPage.jsx'
@@ -90,14 +89,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <DocumentUploadPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/questions"
-        element={
-          <ProtectedRoute>
-            <QuestionBankPage />
           </ProtectedRoute>
         }
       />

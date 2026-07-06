@@ -270,7 +270,6 @@ const DashboardPage = () => {
               { Icon: CheckSquare, label: 'Verification Queue', desc: 'Grade student submissions and verify AI-generated solutions.', path: '/verification' },
               { Icon: FileText, label: 'Past Year Papers', desc: 'Upload and manage past year examination papers for practice.', path: '/past-year-papers' },
               { Icon: Tags, label: 'Subjects & Topics', desc: 'Manage subjects and topics used across the question bank.', path: '/subjects-topics' },
-              { Icon: ClipboardList, label: 'Question Bank', desc: 'Browse and manage all questions in the system.', path: '/questions' },
             ].map((card) => (
               <div
                 key={card.path}

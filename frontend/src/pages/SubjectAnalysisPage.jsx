@@ -9,12 +9,9 @@ import Sidebar from '../components/layout/Sidebar.jsx'
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DIFF_COLORS  = { easy: '#5AB552', medium: '#F4C430', hard: '#E04A3F', untagged: '#94a3b8' }
 const LINE_PALETTE = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#ef4444', '#14b8a6']
-const PAPER_LIMIT_OPTIONS = [
-  { label: 'All papers',     value: null },
-  { label: '5 latest',       value: 5  },
-  { label: '10 latest',      value: 10 },
-  { label: '20 latest',      value: 20 },
-]
+const TIER_COLORS  = { High: '#10b981', Medium: '#F4C430', Low: '#94a3b8' }
+const PAPER_TIERS  = [3, 5, 8, 10]
+const DEFAULT_PAPER_LIMIT = PAPER_TIERS[PAPER_TIERS.length - 1]
 
 const truncate = (str, n = 18) => str.length > n ? str.slice(0, n - 1) + '…' : str
 
@@ -72,13 +69,22 @@ const SessionChip = ({ title, examSession }) => (
 export default function SubjectAnalysisPage() {
   const [subjects, setSubjects]     = useState([])
   const [subject, setSubject]       = useState('')
-  const [paperLimit, setPaperLimit] = useState(null)      // null = all
+  const [paperLimit, setPaperLimit] = useState(DEFAULT_PAPER_LIMIT)
+  const [referenceTotal, setReferenceTotal] = useState(null) // known paper count for `subject`, probed at DEFAULT_PAPER_LIMIT
   const [freq, setFreq]             = useState(null)
   const [trend, setTrend]           = useState(null)
   const [loading, setLoading]       = useState(false)
   const [trendLoading, setTrendLoading] = useState(false)
   const [error, setError]           = useState('')
   const [trendTopics, setTrendTopics]   = useState([])
+  const [predictions, setPredictions]   = useState(null)
+  const [predictionsLoading, setPredictionsLoading] = useState(false)
+
+  const handleSubjectChange = (value) => {
+    setSubject(value)
+    setPaperLimit(DEFAULT_PAPER_LIMIT)
+    setReferenceTotal(null)
+  }
 
   // ── Load subjects once ────────────────────────────────────────────────────
   useEffect(() => {
@@ -103,6 +109,9 @@ export default function SubjectAnalysisPage() {
         if (data.error) { setError(data.error); return }
         setFreq(data)
         setTrendTopics((data.topics || []).slice(0, 5).map(t => t.name))
+        // The probe fetch (at the largest tier) tells us how many papers actually exist:
+        // fewer than the limit returned means we've seen the true total.
+        if (limit === DEFAULT_PAPER_LIMIT) setReferenceTotal(data.total_papers ?? 0)
       })
       .catch(() => setError('Failed to load topic data.'))
       .finally(() => setLoading(false))
@@ -122,6 +131,32 @@ export default function SubjectAnalysisPage() {
     loadFreq(subject, paperLimit)
     loadTrend(subject, paperLimit)
   }, [subject, paperLimit, loadFreq, loadTrend])
+
+  // ── Which paper-count tiers make sense for this subject ───────────────────
+  const paperTierOptions = React.useMemo(() => {
+    if (referenceTotal == null) return PAPER_TIERS.map(t => ({ value: t, label: `${t} latest` }))
+    const valid = PAPER_TIERS.filter(t => t <= referenceTotal)
+    if (valid.length) return valid.map(t => ({ value: t, label: `${t} latest` }))
+    return referenceTotal > 0 ? [{ value: referenceTotal, label: `All (${referenceTotal})` }] : []
+  }, [referenceTotal])
+
+  // Once the real total is known, snap the selected limit down if it's no longer valid.
+  useEffect(() => {
+    if (referenceTotal == null || !paperTierOptions.length) return
+    const validValues = paperTierOptions.map(o => o.value)
+    if (!validValues.includes(paperLimit)) setPaperLimit(validValues[validValues.length - 1])
+  }, [referenceTotal, paperTierOptions, paperLimit])
+
+  // ── Predicted topics for the next exam ────────────────────────────────────
+  useEffect(() => {
+    if (!subject) return
+    setPredictionsLoading(true)
+    setPredictions(null)
+    AnalyticsService.getPredictedTopics(subject)
+      .then(res => setPredictions(res.data?.predictions || []))
+      .catch(() => setPredictions([]))
+      .finally(() => setPredictionsLoading(false))
+  }, [subject])
 
   // ── Trend chart data ──────────────────────────────────────────────────────
   const trendData = React.useMemo(() => {
@@ -164,7 +199,7 @@ export default function SubjectAnalysisPage() {
             {/* Subject */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 220 }}>
               <label style={labelStyle}>Subject</label>
-              <select value={subject} onChange={e => setSubject(e.target.value)} style={selectStyle}>
+              <select value={subject} onChange={e => handleSubjectChange(e.target.value)} style={selectStyle}>
                 {subjects.length === 0
                   ? <option value={subject}>{subject || 'Loading…'}</option>
                   : subjects.map(s => <option key={s} value={s}>{s}</option>)
@@ -173,18 +208,20 @@ export default function SubjectAnalysisPage() {
             </div>
 
             {/* Paper limit */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 140 }}>
-              <label style={labelStyle}>Past Papers</label>
-              <select
-                value={paperLimit === null ? '' : paperLimit}
-                onChange={e => setPaperLimit(e.target.value === '' ? null : Number(e.target.value))}
-                style={selectStyle}
-              >
-                {PAPER_LIMIT_OPTIONS.map(o => (
-                  <option key={o.label} value={o.value === null ? '' : o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
+            {paperTierOptions.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 140 }}>
+                <label style={labelStyle}>Past Papers</label>
+                <select
+                  value={paperLimit}
+                  onChange={e => setPaperLimit(Number(e.target.value))}
+                  style={selectStyle}
+                >
+                  {paperTierOptions.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
@@ -207,6 +244,44 @@ export default function SubjectAnalysisPage() {
             {error}
           </div>
         )}
+
+        {/* ── Predicted topics for the next exam ───────────────────────────── */}
+        <div className="card" style={{ marginBottom: '1.5rem' }}>
+          <h3 className="chart-title">Predicted Topics — {subject || '—'}</h3>
+          <p style={subStyle}>Topics most likely to appear in the next exam, ranked by confidence from historical frequency and recency.</p>
+          {predictionsLoading ? (
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Loading predictions…</p>
+          ) : !predictions?.length ? (
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>No prediction data available for this subject yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {predictions.map((p, i) => {
+                const color = TIER_COLORS[p.tier] || TIER_COLORS.Low
+                return (
+                  <div key={p.topic} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)',
+                  }}>
+                    <span style={{ fontWeight: 700, color: 'var(--color-text-muted)', fontSize: '0.8rem', width: 22, flexShrink: 0 }}>#{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {p.topic}
+                        {p.predicted_next_year && <span title="Likely to appear in the next exam" style={{ fontSize: '0.75rem', color: '#f59e0b' }}>★</span>}
+                      </div>
+                      <div style={{ height: 6, borderRadius: 999, background: 'var(--color-border)', marginTop: 5, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.round(p.confidence * 100)}%`, height: '100%', background: color }} />
+                      </div>
+                    </div>
+                    <span className="badge" style={{ background: `${color}22`, color, fontWeight: 700, fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {Math.round(p.confidence * 100)}% · {p.tier}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <p style={{ color: 'var(--color-text-muted)' }}>Loading analysis…</p>

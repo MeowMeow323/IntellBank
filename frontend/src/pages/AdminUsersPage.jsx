@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { AdminUserService } from '../services/api'
 import useAuthStore from '../store/authStore'
 import Sidebar from '../components/layout/Sidebar.jsx'
@@ -6,6 +7,20 @@ import '../styles/modals.css'
 
 const ROLES = ['STUDENT', 'EDUCATOR', 'ADMIN']
 const ROLE_BADGE = { STUDENT: 'badge-blue', EDUCATOR: 'badge-purple', ADMIN: 'badge-red' }
+
+const SORT_COLUMNS = [
+  { key: 'fullName',  label: 'Name' },
+  { key: 'email',     label: 'Email' },
+  { key: 'role',      label: 'Role' },
+  { key: 'isActive',  label: 'Status' },
+  { key: 'createdAt', label: 'Created' },
+]
+
+const sortValue = (u, key) => {
+  if (key === 'isActive') return u.isActive ? 1 : 0
+  if (key === 'createdAt') return u.createdAt ? new Date(u.createdAt).getTime() : 0
+  return (u[key] || '').toString().toLowerCase()
+}
 
 // Mirrors the backend's PasswordPolicy: at least 8 characters, a letter, and a number.
 const passwordChecks = (pw) => ({
@@ -26,6 +41,8 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState('fullName')
+  const [sortDir, setSortDir] = useState('asc')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState(emptyCreateForm)
@@ -57,12 +74,29 @@ export default function AdminUsersPage() {
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return users
-    return users.filter((u) =>
+    const base = !q ? users : users.filter((u) =>
       (u.fullName || '').toLowerCase().includes(q) ||
       (u.email || '').toLowerCase().includes(q) ||
       (u.role || '').toLowerCase().includes(q))
-  }, [users, search])
+
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...base].sort((a, b) => {
+      const av = sortValue(a, sortKey)
+      const bv = sortValue(b, sortKey)
+      if (av < bv) return -1 * dir
+      if (av > bv) return 1 * dir
+      return 0
+    })
+  }, [users, search, sortKey, sortDir])
+
+  const handleSort = (key) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   // ── Create ───────────────────────────────────────────────────────────────
   const openCreate = () => { setCreateForm(emptyCreateForm); setCreateError(''); setIsCreateOpen(true) }
@@ -128,7 +162,7 @@ export default function AdminUsersPage() {
       <main className="main-content">
         <div className="page-header flex justify-between items-center">
           <div>
-            <h1 className="page-title">Admin Users</h1>
+            <h1 className="page-title">Manage Users</h1>
             <p className="page-subtitle">Create, edit, and deactivate user accounts of any role.</p>
           </div>
           <button className="btn btn-primary" onClick={openCreate}>+ Add User</button>
@@ -150,7 +184,20 @@ export default function AdminUsersPage() {
           <div className="card admin-users-table-wrap">
             <table className="admin-users-table">
               <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th /></tr>
+                <tr>
+                  {SORT_COLUMNS.map((col) => {
+                    const active = sortKey === col.key
+                    const Icon = active ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+                    return (
+                      <th key={col.key}>
+                        <button type="button" className={`admin-users-sort ${active ? 'active' : ''}`} onClick={() => handleSort(col.key)}>
+                          {col.label} <Icon size={13} />
+                        </button>
+                      </th>
+                    )
+                  })}
+                  <th />
+                </tr>
               </thead>
               <tbody>
                 {filteredUsers.map((u) => (
@@ -342,6 +389,13 @@ export default function AdminUsersPage() {
         .admin-users-table th, .admin-users-table td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--color-border); }
         .admin-users-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
         .admin-users-you { color: var(--color-text-muted); font-size: 0.78rem; }
+        .admin-users-sort {
+          display: inline-flex; align-items: center; gap: 0.3rem;
+          background: none; border: none; padding: 0; cursor: pointer;
+          font: inherit; font-weight: 600; color: var(--color-text-muted);
+        }
+        .admin-users-sort:hover { color: var(--color-text-primary); }
+        .admin-users-sort.active { color: var(--color-primary); }
       `}</style>
     </div>
   )
