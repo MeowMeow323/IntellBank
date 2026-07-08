@@ -336,6 +336,9 @@ function SolutionVerification() {
   const [page, setPage] = useState(1)
   const [rejectId, setRejectId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')       // ALL | PENDING | APPROVED
+  const [subjectFilter, setSubjectFilter] = useState('ALL')
+  const [difficultyFilter, setDifficultyFilter] = useState('ALL')
 
   useEffect(() => { fetchPending() }, [])
 
@@ -348,7 +351,7 @@ function SolutionVerification() {
   }
 
   const approve = async (id) => {
-    try { await VerificationService.approve(id); setSolutions((s) => s.filter((x) => x.solutionId !== id)); toast('Solution approved.', 'success') }
+    try { await VerificationService.approve(id); await fetchPending(); toast('Solution approved.', 'success') }
     catch { toast('Failed to approve.', 'error') }
   }
 
@@ -370,23 +373,61 @@ function SolutionVerification() {
     catch { toast('Failed to save edit.', 'error') }
   }
 
-  if (loading) return <p className="vf-empty">Loading pending solutions…</p>
-  if (solutions.length === 0) return <p className="vf-empty">✓ No solutions pending verification.</p>
+  if (loading) return <p className="vf-empty">Loading AI solutions…</p>
+  if (solutions.length === 0) return <p className="vf-empty">✓ No AI solutions to review.</p>
 
-  const totalPages  = Math.max(1, Math.ceil(solutions.length / SOL_PAGE_SIZE))
-  const pagedSols   = solutions.slice((page - 1) * SOL_PAGE_SIZE, page * SOL_PAGE_SIZE)
+  // Filter options derived from the loaded solutions.
+  const subjects = [...new Set(solutions.map((s) => s.subject).filter(Boolean))].sort()
+  const difficulties = [...new Set(solutions.map((s) => s.difficulty).filter(Boolean))].sort()
+
+  const visible = solutions
+    .filter((s) => statusFilter === 'ALL'
+      || (statusFilter === 'APPROVED' ? s.isVerified : !s.isVerified))
+    .filter((s) => subjectFilter === 'ALL' || s.subject === subjectFilter)
+    .filter((s) => difficultyFilter === 'ALL' || s.difficulty === difficultyFilter)
+
+  const safePage    = Math.min(page, Math.max(1, Math.ceil(visible.length / SOL_PAGE_SIZE)))
+  const totalPages  = Math.max(1, Math.ceil(visible.length / SOL_PAGE_SIZE))
+  const pagedSols   = visible.slice((safePage - 1) * SOL_PAGE_SIZE, safePage * SOL_PAGE_SIZE)
+
+  const onFilter = (setter) => (e) => { setter(e.target.value); setPage(1) }
 
   return (
     <div className="card">
-      {solutions.length > SOL_PAGE_SIZE && (
-        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-          Showing {(page - 1) * SOL_PAGE_SIZE + 1}–{Math.min(page * SOL_PAGE_SIZE, solutions.length)} of {solutions.length}
-        </p>
-      )}
-      {pagedSols.map((sol) => (
+      <div className="vf-toolbar">
+        <select className="vf-filter" value={statusFilter} onChange={onFilter(setStatusFilter)}>
+          <option value="ALL">All statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved</option>
+        </select>
+        <select className="vf-filter" value={subjectFilter} onChange={onFilter(setSubjectFilter)}>
+          <option value="ALL">All subjects</option>
+          {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="vf-filter" value={difficultyFilter} onChange={onFilter(setDifficultyFilter)}>
+          <option value="ALL">All difficulties</option>
+          {difficulties.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <span style={{ marginLeft: 'auto', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+          {visible.length} solution{visible.length === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      {visible.length === 0 ? (
+        <p className="vf-empty">No solutions match your filters.</p>
+      ) : pagedSols.map((sol) => (
         <div key={sol.solutionId} className="vf-sol" >
-          <div className="vf-queue-title" style={{ marginBottom: '0.5rem' }}>
-            Question: {stripHtml(sol.question?.content || sol.question?.questionId || '')}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '0.5rem' }}>
+            <div className="vf-queue-title">
+              Question: {stripHtml(sol.question?.content || sol.question?.questionId || '')}
+            </div>
+            <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <span className={`badge ${sol.isVerified ? 'badge-green' : 'badge-amber'}`}>
+                {sol.isVerified ? 'Approved' : 'Pending'}
+              </span>
+              {sol.subject && <span className="vf-chip">{sol.subject}</span>}
+              {sol.difficulty && <span className="vf-chip">{sol.difficulty}</span>}
+            </div>
           </div>
           {editId === sol.solutionId ? (
             <>
@@ -411,15 +452,19 @@ function SolutionVerification() {
                 </div>
               )}
               <div className="vf-actions">
-                <button className="vf-btn vf-btn-approve" onClick={() => approve(sol.solutionId)}>Approve</button>
-                <button className="vf-btn vf-btn-reject" onClick={() => openReject(sol.solutionId)}>Reject</button>
+                {!sol.isVerified && (
+                  <button className="vf-btn vf-btn-approve" onClick={() => approve(sol.solutionId)}>Approve</button>
+                )}
+                <button className="vf-btn vf-btn-reject" onClick={() => openReject(sol.solutionId)}>
+                  {sol.isVerified ? 'Revert to pending' : 'Reject'}
+                </button>
                 <button className="vf-btn vf-btn-edit" onClick={() => startEdit(sol)}>Edit</button>
               </div>
             </>
           )}
         </div>
       ))}
-      <Paginator page={page} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo(0, 0) }} />
+      <Paginator page={safePage} totalPages={totalPages} onChange={p => { setPage(p); window.scrollTo(0, 0) }} />
 
       {/* ── Reject-reason modal ──────────────────────────────────────────── */}
       {rejectId && (

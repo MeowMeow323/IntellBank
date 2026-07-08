@@ -52,6 +52,49 @@ public class VerificationService {
         return solutionRepository.findByIsVerifiedFalse();
     }
 
+    /**
+     * Solutions for the AI-verification screen — both PENDING and APPROVED — enriched
+     * with the question's subject and difficulty (for filtering), and gated by the
+     * educator's specializations (admins see all). Strict: an educator with no
+     * specializations sees nothing.
+     */
+    public List<Map<String, Object>> getSolutionsForReview(String email, String role) {
+        boolean admin = SpecializationService.ROLE_ADMIN.equals(role);
+        Set<String> allowed = admin ? null : specializationService.subjectNamesForEducator(email);
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Solution s : solutionRepository.findAll()) {
+            Question q = s.getQuestion();
+            String subject = null, difficulty = null;
+            if (q != null) {
+                List<QuestionTopic> qts = questionTopicRepository.findByQuestionQuestionId(q.getQuestionId());
+                if (!qts.isEmpty()) {
+                    QuestionTopic qt = qts.get(0);
+                    try { subject = qt.getTopic().getSubject().getName(); } catch (Exception ignored) { /* lazy */ }
+                    try { if (qt.getDifficulty() != null) difficulty = qt.getDifficulty().getName(); } catch (Exception ignored) { /* lazy */ }
+                }
+            }
+            // Specialization gate (admins bypass; educators need a matching subject).
+            if (allowed != null && (subject == null || !allowed.contains(subject))) continue;
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("solutionId", s.getSolutionId());
+            m.put("content", s.getContent());
+            m.put("explanation", s.getExplanation());
+            m.put("isVerified", s.getIsVerified());
+            m.put("subject", subject);
+            m.put("difficulty", difficulty);
+            if (q != null) {
+                Map<String, Object> qMap = new LinkedHashMap<>();
+                qMap.put("questionId", q.getQuestionId());
+                qMap.put("content", q.getContent());
+                m.put("question", qMap);
+            }
+            out.add(m);
+        }
+        return out;
+    }
+
     public Solution getById(UUID solutionId) {
         return solutionRepository.findById(solutionId)
                 .orElseThrow(() -> new AppException("Solution not found", HttpStatus.NOT_FOUND));

@@ -51,9 +51,8 @@ public class VerificationController {
     // ── AI-solution verification ──────────────────────────────────────────────
 
     @GetMapping("/pending")
-    public ResponseEntity<List<Map<String, Object>>> getPending() {
-        return ResponseEntity.ok(verificationService.getPendingSolutions()
-                .stream().map(VerificationController::toSolutionDto).collect(Collectors.toList()));
+    public ResponseEntity<List<Map<String, Object>>> getPending(Authentication auth) {
+        return ResponseEntity.ok(verificationService.getSolutionsForReview(emailOf(auth), roleOf(auth)));
     }
 
     @GetMapping("/{solutionId}")
