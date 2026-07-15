@@ -247,3 +247,50 @@
 .pyp-confirm-rows { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
 .pyp-confirm-rows > div { display: flex; justify-content: space-between; gap: 1rem; }
 .pyp-confirm-rows span { color: var(--text-muted); }
+
+/* ── Generate-paper topic rows: weakness badges ───────────────────────────────
+   Two independent signals per topic, deliberately styled apart: the student's own
+   mastery (amber "Weak"), and the cohort Class-Weakness model's tier (violet). */
+.gt-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.6rem; border-radius: 5px;
+  border: 1px solid transparent; transition: all 0.12s;
+  font-size: 0.8rem; color: var(--text); user-select: none;
+}
+.gt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gt-badges { display: inline-flex; gap: 0.3rem; flex-shrink: 0; align-items: center; }
+.gt-badge {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em;
+  padding: 0.1rem 0.4rem; border-radius: 999px; border: 1px solid transparent;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+/* Your own mastery */
+.gt-weak  { background: rgba(245, 158, 11, 0.14); color: #B45309; border-color: rgba(245, 158, 11, 0.4); }
+.gt-score { background: transparent; color: var(--text-muted); border-color: var(--border); font-weight: 600; }
+.gt-none  { background: transparent; color: var(--text-muted); border-color: transparent; font-weight: 500; font-style: italic; }
+/* The cohort model — visually distinct from your own score */
+.gt-class-high   { background: rgba(139, 92, 246, 0.16); color: #6D28D9; border-color: rgba(139, 92, 246, 0.42); }
+.gt-class-medium { background: rgba(139, 92, 246, 0.08); color: #7C3AED; border-color: rgba(139, 92, 246, 0.28); }
+/* Left rail marks your weak rows without hiding the selected-state background */
+.gt-row-weak { box-shadow: inset 3px 0 0 rgba(245, 158, 11, 0.75); }
+
+.gt-tools { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.gt-search {
+  flex: 1; min-width: 0; padding: 0.4rem 0.6rem; font-size: 0.78rem;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-surface-2); color: var(--text);
+}
+.gt-search:focus { outline: none; border-color: var(--accent); }
+.gt-sort {
+  flex-shrink: 0; padding: 0.4rem 0.5rem; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-surface-2); color: var(--text);
+}
+
+.gt-legend { font-size: 0.72rem; color: var(--text-muted); margin: 0 0 0.45rem; line-height: 1.6; }
+.gt-legend .gt-badge { margin-right: 0.2rem; }
+.gt-legend-empty { font-style: italic; }
+
+:root[data-theme="dark"] .gt-weak { background: rgba(245, 158, 11, 0.16); color: #FCD34D; border-color: rgba(245, 158, 11, 0.42); }
+:root[data-theme="dark"] .gt-class-high   { background: rgba(167, 139, 250, 0.18); color: #C4B5FD; border-color: rgba(167, 139, 250, 0.45); }
+:root[data-theme="dark"] .gt-class-medium { background: rgba(167, 139, 250, 0.1); color: #B9A7F8; border-color: rgba(167, 139, 250, 0.3); }

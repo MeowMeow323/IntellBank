@@ -198,6 +198,25 @@ const SubmissionsPage = () => {
                   </div>
                 )}
 
+                {/* Per-question educator feedback */}
+                {(() => {
+                  let qf = []
+                  try { qf = review.questionFeedback ? JSON.parse(review.questionFeedback) : [] } catch { qf = [] }
+                  return qf.length > 0 ? (
+                    <div className="sub-feedback">
+                      <div className="sub-topics-label">Educator feedback by question</div>
+                      {qf.map((q, i) => (
+                        <div key={i} className="sub-feedback-row">
+                          <div className="sub-feedback-head">
+                            <span className="sub-feedback-topic">{q.question}</span>
+                          </div>
+                          <p className="sub-feedback-comment">“{q.feedback}”</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null
+                })()}
+
                 {/* The answered paper, rendered read-only */}
                 <div className="sub-answers" dangerouslySetInnerHTML={{ __html: review.documentContent || '' }} />
 

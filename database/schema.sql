@@ -168,13 +168,17 @@ CREATE TABLE IF NOT EXISTS document_questions (
 --  Only Documents with type = "AI Generated Exam" may be submitted.
 -- ════════════════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS submissions (
-    submission_id UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id   UUID        NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
-    educator_id   UUID        REFERENCES educators(educator_id),
-    marks         INTEGER,
-    status        VARCHAR(100) NOT NULL DEFAULT 'PENDING'
+    submission_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id       UUID        NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+    educator_id       UUID        REFERENCES educators(educator_id),
+    marks             INTEGER,
+    question_feedback TEXT,       -- per-question educator feedback (JSON array), shown to the student
+    status            VARCHAR(100) NOT NULL DEFAULT 'PENDING'
         -- PENDING | GRADED | RETURNED
 );
+
+-- Migration for existing databases:
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS question_feedback TEXT;
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  STUDENT PERFORMANCE

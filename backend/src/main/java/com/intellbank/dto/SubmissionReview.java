@@ -16,8 +16,14 @@ public record SubmissionReview(
         String status,
         Integer marks,
         List<QuestionView> questions,
-        List<TopicFeedback> topicFeedback
+        List<TopicFeedback> topicFeedback,
+        String subject,
+        List<TopicOption> availableTopics,
+        String questionFeedback
 ) {
+    /** A subject's topic the educator can assign to a marked part. */
+    public record TopicOption(UUID topicId, String name) {}
+
     /** A single question in the submitted paper, with its max marks and topic tags. */
     public record QuestionView(
             UUID questionId,

@@ -44,6 +44,7 @@ public class VerificationService {
     private final QuestionTopicRepository questionTopicRepository;
     private final StudentPerformanceRepository performanceRepository;
     private final EducatorRepository educatorRepository;
+    private final TopicRepository topicRepository;
     private final SpecializationService specializationService;
     // ── AI-solution verification (unchanged behaviour) ────────────────────────
 
@@ -114,6 +115,9 @@ public class VerificationService {
     @Transactional
     public Solution reject(UUID solutionId, String reviewerEmail) {
         Solution solution = getById(solutionId);
+        if (Boolean.TRUE.equals(solution.getIsVerified())) {
+            throw new AppException("Approved solutions are final and cannot be reverted.", HttpStatus.CONFLICT);
+        }
         solution.setIsVerified(false);
         solution.setVerifiedBy(null);
         solution.setVerifiedAt(null);
@@ -124,6 +128,9 @@ public class VerificationService {
     @Transactional
     public Solution edit(UUID solutionId, String newContent, String newExplanation, String editorEmail) {
         Solution solution = getById(solutionId);
+        if (Boolean.TRUE.equals(solution.getIsVerified())) {
+            throw new AppException("Approved solutions are final and cannot be edited.", HttpStatus.CONFLICT);
+        }
         User editor = getUser(editorEmail);
 
         boolean contentChanging = newContent != null && !newContent.equals(solution.getContent());
@@ -268,6 +275,20 @@ public class VerificationService {
             }
         }
 
+        // Subject + all of its topics, so the grading UI can let the educator assign a
+        // topic to each marked part they build.
+        String subjectName = deriveSubject(document);
+        List<SubmissionReview.TopicOption> availableTopics = new ArrayList<>();
+        Topic anyTopic = uniqueTopics.values().stream().findFirst().orElse(null);
+        if (anyTopic != null) {
+            try {
+                UUID subjectId = anyTopic.getSubject().getSubjectId();
+                for (Topic t : topicRepository.findBySubjectSubjectId(subjectId)) {
+                    availableTopics.add(new SubmissionReview.TopicOption(t.getTopicId(), t.getName()));
+                }
+            } catch (Exception ignored) { /* lazy proxy may be absent */ }
+        }
+
         return new SubmissionReview(
                 submission.getSubmissionId(),
                 document.getDocumentId(),
@@ -277,7 +298,10 @@ public class VerificationService {
                 submission.getStatus(),
                 submission.getMarks(),
                 questionViews,
-                topicFeedback);
+                topicFeedback,
+                subjectName,
+                availableTopics,
+                submission.getQuestionFeedback());
     }
 
     /**
@@ -290,9 +314,17 @@ public class VerificationService {
      * updates the student's per-topic {@link StudentPerformance} (weakness
      * profile).
      */
+    /**
+     * Grade a submission from the educator's marking scheme, already reduced to per-topic
+     * scores on the client. {@code topicScores} maps topicId → [earned, possible];
+     * {@code topicComments} maps topicId → feedback. Persists the submission total and the
+     * per-topic {@link StudentPerformance} (weakness profile). The marking-scheme tree
+     * itself is grading-time only — not stored.
+     */
     @Transactional
-    public GradeResult gradeSubmission(UUID submissionId, Map<UUID, Integer> questionMarks,
-            Map<String, String> topicComments, String educatorEmail, String role) {
+    public GradeResult gradeSubmission(UUID submissionId, Map<UUID, double[]> topicScores,
+            Map<UUID, String> topicComments, int totalAwarded, int totalPossible,
+            String questionFeedbackJson, String educatorEmail, String role) {
         Submission submission = getSubmission(submissionId);
         specializationService.assertCanHandleSubjectName(educatorEmail, role, deriveSubject(submission.getDocument()));
         // Once a submission has been returned to the student it is final — no re-grading.
@@ -303,64 +335,33 @@ public class VerificationService {
         }
         Educator educator = resolveEducator(educatorEmail);
         Student student = submission.getDocument().getProject().getStudent();
-        if (topicComments == null)
-            topicComments = Map.of();
-
-        int total = 0;
-        int maxTotal = 0;
-        // topicId -> [earned, possible]; a question's marks are split EVENLY across its
-        // topics, so the running totals are fractional. LinkedHashMap keeps display
-        // order.
-        Map<UUID, double[]> topicTotals = new LinkedHashMap<>();
-        Map<UUID, Topic> topicRefs = new HashMap<>();
-
-        for (DocumentQuestion dq : documentQuestionRepository.findByDocumentDocumentId(
-                submission.getDocument().getDocumentId())) {
-            Question q = dq.getQuestion();
-            int max = q.getMarks() != null ? q.getMarks() : 0;
-            int awarded = clampAwarded(questionMarks.get(q.getQuestionId()), max);
-            total += awarded;
-            maxTotal += max;
-
-            List<QuestionTopic> qts = questionTopicRepository.findByQuestionQuestionId(q.getQuestionId());
-            if (qts.isEmpty())
-                continue;
-            double earnedShare = (double) awarded / qts.size();
-            double possibleShare = (double) max / qts.size();
-            for (QuestionTopic qt : qts) {
-                Topic topic = qt.getTopic();
-                topicRefs.putIfAbsent(topic.getTopicId(), topic);
-                double[] acc = topicTotals.computeIfAbsent(topic.getTopicId(), k -> new double[2]);
-                acc[0] += earnedShare; // earned
-                acc[1] += possibleShare; // possible
-            }
-        }
+        if (topicScores == null) topicScores = Map.of();
+        if (topicComments == null) topicComments = Map.of();
 
         // Persist the submission outcome.
-        submission.setMarks(total);
+        submission.setMarks(totalAwarded);
         submission.setStatus(STATUS_GRADED);
         submission.setEducator(educator);
+        if (questionFeedbackJson != null) submission.setQuestionFeedback(questionFeedbackJson);
         submissionRepository.save(submission);
 
-        // Persist per-topic mastery + comment (weakness profile) and build the response
-        // breakdown.
-        List<GradeResult.TopicScore> topicScores = new ArrayList<>();
-        for (Map.Entry<UUID, double[]> e : topicTotals.entrySet()) {
+        // Persist per-topic mastery + comment and build the response breakdown.
+        List<GradeResult.TopicScore> topicScoreList = new ArrayList<>();
+        for (Map.Entry<UUID, double[]> e : topicScores.entrySet()) {
+            Topic topic = topicRepository.findById(e.getKey()).orElse(null);
+            if (topic == null) continue;
             double earned = e.getValue()[0];
             double possible = e.getValue()[1];
             int pct = possible > 0 ? (int) Math.round((earned * 100.0) / possible) : 0;
             String mastery = masteryBand(pct);
-
-            Topic topic = topicRefs.get(e.getKey());
-            String comment = topicComments.get(topic.getName());
+            String comment = topicComments.get(e.getKey());
             upsertPerformance(student, topic, mastery, comment);
-
-            topicScores.add(new GradeResult.TopicScore(
+            topicScoreList.add(new GradeResult.TopicScore(
                     topic.getTopicId(), topic.getName(),
                     round1(earned), round1(possible), pct, mastery, comment));
         }
 
-        return new GradeResult(submission.getSubmissionId(), total, maxTotal, STATUS_GRADED, topicScores);
+        return new GradeResult(submission.getSubmissionId(), totalAwarded, totalPossible, STATUS_GRADED, topicScoreList);
     }
 
     /**

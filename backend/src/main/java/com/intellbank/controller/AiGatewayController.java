@@ -88,8 +88,13 @@ public class AiGatewayController {
             try {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> questions = (List<Map<String, Object>>) result.get("questions");
+                // Lock the paper to at most 4 questions (× 25 marks = 100).
+                if (questions.size() > 4) {
+                    questions = new java.util.ArrayList<>(questions.subList(0, 4));
+                    result.put("questions", questions);
+                }
                 System.out.println("[AiGateway] building formatted HTML for " + questions.size() + " questions");
-                String formattedHtml = buildFormattedPaperHtml(subject, questions);
+                String formattedHtml = buildFormattedPaperHtml(subject, questions, totalMarks);
                 System.out.println("[AiGateway] formattedHtml length=" + formattedHtml.length()
                         + " hasPageMarkers=" + formattedHtml.contains("<!--PAGE-->"));
                 result.put("markdown_content", formattedHtml);
@@ -109,10 +114,13 @@ public class AiGatewayController {
         return ResponseEntity.ok(result);
     }
 
-    private String buildFormattedPaperHtml(String subject, List<Map<String, Object>> questions) {
+    private String buildFormattedPaperHtml(String subject, List<Map<String, Object>> questions, int totalMarks) {
         final String PB = "<!--PAGE-->";
         int numQ      = questions.size();
+        // Fixed marking scheme: every question is worth 25 marks (4 × 25 = 100).
         int totalMks  = numQ * 25;
+        int baseMks   = 25;
+        int remainder = 0;
         StringBuilder html = new StringBuilder();
 
         // Cover page — professional centered exam header
@@ -131,23 +139,24 @@ public class AiGatewayController {
             .append("<p style=\"font-size:0.85rem;color:#64748b;margin:0.5rem 0 0;\">")
             .append("Answer <strong>ALL</strong> ").append(numQ)
             .append(" question").append(numQ == 1 ? "" : "s")
-            .append(". Each question carries <strong>25 marks</strong>.</p>")
+            .append(" for a total of <strong>").append(totalMks).append(" marks</strong>.</p>")
             .append("</div>");
 
         // Questions — one per page, topic hidden as data attribute (not visible)
         for (int i = 0; i < questions.size(); i++) {
             String rawText = String.valueOf(questions.get(i).getOrDefault("text", ""));
             String topic   = String.valueOf(questions.get(i).getOrDefault("topic", ""));
+            int qMarks = baseMks + (i < remainder ? 1 : 0);
 
             html.append(PB);
             // topic stored as data-topic attribute for JS to read if needed, NOT rendered as text
             html.append("<h2 style=\"font-size:1.2rem;font-weight:bold;border-bottom:2px solid #334155;padding-bottom:0.4rem;margin-bottom:1.25rem;\" data-topic=\"")
-                .append(topic).append("\">Question ").append(i + 1).append(" &nbsp;&nbsp; [25 Marks]</h2>");
+                .append(topic).append("\">Question ").append(i + 1).append(" &nbsp;&nbsp; [").append(qMarks).append(" Marks]</h2>");
 
             html.append(QuestionHtmlFormatter.format(rawText));
 
             html.append("<div style=\"margin-top:2rem;border-top:1px solid #cbd5e1;padding-top:0.6rem;\">")
-                .append("<p style=\"text-align:right;font-weight:600;font-size:0.9rem;margin:0;\">[Total: 25 marks]</p>")
+                .append("<p style=\"text-align:right;font-weight:600;font-size:0.9rem;margin:0;\">[Total: ").append(qMarks).append(" marks]</p>")
                 .append("</div>");
             html.append("<p style=\"margin-top:1rem;color:#94a3b8;font-size:0.85rem;font-style:italic;\">")
                 .append("&mdash; End of Question ").append(i + 1).append(" &mdash;</p>");

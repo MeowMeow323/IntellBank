@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom' 
 import useWorkspaceStore from '../store/workspaceStore'
 import { toast } from '../store/toastStore'
@@ -14,6 +14,11 @@ import '../styles/workspace-page.css'
 // least MIN_TOPICS and at most MAX_TOPICS (bounded by what the subject actually has).
 const MIN_TOPICS = 4
 const MAX_TOPICS = 8
+
+// A topic counts as "weak" for the student below this mastery score — same threshold
+// the analytics page uses (AnalyticsService.WEAKNESS_THRESHOLD), so the generate modal
+// and the analytics heatmap never disagree about what "weak" means.
+const WEAK_BELOW = 50
 
 const WorkspacePage = () => {
   const { projectId } = useParams()
@@ -57,6 +62,18 @@ const WorkspacePage = () => {
   // Dynamic Subject-Topics mapping from database
   const [subjectTopicsMap, setSubjectTopicsMap] = useState({})
 
+  // Weakness hints for the generate modal. Two independent sources, shown separately:
+  //  - myMastery: THIS student's own per-topic mastery (their weak topics)
+  //  - classTiers: the cohort Class-Weakness model's tier per topic (what the class struggles with)
+  const [myMastery, setMyMastery] = useState([])
+  const [classTiers, setClassTiers] = useState({})   // topicName -> 'High' | 'Medium' | 'Low'
+
+  // Subject + topic list controls in the generate modal (some subjects have 100 topics).
+  const [subjectSearch, setSubjectSearch] = useState('')
+  const [subjectSort, setSubjectSort] = useState('az')   // 'az' | 'weak'
+  const [topicSearch, setTopicSearch] = useState('')
+  const [topicSort, setTopicSort] = useState('az')       // 'az' | 'weak'
+
   // Past Year Paper Modal States
   const [isPypModalOpen, setIsPypModalOpen] = useState(false)
   const [pypList, setPypList] = useState([])
@@ -89,7 +106,38 @@ const WorkspacePage = () => {
         })
         .catch(err => console.error("Failed to load subject-topics:", err))
     })
+
+    // The student's own per-topic mastery — drives the "your weak topics" badges.
+    // Non-fatal: a student with no graded papers yet simply gets no badges.
+    import('../services/api').then(({ AnalyticsService }) => {
+      AnalyticsService.getMyMastery()
+        .then(res => setMyMastery(res.data || []))
+        .catch(() => setMyMastery([]))
+    })
   }, [projectId, loadTabs])
+
+  // Cohort weakness tiers for the selected subject, loaded only while the generate
+  // modal is open. The model is ineligible until 5 graded submissions from 2 students
+  // exist, in which case we simply show no class badges.
+  useEffect(() => {
+    setClassTiers({})        // never leave the previous subject's tiers on screen
+    if (!isModalOpen || !paperConfig.subject) return
+    let cancelled = false
+    import('../services/api').then(({ AnalyticsService }) => {
+      AnalyticsService.getClassWeaknesses(paperConfig.subject)
+        .then(res => {
+          if (cancelled) return
+          const data = res.data || {}
+          const map = {}
+          if (data.eligible && Array.isArray(data.topics)) {
+            data.topics.forEach(t => { if (t.topic && t.tier) map[t.topic] = t.tier })
+          }
+          setClassTiers(map)
+        })
+        .catch(() => { if (!cancelled) setClassTiers({}) })
+    })
+    return () => { cancelled = true }
+  }, [isModalOpen, paperConfig.subject])
 
   // Automatically focus on the first available document entry if none is selected
   useEffect(() => {
@@ -142,7 +190,7 @@ const WorkspacePage = () => {
 
   const handleGenerate = async () => {
     if (!paperConfig.subject) return
-    const available = subjectTopicsMap[paperConfig.subject] || []
+    const available = [...new Set(subjectTopicsMap[paperConfig.subject] || [])]
     const minNeeded = Math.min(MIN_TOPICS, available.length)
     if (paperConfig.topics.length < minNeeded) {
       toast(`Please select at least ${minNeeded} topic${minNeeded === 1 ? '' : 's'} so there are enough questions to fill the paper.`, 'error')
@@ -153,7 +201,7 @@ const WorkspacePage = () => {
       // Ensure we send topics as an array (fallback to all subject topics if none selected)
       const payload = {
         ...paperConfig,
-        topics: paperConfig.topics.length > 0 ? paperConfig.topics : (subjectTopicsMap[paperConfig.subject] || [])
+        topics: paperConfig.topics.length > 0 ? paperConfig.topics : available
       }
       const result = await generateTabWithAI(payload)
       if (!result) {
@@ -214,8 +262,80 @@ const WorkspacePage = () => {
     (pypYear === 'all' || pypYearOf(p) === pypYear)
   )
 
+  // ── Weakness lookups for the generate modal ─────────────────────────────────
+  // Mastery is matched to the topic checkboxes by name, scoped to the chosen subject.
+  const masteryByTopic = useMemo(() => {
+    const m = {}
+    myMastery
+      .filter(x => !paperConfig.subject || x.subjectName === paperConfig.subject)
+      .forEach(x => { m[x.topicName] = x })
+    return m
+  }, [myMastery, paperConfig.subject])
+
+  // ── Subject list: search + sort ─────────────────────────────────────────────
+  // How many topics the student is weak at in each subject — drives "Weakest first"
+  // and the "N weak" hint on each option, so they can see where to practise.
+  const weakCountBySubject = useMemo(() => {
+    const m = {}
+    myMastery.forEach(x => {
+      if (x.subjectName && x.score < WEAK_BELOW) m[x.subjectName] = (m[x.subjectName] || 0) + 1
+    })
+    return m
+  }, [myMastery])
+
+  const visibleSubjects = useMemo(() => {
+    const all = Object.keys(subjectTopicsMap)
+    const q = subjectSearch.trim().toLowerCase()
+    let list = q ? all.filter(s => s.toLowerCase().includes(q)) : [...all]
+    // The chosen subject must never be filtered out, or the select would go blank.
+    if (paperConfig.subject && !list.includes(paperConfig.subject)) list = [paperConfig.subject, ...list]
+    if (subjectSort === 'weak') {
+      list.sort((a, b) => {
+        const wa = weakCountBySubject[a] || 0
+        const wb = weakCountBySubject[b] || 0
+        return wb !== wa ? wb - wa : a.localeCompare(b)
+      })
+    } else {
+      list.sort((a, b) => a.localeCompare(b))
+    }
+    return list
+  }, [subjectTopicsMap, subjectSearch, subjectSort, weakCountBySubject, paperConfig.subject])
+
+  // Topics are de-duplicated by name. Some subjects hold duplicate topic rows (STATISTICS
+  // has 27 names stored twice); rendering those gave two checkboxes the same React key,
+  // which broke list reconciliation so a previous subject's topics could stay on screen.
+  const availableTopics = useMemo(
+    () => [...new Set(subjectTopicsMap[paperConfig.subject] || [])],
+    [subjectTopicsMap, paperConfig.subject]
+  )
+
+  const myWeakTopics = useMemo(
+    () => availableTopics.filter(t => masteryByTopic[t] && masteryByTopic[t].score < WEAK_BELOW),
+    [availableTopics, masteryByTopic]
+  )
+  const hasAnyMastery = Object.keys(masteryByTopic).length > 0   // for THIS subject
+  const hasMasteryAnywhere = myMastery.length > 0                // for any subject
+  const hasClassTiers = Object.keys(classTiers).length > 0
+
+  // Search + sort applied to the checkbox list only — selection is unaffected, so a
+  // topic stays selected even when a search hides it (the chips below still show it).
+  const visibleTopics = useMemo(() => {
+    const q = topicSearch.trim().toLowerCase()
+    const list = q ? availableTopics.filter(t => t.toLowerCase().includes(q)) : [...availableTopics]
+    if (topicSort === 'weak') {
+      // Lowest mastery first; never-assessed topics sink to the bottom. Ties are A–Z.
+      list.sort((a, b) => {
+        const sa = masteryByTopic[a] ? masteryByTopic[a].score : 101
+        const sb = masteryByTopic[b] ? masteryByTopic[b].score : 101
+        return sa !== sb ? sa - sb : a.localeCompare(b)
+      })
+    } else {
+      list.sort((a, b) => a.localeCompare(b))
+    }
+    return list
+  }, [availableTopics, topicSearch, topicSort, masteryByTopic])
+
   // ── Topic-count guard rails for the generate modal ──────────────────────────
-  const availableTopics = subjectTopicsMap[paperConfig.subject] || []
   const effectiveMinTopics = Math.min(MIN_TOPICS, availableTopics.length)
   const effectiveMaxTopics = Math.min(MAX_TOPICS, availableTopics.length)
   const selectedCount = paperConfig.topics.length
@@ -381,16 +501,47 @@ const WorkspacePage = () => {
             {/* Subject */}
             <div className="input-group" style={{ marginBottom: 0 }}>
               <label style={{ fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>Subject</label>
+              {/* Search + sort for subjects */}
+              {Object.keys(subjectTopicsMap).length > 0 && (
+                <div className="gt-tools">
+                  <input
+                    type="text"
+                    className="gt-search"
+                    placeholder={`Search ${Object.keys(subjectTopicsMap).length} subjects…`}
+                    value={subjectSearch}
+                    onChange={e => setSubjectSearch(e.target.value)}
+                  />
+                  <select className="gt-sort" value={subjectSort} onChange={e => setSubjectSort(e.target.value)}>
+                    <option value="az">Sort: A–Z</option>
+                    <option value="weak">Sort: Weakest first</option>
+                  </select>
+                </div>
+              )}
+
               <select className="form-input"
                 value={paperConfig.subject}
-                onChange={e => setPaperConfig({ ...paperConfig, subject: e.target.value, topics: [] })}
+                onChange={e => {
+                  setTopicSearch('')
+                  setPaperConfig({ ...paperConfig, subject: e.target.value, topics: [] })
+                }}
                 disabled={Object.keys(subjectTopicsMap).length === 0}
               >
                 {Object.keys(subjectTopicsMap).length === 0
                   ? <option>No subjects found — run OCR pipeline first.</option>
-                  : Object.keys(subjectTopicsMap).map(s => <option key={s} value={s}>{s}</option>)
+                  : visibleSubjects.map(s => (
+                      <option key={s} value={s}>
+                        {s}{weakCountBySubject[s] ? ` — ${weakCountBySubject[s]} weak` : ''}
+                      </option>
+                    ))
                 }
               </select>
+
+              {/* The chosen subject is always kept in the list, so warn rather than hide it */}
+              {subjectSearch.trim() && visibleSubjects.length <= 1 && (
+                <p className="gt-legend gt-legend-empty" style={{ margin: '0.35rem 0 0' }}>
+                  No other subjects match “{subjectSearch}”.
+                </p>
+              )}
             </div>
 
             {/* Topics — checkbox grid */}
@@ -404,27 +555,65 @@ const WorkspacePage = () => {
                 </span>
               </div>
 
-              {/* Checkbox grid */}
+              {/* What the badges mean. Only shown once there is something to explain. */}
+              {availableTopics.length > 0 && (hasAnyMastery || hasClassTiers) && (
+                <p className="gt-legend">
+                  {myWeakTopics.length > 0
+                    ? <><span className="gt-badge gt-weak">⚠ Weak</span> you scored below {WEAK_BELOW}% —
+                        you are weak at <strong>{myWeakTopics.length}</strong> of these topics.</>
+                    : hasAnyMastery
+                      ? <>No weak topics recorded for you in this subject — pick anything you want to practise.</>
+                      : null}
+                  {hasClassTiers && (
+                    <> &nbsp;<span className="gt-badge gt-class-high">Class</span> the whole class struggles with this topic.</>
+                  )}
+                </p>
+              )}
+              {availableTopics.length > 0 && !hasAnyMastery && (
+                <p className="gt-legend gt-legend-empty">
+                  {hasMasteryAnywhere
+                    ? 'No marked results for this subject yet — your weak topics appear here once a paper in this subject is graded.'
+                    : 'Submit a paper and have it marked to see which topics you are weak at here.'}
+                </p>
+              )}
+
+              {/* Search + sort — some subjects have 100 topics */}
+              {availableTopics.length > 0 && (
+                <div className="gt-tools">
+                  <input
+                    type="text"
+                    className="gt-search"
+                    placeholder={`Search ${availableTopics.length} topics…`}
+                    value={topicSearch}
+                    onChange={e => setTopicSearch(e.target.value)}
+                  />
+                  <select className="gt-sort" value={topicSort} onChange={e => setTopicSort(e.target.value)}>
+                    <option value="az">Sort: A–Z</option>
+                    <option value="weak">Sort: Weakest first</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Checkbox list — one topic per row so the weakness badges stay readable */}
               <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem',
-                maxHeight: '220px', overflowY: 'auto', padding: '0.5rem',
+                display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem',
+                maxHeight: '240px', overflowY: 'auto', padding: '0.5rem',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)', background: 'var(--inset)'
               }}>
-                {(subjectTopicsMap[paperConfig.subject] || []).map(topic => {
+                {visibleTopics.map(topic => {
                   const checked = paperConfig.topics.includes(topic)
                   // Block selecting more than the max (already-checked stay toggleable).
                   const disabled = !checked && atMaxTopics
+                  const mastery = masteryByTopic[topic]
+                  const isWeak = mastery && mastery.score < WEAK_BELOW
+                  const tier = classTiers[topic]
                   return (
-                    <label key={topic} style={{
-                      display: 'flex', alignItems: 'center', gap: '0.5rem',
-                      padding: '0.4rem 0.6rem', borderRadius: '5px', cursor: disabled ? 'not-allowed' : 'pointer',
+                    <label key={topic} className={`gt-row${isWeak ? ' gt-row-weak' : ''}`} style={{
+                      cursor: disabled ? 'not-allowed' : 'pointer',
                       background: checked ? 'var(--accent-soft)' : 'transparent',
-                      border: `1px solid ${checked ? 'var(--accent-border)' : 'transparent'}`,
-                      transition: 'all 0.12s',
+                      borderColor: checked ? 'var(--accent-border)' : 'transparent',
                       opacity: disabled ? 0.35 : 1,
-                      fontSize: '0.8rem', color: 'var(--text)',
-                      userSelect: 'none',
                     }}>
                       <input type="checkbox" checked={checked} disabled={disabled}
                         style={{ accentColor: 'var(--accent)', width: '14px', height: '14px', flexShrink: 0 }}
@@ -436,13 +625,37 @@ const WorkspacePage = () => {
                           }
                         }}
                       />
-                      {topic}
+                      <span className="gt-name">{topic}</span>
+                      <span className="gt-badges">
+                        {/* Your own mastery */}
+                        {isWeak
+                          ? <span className="gt-badge gt-weak" title={`Your mastery: ${mastery.masteryLevel}`}>
+                              ⚠ Weak · {mastery.score}%
+                            </span>
+                          : mastery
+                            ? <span className="gt-badge gt-score" title={`Your mastery: ${mastery.masteryLevel}`}>
+                                {mastery.score}%
+                              </span>
+                            : <span className="gt-badge gt-none">Not assessed</span>}
+                        {/* The cohort model, kept visually distinct from your own score */}
+                        {(tier === 'High' || tier === 'Medium') && (
+                          <span className={`gt-badge gt-class-${tier.toLowerCase()}`}
+                                title={`Class weakness tier: ${tier}`}>
+                            Class: {tier}
+                          </span>
+                        )}
+                      </span>
                     </label>
                   )
                 })}
-                {(subjectTopicsMap[paperConfig.subject] || []).length === 0 && (
-                  <span style={{ gridColumn: '1/-1', color: '#64748b', fontSize: '0.8rem', padding: '0.5rem' }}>
+                {availableTopics.length === 0 && (
+                  <span style={{ color: '#64748b', fontSize: '0.8rem', padding: '0.5rem' }}>
                     Select a subject to see topics.
+                  </span>
+                )}
+                {availableTopics.length > 0 && visibleTopics.length === 0 && (
+                  <span style={{ color: '#64748b', fontSize: '0.8rem', padding: '0.5rem' }}>
+                    No topics match “{topicSearch}”.
                   </span>
                 )}
               </div>

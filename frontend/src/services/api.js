@@ -178,9 +178,9 @@ export const VerificationService = {
   // Enriched queue for the Verification list (all statuses + subject/student/date)
   getSubmissionQueue: () => api.get('/api/verification/submissions/queue'),
   reviewSubmission: (id) => api.get(`/api/verification/submissions/${id}`),
-  // marks: { "<questionId>": <awardedMarks>, ... }; comments: { "<topicName>": "<feedback>", ... }
-  gradeSubmission: (id, marks, comments = {}) =>
-    api.put(`/api/verification/submissions/${id}/grade`, { marks, comments }),
+  // body: { totalAwarded, totalPossible, topics: { "<topicId>": { earned, possible, comment } } }
+  gradeSubmission: (id, body) =>
+    api.put(`/api/verification/submissions/${id}/grade`, body),
   returnSubmission: (id) => api.put(`/api/verification/submissions/${id}/return`),
 }
 

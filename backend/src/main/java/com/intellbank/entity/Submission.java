@@ -29,6 +29,14 @@ public class Submission {
     @Column
     private Integer marks;
 
+    /**
+     * Per-question educator feedback captured at grading, as a JSON array string:
+     * [{"question":"Question 1","feedback":"…"}, …]. Shown to the student on their
+     * reviewed paper. Nullable for ungraded/legacy submissions.
+     */
+    @Column(name = "question_feedback", columnDefinition = "TEXT")
+    private String questionFeedback;
+
     /** PENDING | GRADED | RETURNED */
     @Builder.Default
     @Column(nullable = false, length = 100)

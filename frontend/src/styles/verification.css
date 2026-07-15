@@ -35,6 +35,47 @@
   font-weight: 600; font-size: 0.88rem; padding: 0 0 0.9rem; margin: 0;
 }
 .vf-back:hover { text-decoration: underline; }
+
+/* ── Marking-scheme tree (grading) ─────────────────────────────────────── */
+.mk-tree { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.5rem; }
+.mk-node { display: flex; flex-direction: column; gap: 0.4rem; }
+.mk-row {
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+  padding: 0.35rem 0.5rem; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: var(--color-bg-secondary);
+}
+.mk-label { font-weight: 600; font-size: 0.85rem; min-width: 82px; }
+.mk-num {
+  width: 52px; text-align: center; padding: 0.25rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border); background: var(--color-bg-primary); color: var(--color-text-primary);
+}
+.mk-slash { color: var(--color-text-muted); }
+.mk-topic {
+  flex: 1; min-width: 120px; padding: 0.28rem 0.4rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border); background: var(--color-bg-primary);
+  color: var(--color-text-primary); font-size: 0.82rem;
+}
+.mk-sum { flex: 1; font-size: 0.82rem; color: var(--color-text-muted); font-weight: 600; }
+.mk-btns { display: inline-flex; gap: 0.25rem; margin-left: auto; }
+.mk-btn {
+  width: 26px; height: 26px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  background: var(--color-bg-primary); color: var(--color-text-primary); cursor: pointer; font-size: 0.9rem; line-height: 1;
+}
+.mk-btn:hover { background: var(--color-bg-hover); }
+.mk-del:hover { border-color: var(--danger); color: var(--danger); }
+.mk-add-q {
+  align-self: flex-start; margin: 0.1rem 0 0.75rem; background: transparent;
+  border: 1px dashed var(--color-border); color: var(--accent); border-radius: var(--radius-md);
+  padding: 0.4rem 0.85rem; font-weight: 600; cursor: pointer; font-size: 0.85rem;
+}
+.mk-add-q:hover { border-color: var(--accent); background: var(--accent-soft); }
+.mk-q { border-color: var(--accent-border); }
+.mk-q .mk-label { color: var(--accent); }
+.mk-fixed { min-width: 34px; text-align: center; font-weight: 600; color: var(--color-text-muted); }
+.mk-bad { color: var(--danger); font-weight: 700; }
+.mk-feedback { margin: 0.35rem 0 0.55rem; }
+.mk-warn { color: var(--danger); font-size: 0.85rem; font-weight: 600; margin: 0.25rem 0 0.5rem; }
+.vf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .vf-queue { display: flex; flex-direction: column; gap: 0.6rem; }
 .vf-queue-item {
   text-align: left; width: 100%; background: var(--color-bg-secondary);

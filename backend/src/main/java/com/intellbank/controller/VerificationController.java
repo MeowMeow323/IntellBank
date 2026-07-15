@@ -9,6 +9,7 @@ import com.intellbank.entity.Solution;
 import com.intellbank.entity.Submission;
 import com.intellbank.entity.User;
 import com.intellbank.service.VerificationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 public class VerificationController {
 
     private final VerificationService verificationService;
+    private final ObjectMapper objectMapper;
 
     /**
      * Resolve the logged-in user's email from the JWT principal (a {@link User}
@@ -110,28 +112,44 @@ public class VerificationController {
 
     /**
      * Grade a submission.
-     * Body: { "marks": { "<questionId>": <awarded>, ... } }
-     * Returns the auto-computed total and per-topic mastery breakdown.
+     * Body: {
+     *   "totalAwarded": int, "totalPossible": int,
+     *   "topics": { "<topicId>": { "earned": num, "possible": num, "comment": str } }
+     * }
+     * The educator's marking-scheme tree is reduced to per-topic scores on the client.
      */
     @PutMapping("/submissions/{submissionId}/grade")
     @SuppressWarnings("unchecked")
     public ResponseEntity<GradeResult> gradeSubmission(@PathVariable UUID submissionId,
             @RequestBody Map<String, Object> body,
             Authentication auth) {
-        Map<String, Object> raw = (Map<String, Object>) body.getOrDefault("marks", Map.of());
-        Map<UUID, Integer> questionMarks = raw.entrySet().stream().collect(Collectors.toMap(
-                e -> UUID.fromString(e.getKey()),
-                e -> e.getValue() == null ? 0 : ((Number) e.getValue()).intValue()));
+        int totalAwarded  = body.get("totalAwarded")  instanceof Number n ? n.intValue() : 0;
+        int totalPossible = body.get("totalPossible") instanceof Number n ? n.intValue() : 0;
 
-        // Per-topic educator comments, keyed by topic NAME (the grading UI works in
-        // names).
-        Map<String, Object> rawComments = (Map<String, Object>) body.getOrDefault("comments", Map.of());
-        Map<String, String> topicComments = rawComments.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> e.getValue() == null ? "" : e.getValue().toString()));
+        Map<String, Object> rawTopics = (Map<String, Object>) body.getOrDefault("topics", Map.of());
+        Map<UUID, double[]> topicScores = new LinkedHashMap<>();
+        Map<UUID, String> topicComments = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : rawTopics.entrySet()) {
+            UUID topicId = UUID.fromString(e.getKey());
+            Map<String, Object> v = (Map<String, Object>) e.getValue();
+            double earned   = v.get("earned")   instanceof Number n ? n.doubleValue() : 0;
+            double possible = v.get("possible") instanceof Number n ? n.doubleValue() : 0;
+            topicScores.put(topicId, new double[] { earned, possible });
+            Object c = v.get("comment");
+            if (c != null && !c.toString().isBlank()) topicComments.put(topicId, c.toString());
+        }
 
-        return ResponseEntity.ok(
-                verificationService.gradeSubmission(submissionId, questionMarks, topicComments, emailOf(auth), roleOf(auth)));
+        // Per-question feedback arrives as a JSON array; persist it as a string.
+        String questionFeedbackJson = null;
+        Object qf = body.get("questionFeedback");
+        if (qf != null) {
+            try { questionFeedbackJson = objectMapper.writeValueAsString(qf); }
+            catch (Exception ignored) { /* leave null */ }
+        }
+
+        return ResponseEntity.ok(verificationService.gradeSubmission(
+                submissionId, topicScores, topicComments, totalAwarded, totalPossible,
+                questionFeedbackJson, emailOf(auth), roleOf(auth)));
     }
 
     /** Return a graded submission to the student (frees their submission slot). */

@@ -59,11 +59,26 @@ def run_mineru(pdf_path: str, output_dir: str) -> tuple[list[dict], str]:
     Returns (content_blocks, auto_dir) — auto_dir is where MinerU also put
     the figure/table crop images referenced by each block's `img_path`.
     """
+    if not os.path.exists(MINERU_EXE):
+        raise RuntimeError(
+            f"MinerU is not installed in mineru_venv (missing {MINERU_EXE}). "
+            "Past-year-paper OCR is unavailable until MinerU is set up in that venv "
+            "(needs Python 3.10-3.12 + `pip install \"mineru[core]\"`). "
+            "Papers already in PROCESSED status still work without OCR."
+        )
     print(f"  Running MinerU (pipeline backend) on {os.path.basename(pdf_path)}...")
-    subprocess.run(
+    # Inherit stdio so MinerU's live progress (first-run model download + per-page OCR)
+    # and any error stream straight to the AI-service console — essential for telling a
+    # slow first run apart from a hang.
+    proc = subprocess.run(
         [MINERU_EXE, '-p', pdf_path, '-o', output_dir, '-b', 'pipeline'],
-        env=_mineru_env(), check=True, timeout=1800,
+        env=_mineru_env(), timeout=1800,
     )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"MinerU exited with status {proc.returncode}. See the MinerU output above "
+            "in the AI-service console for the reason."
+        )
     matches = [
         m for m in glob.glob(os.path.join(output_dir, '*', 'auto', '*_content_list.json'))
         if not m.endswith('_content_list_v2.json')

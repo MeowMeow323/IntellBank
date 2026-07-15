@@ -49,14 +49,120 @@ const fmtSubDate = (iso) => {
   catch { return '—' }
 }
 
+/* ── Marking-scheme tree (Question → a/b/c → i/ii/iii) ─────────────────────── */
+let _mkUid = 0
+const mkNode = () => ({ key: `mk${++_mkUid}`, marks: '', awarded: '', topicId: '', children: [] })
+
+const ROMANS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii']
+const mkLabel = (depth, index) =>
+  depth === 0 ? `Question ${index + 1}`
+    : depth === 1 ? `${String.fromCharCode(97 + (index % 26))})`
+      : depth === 2 ? `${ROMANS[index] || index + 1})`
+        : `${index + 1}.`
+
+const mkMap = (nodes, key, fn) =>
+  nodes.map((n) => (n.key === key ? fn(n) : { ...n, children: mkMap(n.children, key, fn) }))
+const mkRemove = (nodes, key) =>
+  nodes.filter((n) => n.key !== key).map((n) => ({ ...n, children: mkRemove(n.children, key) }))
+const mkLeafSum = (nodes, field) =>
+  nodes.reduce((acc, n) => acc + (n.children.length ? mkLeafSum(n.children, field) : (Number(n[field]) || 0)), 0)
+const mkCollect = (nodes, acc) => {
+  nodes.forEach((n) => {
+    if (n.children.length) mkCollect(n.children, acc)
+    else if (n.topicId) {
+      const a = acc[n.topicId] || { earned: 0, possible: 0 }
+      a.earned += Number(n.awarded) || 0
+      a.possible += Number(n.marks) || 0
+      acc[n.topicId] = a
+    }
+  })
+  return acc
+}
+const mkContains = (node, key) => node.key === key || node.children.some((c) => mkContains(c, key))
+const mkFind = (nodes, key) => {
+  for (const n of nodes) {
+    if (n.key === key) return n
+    const f = mkFind(n.children, key)
+    if (f) return f
+  }
+  return null
+}
+// Sum of a leaf `field` under `node`, excluding one leaf — used to compute the remaining
+// budget so a question's parts can never total more than 25 (for marks OR awarded).
+const mkLeafFieldExcluding = (node, excludeKey, field) =>
+  node.children.length === 0
+    ? (node.key === excludeKey ? 0 : (Number(node[field]) || 0))
+    : node.children.reduce((a, c) => a + mkLeafFieldExcluding(c, excludeKey, field), 0)
+
+// One node in the marking tree. Top-level questions are locked at 25 marks each and
+// carry a feedback box; sub-parts are freely added/removed. Parents show the running
+// sub-total (a top-level question warns when its parts don't add up to 25).
+function MarkNode({ node, depth, index, topics, disabled, onField, onAdd, onRemove }) {
+  const isLeaf = node.children.length === 0
+  const isTop = depth === 0
+  const subPossible = mkLeafSum([node], 'marks')
+  const subAwarded = mkLeafSum([node], 'awarded')
+  const badSum = isTop && !isLeaf && subPossible !== 25
+
+  return (
+    <div className="mk-node" style={{ marginLeft: depth ? 18 : 0 }}>
+      <div className={`mk-row ${isTop ? 'mk-q' : ''}`}>
+        <span className="mk-label">{mkLabel(depth, index)}</span>
+        {isLeaf ? (
+          <>
+            <input type="number" min="0" className="mk-num" placeholder="0" title="Marks awarded"
+              value={node.awarded} disabled={disabled}
+              onChange={(e) => onField(node.key, 'awarded', e.target.value)} />
+            <span className="mk-slash">/</span>
+            {isTop ? (
+              <span className="mk-fixed" title="Each question is worth 25">25</span>
+            ) : (
+              <input type="number" min="0" className="mk-num" placeholder="max" title="Marks available"
+                value={node.marks} disabled={disabled}
+                onChange={(e) => onField(node.key, 'marks', e.target.value)} />
+            )}
+            <select className="mk-topic" value={node.topicId} disabled={disabled}
+              onChange={(e) => onField(node.key, 'topicId', e.target.value)}>
+              <option value="">— topic —</option>
+              {topics.map((t) => <option key={t.topicId} value={t.topicId}>{t.name}</option>)}
+            </select>
+          </>
+        ) : (
+          <span className={`mk-sum ${badSum ? 'mk-bad' : ''}`}>
+            {subAwarded} / {subPossible}{isTop ? ' (of 25)' : ''}
+          </span>
+        )}
+        {!disabled && (
+          <span className="mk-btns">
+            <button type="button" className="mk-btn" title="Add sub-part" onClick={() => onAdd(node.key)}>＋</button>
+            {!isTop && <button type="button" className="mk-btn mk-del" title="Remove" onClick={() => onRemove(node.key)}>✕</button>}
+          </span>
+        )}
+      </div>
+
+      {isTop && (
+        <textarea className="mk-feedback vf-textarea" rows={2} disabled={disabled}
+          placeholder={`Feedback on ${mkLabel(0, index)}…`}
+          value={node.feedback || ''}
+          onChange={(e) => onField(node.key, 'feedback', e.target.value)} />
+      )}
+
+      {node.children.map((c, i) => (
+        <MarkNode key={c.key} node={c} depth={depth + 1} index={i} topics={topics}
+          disabled={disabled} onField={onField} onAdd={onAdd} onRemove={onRemove} />
+      ))}
+    </div>
+  )
+}
+
 function SubmissionGrading() {
   const [queue, setQueue] = useState([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('list')       // 'list' | 'grade'
   const [activeId, setActiveId] = useState(null)
   const [review, setReview] = useState(null)
-  const [marks, setMarks] = useState({})         // { questionId: number }
-  const [comments, setComments] = useState({})   // { topicName: feedback }
+  const [tree, setTree] = useState([])           // marking-scheme tree (Q → a/b/c → i/ii/iii)
+  const [comments, setComments] = useState({})   // { topicId: feedback }
   const [result, setResult] = useState(null)     // GradeResult after grading
 
   // List controls
@@ -67,9 +173,6 @@ function SubmissionGrading() {
 
   useEffect(() => { loadQueue() }, [])
 
-  // Distinct topics across the paper — the educator writes one comment per topic.
-  const reviewTopics = [...new Set((review?.questions || []).flatMap((q) => q.topics || []))]
-
   const loadQueue = async () => {
     setLoading(true)
     try {
@@ -79,18 +182,18 @@ function SubmissionGrading() {
   }
 
   const openSubmission = async (id) => {
-    setActiveId(id); setReview(null); setResult(null); setMarks({}); setComments({}); setView('grade')
+    setActiveId(id); setReview(null); setResult(null); setTree([]); setComments({}); setView('grade')
     try {
       const res = await VerificationService.reviewSubmission(id)
       setReview(res.data)
-      // pre-zero every question
-      const init = {}
-        ; (res.data.questions || []).forEach((q) => { init[q.questionId] = 0 })
-      setMarks(init)
-      // pre-fill any existing per-topic comments
+      // Locked structure: exactly 4 questions × 25 = 100 marks. Pre-fill saved feedback.
+      let qf = []
+      try { qf = res.data.questionFeedback ? JSON.parse(res.data.questionFeedback) : [] } catch { qf = [] }
+      setTree(Array.from({ length: 4 }, (_, i) => ({ ...mkNode(), marks: 25, feedback: qf[i]?.feedback || '' })))
+      // Pre-fill any existing per-topic comments (keyed by topicId).
       const initComments = {}
         ; (res.data.topicFeedback || []).forEach((tf) => {
-          if (tf.comment) initComments[tf.topicName] = tf.comment
+          if (tf.comment) initComments[tf.topicId] = tf.comment
         })
       setComments(initComments)
     } catch { toast('Failed to load submission.', 'error'); setView('list') }
@@ -101,25 +204,71 @@ function SubmissionGrading() {
     loadQueue()
   }
 
-  const setComment = (topicName, value) =>
-    setComments((c) => ({ ...c, [topicName]: value }))
+  const setComment = (topicId, value) =>
+    setComments((c) => ({ ...c, [topicId]: value }))
 
-  const total = Object.values(marks).reduce((a, b) => a + (Number(b) || 0), 0)
-  const maxTotal = (review?.questions || []).reduce((a, q) => a + (q.marks || 0), 0)
+  // ── Marking-tree operations ──
+  const setNodeField = (key, field, value) => setTree((t) => {
+    if (field === 'marks' || field === 'awarded') {
+      let v = Number(value)
+      if (Number.isNaN(v) || v < 0) v = 0
+      const root = t.find((q) => mkContains(q, key))
+      if (field === 'marks') {
+        // Cap so this question's parts can't total more than 25 marks.
+        if (root) {
+          const budget = Math.max(0, 25 - mkLeafFieldExcluding(root, key, 'marks'))
+          if (v > budget) v = budget
+        }
+      } else {
+        // Awarded can't push the question's awarded total past 25, nor exceed this
+        // part's own available marks (when a max is set).
+        if (root) {
+          const budget = Math.max(0, 25 - mkLeafFieldExcluding(root, key, 'awarded'))
+          if (v > budget) v = budget
+        }
+        const node = mkFind(t, key)
+        if (node && Number(node.marks) > 0 && v > Number(node.marks)) v = Number(node.marks)
+      }
+      return mkMap(t, key, (n) => ({ ...n, [field]: v }))
+    }
+    return mkMap(t, key, (n) => ({ ...n, [field]: value }))
+  })
+  const addChild = (key) => setTree((t) => mkMap(t, key, (n) => ({ ...n, children: [...n.children, mkNode()] })))
+  const removeNode = (key) => setTree((t) => mkRemove(t, key))   // sub-parts only (top-level is locked)
 
-  const setMark = (qid, value, max) => {
-    let v = Number(value)
-    if (Number.isNaN(v) || v < 0) v = 0
-    if (v > max) v = max
-    setMarks((m) => ({ ...m, [qid]: v }))
-  }
+  const totalAwarded = mkLeafSum(tree, 'awarded')
+  const totalPossible = mkLeafSum(tree, 'marks')
+
+  // Each question must be ≤ 25 marks (both awarded and available) — block saving otherwise.
+  const overQuestions = tree
+    .map((q, i) => ({ n: i + 1, possible: mkLeafSum([q], 'marks'), awarded: mkLeafSum([q], 'awarded') }))
+    .filter((x) => x.possible > 25 || x.awarded > 25)
+  const hasOverBudget = overQuestions.length > 0
+
+  // Topics actually assigned in the tree — one feedback box each.
+  const usedTopics = Object.keys(mkCollect(tree, {}))
+    .map((tid) => (review?.availableTopics || []).find((t) => t.topicId === tid))
+    .filter(Boolean)
 
   const saveGrade = async () => {
+    if (hasOverBudget) {
+      toast(`Question${overQuestions.length > 1 ? 's' : ''} ${overQuestions.map((o) => o.n).join(', ')} exceed 25 marks. Fix before saving.`, 'error')
+      return
+    }
+    const agg = mkCollect(tree, {})
+    const topics = {}
+    Object.entries(agg).forEach(([topicId, v]) => {
+      topics[topicId] = { earned: v.earned, possible: v.possible, comment: comments[topicId] || '' }
+    })
+    const questionFeedback = tree
+      .map((q, i) => ({ question: `Question ${i + 1}`, feedback: (q.feedback || '').trim() }))
+      .filter((x) => x.feedback)
     try {
-      const res = await VerificationService.gradeSubmission(activeId, marks, comments)
+      const res = await VerificationService.gradeSubmission(activeId, { totalAwarded, totalPossible, topics, questionFeedback })
       setResult(res.data)
       loadQueue()
-    } catch { toast('Failed to save grade.', 'error') }
+      toast('Grade saved.', 'success')
+    } catch (err) { toast(err?.response?.data?.message || 'Failed to save grade.', 'error') }
   }
 
   const returnToStudent = async () => {
@@ -164,43 +313,36 @@ function SubmissionGrading() {
             <div className="vf-pane">
               <h3 className="vf-queue-title" style={{ marginBottom: '0.6rem' }}>Award Marks</h3>
               <div className="vf-pane-scroll">
-                {review.questions.map((q, i) => (
-                  <div key={q.questionId} className="vf-grade-q">
-                    <div className="vf-q-head">
-                      <div className="vf-q-content"><strong>Q{i + 1}.</strong> {stripHtml(q.content).slice(0, 220)}</div>
-                      <div className="vf-mark-box">
-                        <input type="number" className="vf-mark-input" min={0} max={q.marks}
-                          value={marks[q.questionId] ?? 0}
-                          disabled={review.status === 'RETURNED'}
-                          onChange={(e) => setMark(q.questionId, e.target.value, q.marks)} />
-                        <span style={{ color: 'var(--color-text-muted)' }}>/ {q.marks}</span>
-                      </div>
-                    </div>
-                    {q.topics?.length > 0 && (
-                      <div className="vf-q-topics">
-                        {q.topics.map((t) => <span key={t} className="vf-chip">{t}</span>)}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                <p className="pa-sub" style={{ marginTop: 0 }}>
+                  4 questions × 25 = 100 marks. Award marks per part, choose the topic each part assesses,
+                  add/remove sub-parts (a/b/c, then i/ii/iii), and leave feedback per question.
+                </p>
+                <div className="mk-tree">
+                  {tree.map((q, i) => (
+                    <MarkNode key={q.key} node={q} depth={0} index={i}
+                      topics={review.availableTopics || []}
+                      disabled={review.status === 'RETURNED'}
+                      onField={setNodeField} onAdd={addChild} onRemove={removeNode} />
+                  ))}
+                </div>
 
-                {/* Per-topic feedback — one comment box per topic, shown to the student */}
-                {reviewTopics.length > 0 && (
+                {/* Per-topic feedback — one box per topic actually marked, shown to the student */}
+                {usedTopics.length > 0 && (
                   <div className="vf-topic-comments">
-                    <h4 className="vf-comments-title">Topic Feedback</h4>
+                    <h4 className="vf-comments-title">Topic feedback</h4>
                     <p className="vf-comments-hint">
-                      A question's marks are split evenly across its topics. Add a comment per topic — the student sees it on their reviewed paper.
+                      A comment per topic you marked — the student sees it on their reviewed paper.
                     </p>
-                    {reviewTopics.map((t) => (
-                      <div key={t} className="vf-topic-comment">
-                        <label className="vf-chip vf-chip-topic">{t}</label>
+                    {usedTopics.map((t) => (
+                      <div key={t.topicId} className="vf-topic-comment">
+                        <label className="vf-chip vf-chip-topic">{t.name}</label>
                         <textarea
                           rows={2}
                           className="vf-textarea"
-                          placeholder={`Feedback on "${t}"…`}
-                          value={comments[t] ?? ''}
+                          placeholder={`Feedback on "${t.name}"…`}
+                          value={comments[t.topicId] ?? ''}
                           disabled={review.status === 'RETURNED'}
-                          onChange={(e) => setComment(t, e.target.value)}
+                          onChange={(e) => setComment(t.topicId, e.target.value)}
                         />
                       </div>
                     ))}
@@ -208,10 +350,15 @@ function SubmissionGrading() {
                 )}
 
                 <div className="vf-total">
-                  <span style={{ color: 'var(--color-text-muted)' }}>Auto-calculated total</span>
-                  <span className="vf-total-num">{total} / {maxTotal}</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Total awarded</span>
+                  <span className="vf-total-num">{totalAwarded} / {totalPossible}</span>
                 </div>
 
+                {hasOverBudget && review.status !== 'RETURNED' && (
+                  <p className="mk-warn">
+                    ⚠ Question{overQuestions.length > 1 ? 's' : ''} {overQuestions.map((o) => o.n).join(', ')} exceed 25 marks. Reduce the sub-part marks to 25 or less before saving.
+                  </p>
+                )}
                 <div className="vf-actions">
                   {review.status === 'RETURNED' ? (
                     <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
@@ -219,7 +366,7 @@ function SubmissionGrading() {
                     </span>
                   ) : (
                     <>
-                      <button className="vf-btn vf-btn-grade" onClick={saveGrade}>Save Grade</button>
+                      <button className="vf-btn vf-btn-grade" onClick={saveGrade} disabled={hasOverBudget}>Save Grade</button>
                       {review.status === 'GRADED' && (
                         <button className="vf-btn vf-btn-return" onClick={returnToStudent}>Return to Student</button>
                       )}
@@ -339,6 +486,7 @@ function SolutionVerification() {
   const [statusFilter, setStatusFilter] = useState('ALL')       // ALL | PENDING | APPROVED
   const [subjectFilter, setSubjectFilter] = useState('ALL')
   const [difficultyFilter, setDifficultyFilter] = useState('ALL')
+  const [approveTarget, setApproveTarget] = useState(null)      // the solution shown in the approve modal
 
   useEffect(() => { fetchPending() }, [])
 
@@ -350,9 +498,14 @@ function SolutionVerification() {
     } catch { /* ignore */ } finally { setLoading(false) }
   }
 
-  const approve = async (id) => {
-    try { await VerificationService.approve(id); await fetchPending(); toast('Solution approved.', 'success') }
-    catch { toast('Failed to approve.', 'error') }
+  const confirmApprove = async () => {
+    if (!approveTarget) return
+    try {
+      await VerificationService.approve(approveTarget.solutionId)
+      setApproveTarget(null)
+      await fetchPending()
+      toast('Solution approved.', 'success')
+    } catch { toast('Failed to approve.', 'error') }
   }
 
   const openReject = (id) => { setRejectId(id); setRejectReason('') }
@@ -452,13 +605,17 @@ function SolutionVerification() {
                 </div>
               )}
               <div className="vf-actions">
-                {!sol.isVerified && (
-                  <button className="vf-btn vf-btn-approve" onClick={() => approve(sol.solutionId)}>Approve</button>
+                {sol.isVerified ? (
+                  <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                    🔒 Approved — this solution is verified and locked.
+                  </span>
+                ) : (
+                  <>
+                    <button className="vf-btn vf-btn-approve" onClick={() => setApproveTarget(sol)}>Approve</button>
+                    <button className="vf-btn vf-btn-reject" onClick={() => openReject(sol.solutionId)}>Reject</button>
+                    <button className="vf-btn vf-btn-edit" onClick={() => startEdit(sol)}>Edit</button>
+                  </>
                 )}
-                <button className="vf-btn vf-btn-reject" onClick={() => openReject(sol.solutionId)}>
-                  {sol.isVerified ? 'Revert to pending' : 'Reject'}
-                </button>
-                <button className="vf-btn vf-btn-edit" onClick={() => startEdit(sol)}>Edit</button>
               </div>
             </>
           )}
@@ -484,6 +641,40 @@ function SolutionVerification() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.75rem' }}>
               <button className="vf-btn vf-btn-return" onClick={() => setRejectId(null)}>Cancel</button>
               <button className="vf-btn vf-btn-reject" onClick={confirmReject}>Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Approve confirmation modal (shows the solution being approved) ─── */}
+      {approveTarget && (
+        <div className="sub-modal-overlay" onClick={() => setApproveTarget(null)}>
+          <div className="sub-modal" style={{ width: 'min(760px, 100%)' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ margin: '0 0 0.35rem' }}>Approve this solution?</h2>
+            <p style={{ color: 'var(--color-text-muted)', margin: '0 0 0.9rem', lineHeight: 1.5 }}>
+              Approving marks it verified. This is <strong>final</strong> — an approved solution can't be reverted or edited.
+            </p>
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+              {approveTarget.subject && <span className="vf-chip">{approveTarget.subject}</span>}
+              {approveTarget.difficulty && <span className="vf-chip">{approveTarget.difficulty}</span>}
+            </div>
+            <div className="vf-sol-section">
+              <span className="vf-sol-label">Question</span>
+              <p style={{ margin: 0 }}>{stripHtml(approveTarget.question?.content || '')}</p>
+            </div>
+            <div className="vf-sol-section">
+              <span className="vf-sol-label">Solution</span>
+              <SolutionContent content={approveTarget.content} />
+            </div>
+            {approveTarget.explanation && (
+              <div className="vf-sol-section">
+                <span className="vf-sol-label">Explanation</span>
+                <SolutionContent content={approveTarget.explanation} />
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '1rem' }}>
+              <button className="vf-btn vf-btn-return" onClick={() => setApproveTarget(null)}>Cancel</button>
+              <button className="vf-btn vf-btn-approve" onClick={confirmApprove}>Approve</button>
             </div>
           </div>
         </div>

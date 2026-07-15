@@ -231,7 +231,7 @@ a:hover {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.5rem;
+  padding: 1.15rem 1.25rem;
   box-shadow: var(--shadow-card);
   transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
 }
@@ -368,16 +368,16 @@ a:hover {
 
 .main-content {
   flex: 1;
-  padding: 2.5rem;
+  padding: 1.75rem 2rem;
   overflow-y: auto;
 }
 
 .page-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
 }
 
 .page-title {
-  font-size: 1.95rem;
+  font-size: 1.7rem;
   font-weight: 400;
   color: var(--ink);
   letter-spacing: -0.015em;
