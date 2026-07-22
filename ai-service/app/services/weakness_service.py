@@ -207,13 +207,13 @@ def _standardize(rows: list) -> list:
 def _euclidean(a: list, b: list) -> float:
     return sum((a[i] - b[i]) ** 2 for i in range(len(a))) ** 0.5
 
-
-def _agglomerative(points: list, k: int) -> list:
-    """
+"""
     Average-linkage agglomerative clustering: start with each point in its own cluster
     and repeatedly merge the two whose centroids are closest, until k clusters remain.
     Returns a cluster label per point.
     """
+def _agglomerative(points: list, k: int) -> list:
+    
     clusters = [[i] for i in range(len(points))]
 
     def centroid(cluster):

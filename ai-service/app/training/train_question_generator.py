@@ -16,10 +16,6 @@ import sys
 import argparse
 import pandas as pd
 from dotenv import load_dotenv
-
-# === ML & Transformers Imports ================================================
-# * Loads sklearn to split data into training and testing sets
-# * Loads HuggingFace tools to build and train the AI model
 from sklearn.model_selection import train_test_split
 from datasets import Dataset
 from transformers import (
@@ -119,12 +115,6 @@ def check_dataset() -> bool:
 
 
 def tokenize(batch, tokenizer):
-    """
-    Tokenize dataset batches for Seq2Seq learning.
-    * Converts human-readable text into mathematical numbers (tokens)
-    * Pads short sentences with empty tokens so they all match the max length
-    * Tells the AI to ignore the empty padding tokens during training
-    """
     model_inputs = tokenizer(
         batch["input_text"],
         max_length=MAX_INPUT_LEN,

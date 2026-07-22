@@ -359,7 +359,7 @@ const WorkspacePage = () => {
             onClick={() => setIsModalOpen(true)}
             style={{ margin: 0 }}
           >
-            ✨ Generate AI Paper
+            ✨ Generate Practice Paper
           </button>
 
           <button className="ws-ghost-btn" onClick={handleOpenPypModal}>
@@ -493,7 +493,7 @@ const WorkspacePage = () => {
 
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}>✨ Generate Customized Paper</h2>
+              <h2 style={{ margin: 0 }}>✨ Generate Practice Paper</h2>
               <button onClick={() => setIsModalOpen(false)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </div>

@@ -39,7 +39,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
         
-        // ── ADD THIS DEBUG BLOCK ──────────────────────────────────────
         String email;
         try {
             email = jwtUtil.extractEmail(token);
@@ -49,7 +48,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        // ─────────────────────────────────────────────────────────────
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
